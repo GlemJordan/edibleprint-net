@@ -1,0 +1,31 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  font-family: 'Outfit', sans-serif;
+  background: #FAFBF9;
+  color: #1a1a1a;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; text-decoration: none; }
+
+::selection {
+  background: #1B6B4A;
+  color: white;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: #1B6B4A !important;
+  outline: none;
+}
+
+details summary::-webkit-details-marker { display: none; }
+details summary { list-style: none; }
+
+@media (max-width: 600px) {
+  .hide-mobile { display: none !important; }
+}
