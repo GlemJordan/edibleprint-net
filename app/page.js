@@ -246,9 +246,10 @@ export default function EdiblePrintApp() {
       }
     } catch (error) {
       alert('Connection error. Please try again.');
-    } finally {
+   } finally {
       setLoading(false);
-
+    }
+  };
   /* ════════════════════════════ */
   /* ═══ HOME PAGE ═══ */
   /* ════════════════════════════ */
