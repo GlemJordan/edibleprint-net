@@ -194,7 +194,7 @@ export default function EdiblePrintApp() {
 
   const updateForm = (key, val) => setForm((prev) => ({ ...prev, [key]: val }));
 
-  /* ═══ STRIPE CHECKOUT ═══ */
+ /* ═══ STRIPE CHECKOUT ═══ */
   const handlePlaceOrder = async () => {
     if (!form.name || !form.email || !form.address || !form.city || !form.postal) {
       alert('Please fill in all required fields.');
@@ -202,6 +202,21 @@ export default function EdiblePrintApp() {
     }
     setLoading(true);
     try {
+      // Step 1: Upload image to Cloudinary
+      let imageUrl = '';
+      if (image) {
+        const uploadRes = await fetch('/api/upload-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageData: image, fileName: imageName }),
+        });
+        const uploadData = await uploadRes.json();
+        if (uploadData.url) {
+          imageUrl = uploadData.url;
+        }
+      }
+
+      // Step 2: Create Stripe checkout
       const response = await fetch('/api/create-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -220,6 +235,7 @@ export default function EdiblePrintApp() {
           shippingMethod: shipping,
           shippingCost: SHIPPING[shipping],
           notes,
+          imageUrl,
         }),
       });
       const data = await response.json();
@@ -232,8 +248,6 @@ export default function EdiblePrintApp() {
       alert('Connection error. Please try again.');
     } finally {
       setLoading(false);
-    }
-  };
 
   /* ════════════════════════════ */
   /* ═══ HOME PAGE ═══ */
