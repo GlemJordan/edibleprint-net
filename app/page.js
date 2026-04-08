@@ -181,7 +181,7 @@ export default function EdiblePrintApp() {
   const [shipping, setShipping] = useState('standard');
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
-    name: '', email: '', phone: '', address: '', city: '', province: 'Ontario', postal: ''
+    name: '', email: '', phone: '', address: '', unit: '', city: '', province: 'Ontario', postal: ''
   });
   const fileRef = useRef(null);
   const addressRef = useRef(null);
@@ -287,7 +287,7 @@ export default function EdiblePrintApp() {
           customerName: form.name,
           customerEmail: form.email,
           customerPhone: form.phone,
-          shippingAddress: form.address,
+          shippingAddress: form.address + (form.unit ? ', ' + form.unit : ''),
           shippingCity: form.city,
           shippingProvince: form.province,
           shippingPostal: form.postal,
@@ -296,7 +296,7 @@ export default function EdiblePrintApp() {
           quantity: qty,
           unitPrice,
           shippingMethod: shipping,
-          shippingCost: SHIPPING[shipping],
+          shippingCost: shippingCost,
           notes,
           imageUrl,
         }),
@@ -591,6 +591,10 @@ export default function EdiblePrintApp() {
               <div>
                 <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Street Address *</label>
                 <input ref={addressRef} value={form.address} onChange={(e) => updateForm('address', e.target.value)} style={inputStyle} placeholder="Start typing your address..." autoComplete="off" />
+              </div>
+              <div style={{ maxWidth: 200 }}>
+                <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Unit / Apt</label>
+                <input value={form.unit} onChange={(e) => updateForm('unit', e.target.value)} style={inputStyle} placeholder="Unit 503" />
               </div>
               <div style={{ display: 'flex', gap: 12 }}>
                 <div style={{ flex: 1 }}>
