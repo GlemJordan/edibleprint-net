@@ -38,7 +38,7 @@ export async function POST(request) {
           price_data: {
             currency: 'cad',
             product_data: {
-              name: 'Shipping (' + (shippingMethod === 'express' ? 'Express 1-2 days' : 'Standard 3-5 days') + ')',
+              name: 'Shipping (' + (shippingMethod === 'express' ? 'Express 1-2 days' : shippingMethod === 'local' ? 'Same Day Delivery' : 'Standard 3-5 days') + ')',
             },
             unit_amount: shippingAmount,
           },
