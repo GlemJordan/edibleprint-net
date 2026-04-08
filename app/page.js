@@ -21,7 +21,7 @@ const SIZES = {
   custom: [{ id: 'custom', label: 'Custom Size', w: 0, h: 0, price: 0 }],
 };
 
-const SHIPPING = { standard: 6.99, express: 14.99 };
+const SHIPPING = { local: 0, standard: 6.99, express: 14.99 };
 const TAX_RATE = 0.13;
 
 const PROVINCES = [
@@ -548,7 +548,8 @@ export default function EdiblePrintApp() {
             </div>
             <div style={{ marginTop: 26 }}>
               <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 10 }}>Shipping Method</label>
-              {[{ key: 'standard', label: 'Standard — 3-5 business days', price: SHIPPING.standard },
+              {[{ key: 'local', label: 'Same Day Delivery — London, ON — London, ON (1-2 days)', price: SHIPPING.local },
+                { key: 'standard', label: 'Standard — 3-5 business days', price: SHIPPING.standard },
                 { key: 'express', label: 'Express — 1-2 business days', price: SHIPPING.express }].map((opt) => (
                 <label key={opt.key} style={{
                   display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 12,
