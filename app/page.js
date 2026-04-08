@@ -184,6 +184,8 @@ export default function EdiblePrintApp() {
     name: '', email: '', phone: '', address: '', city: '', province: 'Ontario', postal: ''
   });
   const fileRef = useRef(null);
+  const addressRef = useRef(null);
+  const autocompleteRef = useRef(null);
 
   const sizes = SIZES[shape] || [];
   const selectedSize = sizes.find((sz) => sz.id === sizeId) || sizes[0];
@@ -206,6 +208,43 @@ export default function EdiblePrintApp() {
     if (shape === 'custom') { setSizeId('custom'); }
     else if (!SIZES[shape]?.find((sz) => sz.id === sizeId)) { setSizeId(SIZES[shape]?.[0]?.id || ''); }
   }, [shape]);
+
+  /* ═══ GOOGLE PLACES AUTOCOMPLETE ═══ */
+  useEffect(() => {
+    if (step !== 3 || !addressRef.current || autocompleteRef.current) return;
+    const checkGoogle = setInterval(() => {
+      if (window.google?.maps?.places) {
+        clearInterval(checkGoogle);
+        const ac = new window.google.maps.places.Autocomplete(addressRef.current, {
+          types: ['address'],
+          componentRestrictions: { country: 'ca' },
+          fields: ['address_components', 'formatted_address'],
+        });
+        ac.addListener('place_changed', () => {
+          const place = ac.getPlace();
+          if (!place.address_components) return;
+          let street = '', city = '', province = '', postal = '';
+          for (const comp of place.address_components) {
+            const t = comp.types;
+            if (t.includes('street_number')) street = comp.long_name + ' ';
+            if (t.includes('route')) street += comp.long_name;
+            if (t.includes('locality')) city = comp.long_name;
+            if (t.includes('administrative_area_level_1')) province = comp.long_name;
+            if (t.includes('postal_code')) postal = comp.short_name;
+          }
+          setForm((prev) => ({
+            ...prev,
+            address: street.trim(),
+            city: city || prev.city,
+            province: province || prev.province,
+            postal: postal || prev.postal,
+          }));
+        });
+        autocompleteRef.current = ac;
+      }
+    }, 200);
+    return () => { clearInterval(checkGoogle); autocompleteRef.current = null; };
+  }, [step]);
 
   const handleFile = (e) => {
     const file = e.target.files?.[0];
@@ -551,7 +590,7 @@ export default function EdiblePrintApp() {
               </div>
               <div>
                 <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Street Address *</label>
-                <input value={form.address} onChange={(e) => updateForm('address', e.target.value)} style={inputStyle} placeholder="123 Main Street, Apt 4" />
+                <input ref={addressRef} value={form.address} onChange={(e) => updateForm('address', e.target.value)} style={inputStyle} placeholder="Start typing your address..." autoComplete="off" />
               </div>
               <div style={{ display: 'flex', gap: 12 }}>
                 <div style={{ flex: 1 }}>
