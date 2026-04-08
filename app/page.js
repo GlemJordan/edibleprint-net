@@ -21,7 +21,24 @@ const SIZES = {
   custom: [{ id: 'custom', label: 'Custom Size', w: 0, h: 0, price: 0 }],
 };
 
-const SHIPPING = { local: 0, standard: 6.99, express: 14.99 };
+/* ═══ SHIPPING & DELIVERY ZONES ═══ */
+const SHIPPING = { standard: 6.99, express: 14.99 };
+const LOCAL_ZONES = {
+  south:   { name: 'South London',        price: 5,  fsas: ['N5Z','N5X','N5W','N6K','N6L'] },
+  central: { name: 'Central London',      price: 7,  fsas: ['N6A','N6B','N6C'] },
+  eastwest:{ name: 'East/West London',     price: 8,  fsas: ['N5Y','N5V','N5P','N6E','N6G','N6H','N6J'] },
+  north:   { name: 'North London',         price: 10, fsas: ['N6M','N6N','N6P'] },
+};
+
+function getLocalZone(postalCode) {
+  if (!postalCode) return null;
+  const fsa = postalCode.replace(/\s/g, '').toUpperCase().slice(0, 3);
+  for (const [key, zone] of Object.entries(LOCAL_ZONES)) {
+    if (zone.fsas.includes(fsa)) return { key, ...zone };
+  }
+  return null;
+}
+
 const TAX_RATE = 0.13;
 
 const PROVINCES = [
@@ -174,9 +191,16 @@ export default function EdiblePrintApp() {
     ? (parseFloat(customW || 0) * parseFloat(customH || 0) * 0.25 + 5)
     : selectedSize?.price || 0;
   const subtotal = unitPrice * qty;
-  const shippingCost = SHIPPING[shipping];
+  const localZone = getLocalZone(form.postal);
+  const shippingCost = shipping === 'local' ? (localZone?.price || 0) : (SHIPPING[shipping] || 0);
   const tax = (subtotal + shippingCost) * TAX_RATE;
   const total = subtotal + shippingCost + tax;
+
+  useEffect(() => {
+    if (shipping === 'local' && form.postal && !getLocalZone(form.postal)) {
+      setShipping('standard');
+    }
+  }, [form.postal]);
 
   useEffect(() => {
     if (shape === 'custom') { setSizeId('custom'); }
@@ -286,7 +310,7 @@ export default function EdiblePrintApp() {
         </section>
 
         <div style={{ display: 'flex', justifyContent: 'center', gap: 32, flexWrap: 'wrap', padding: '0 24px 40px' }}>
-          {['🍃 FDA-Approved Inks', '📦 Canada-Wide Shipping', '⚡ 24h Image Review', '🔒 Secure Payment'].map((t, i) => (
+          {['🍃 FDA-Approved Inks', '🚗 Same-Day London Delivery', '📦 Canada-Wide Shipping', '🔒 Secure Payment'].map((t, i) => (
             <span key={i} style={{ fontSize: 13, color: C.muted, fontWeight: 500 }}>{t}</span>
           ))}
         </div>
@@ -345,7 +369,7 @@ export default function EdiblePrintApp() {
           </h2>
           {[
             ['What are edible prints made of?', 'We use FDA-approved edible icing sheets with food-safe inks. They are 100% safe to eat and designed to be placed directly on cakes, cookies, cupcakes, and other baked goods.'],
-            ['How long does shipping take?', 'Standard shipping takes 3-5 business days anywhere in Canada via Canada Post. Express shipping (1-2 business days) is available at checkout.'],
+            ['How long does shipping take?', 'Same-day delivery is available in London, Ontario (from $5). Standard shipping takes 3-5 business days anywhere in Canada via Canada Post. Express shipping (1-2 business days) is also available.'],
             ['What image quality do I need?', 'For best results, upload a high-resolution image (at least 1000x1000 pixels). We review every order before printing and will contact you if we notice any quality issues.'],
             ['Do you ship to all provinces?', 'Yes — we ship to every province and territory in Canada.'],
             ['Can I order multiple copies?', 'Absolutely. Adjust the quantity at checkout. Volume discounts are available for orders over 20 units — contact us for a quote.'],
@@ -548,16 +572,27 @@ export default function EdiblePrintApp() {
             </div>
             <div style={{ marginTop: 26 }}>
               <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 10 }}>Shipping Method</label>
-              {[{ key: 'local', label: 'Same Day Delivery — London, ON — London, ON (1-2 days)', price: SHIPPING.local },
-                { key: 'standard', label: 'Standard — 3-5 business days', price: SHIPPING.standard },
-                { key: 'express', label: 'Express — 1-2 business days', price: SHIPPING.express }].map((opt) => (
+              {[
+                { key: 'local', label: localZone ? 'Same Day Delivery — ' + localZone.name : 'Same Day Delivery — London, ON', price: localZone?.price || 0, disabled: !localZone },
+                { key: 'standard', label: 'Standard Shipping — 3-5 business days', price: SHIPPING.standard, disabled: false },
+                { key: 'express', label: 'Express Shipping — 1-2 business days', price: SHIPPING.express, disabled: false },
+              ].map((opt) => (
                 <label key={opt.key} style={{
                   display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 12,
                   border: shipping === opt.key ? '2.5px solid ' + C.brand : '2px solid ' + C.border,
-                  background: shipping === opt.key ? C.brandLight : C.white, marginBottom: 8, cursor: 'pointer', transition: 'all 0.2s' }}>
-                  <input type="radio" name="shipping" checked={shipping === opt.key} onChange={() => setShipping(opt.key)} style={{ accentColor: C.brand, width: 18, height: 18 }} />
-                  <span style={{ flex: 1, fontSize: 14, fontWeight: 500 }}>{opt.label}</span>
-                  <span style={{ fontWeight: 700, fontSize: 14, color: C.brand }}>{'$' + opt.price.toFixed(2)}</span>
+                  background: shipping === opt.key ? C.brandLight : opt.disabled ? '#f9fafb' : C.white, marginBottom: 8,
+                  cursor: opt.disabled ? 'not-allowed' : 'pointer', transition: 'all 0.2s', opacity: opt.disabled ? 0.5 : 1 }}>
+                  <input type="radio" name="shipping" checked={shipping === opt.key} onChange={() => { if (!opt.disabled) setShipping(opt.key); }} disabled={opt.disabled} style={{ accentColor: C.brand, width: 18, height: 18 }} />
+                  <div style={{ flex: 1 }}>
+                    <span style={{ fontSize: 14, fontWeight: 500 }}>{opt.label}</span>
+                    {opt.key === 'local' && !localZone && form.postal && (
+                      <div style={{ fontSize: 12, color: '#EF4444', marginTop: 2 }}>Not available for your postal code</div>
+                    )}
+                    {opt.key === 'local' && !form.postal && (
+                      <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>Enter your postal code above</div>
+                    )}
+                  </div>
+                  <span style={{ fontWeight: 700, fontSize: 14, color: opt.disabled ? C.muted : C.brand }}>{opt.key === 'local' && localZone ? '$' + localZone.price.toFixed(2) : opt.key === 'local' ? '—' : '$' + opt.price.toFixed(2)}</span>
                 </label>
               ))}
             </div>
