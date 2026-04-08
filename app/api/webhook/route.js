@@ -46,7 +46,7 @@ export async function POST(request) {
             + '<h3 style="color:#1B6B4A;">Shipping</h3>'
             + '<p>' + meta.shippingAddress + '<br/>'
             + meta.shippingCity + ', ' + meta.shippingProvince + ' ' + meta.shippingPostal + '<br/>'
-            + 'Method: ' + (meta.shippingMethod === 'express' ? 'Express (1-2 days)' : 'Standard (3-5 days)') + '</p>'
+            + 'Method: ' + (meta.shippingMethod === 'express' ? 'Express (1-2 days)' : meta.shippingMethod === 'local' ? 'Same Day Delivery' : 'Standard (3-5 days)') + '</p>'
             + '<h3 style="color:#1B6B4A;">Order Details</h3>'
             + '<p>Shape: ' + meta.shape + '<br/>'
             + 'Size: ' + meta.size + '<br/>'
