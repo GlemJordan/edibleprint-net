@@ -1,27 +1,31 @@
 import Stripe from 'stripe';
 import { NextResponse } from 'next/server';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const isTest = process.env.STRIPE_MODE === 'test';
+const stripeKey = isTest
+  ? process.env.STRIPE_SECRET_KEY_TEST
+  : (process.env.STRIPE_SECRET_KEY_LIVE || process.env.STRIPE_SECRET_KEY);
+const webhookSecret = isTest
+  ? process.env.STRIPE_WEBHOOK_SECRET_TEST
+  : (process.env.STRIPE_WEBHOOK_SECRET);
+
+const stripe = new Stripe(stripeKey);
 
 export async function POST(request) {
   const body = await request.text();
   const signature = request.headers.get('stripe-signature');
   let event;
-
   try {
-    event = stripe.webhooks.constructEvent(body, signature, process.env.STRIPE_WEBHOOK_SECRET);
+    event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
   } catch (err) {
     console.error('Webhook signature verification failed:', err.message);
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
   }
-
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object;
     const meta = session.metadata;
     const orderId = 'EP-' + session.id.slice(-8).toUpperCase();
-
-    console.log('--- NEW ORDER: ' + orderId + ' ---');
-
+    console.log('--- NEW ORDER: ' + orderId + (isTest ? ' [TEST]' : '') + ' ---');
     try {
       const emailResponse = await fetch('https://api.resend.com/emails', {
         method: 'POST',
@@ -32,9 +36,10 @@ export async function POST(request) {
         body: JSON.stringify({
           from: 'EdiblePrint.net Orders <onboarding@resend.dev>',
           to: [process.env.ORDER_NOTIFICATION_EMAIL || 'glenj.belmar@gmail.com'],
-          subject: 'New Order ' + orderId + ' - $' + (session.amount_total / 100).toFixed(2) + ' CAD',
+          subject: (isTest ? '[TEST] ' : '') + 'New Order ' + orderId + ' - $' + (session.amount_total / 100).toFixed(2) + ' CAD',
           html: '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">'
-            + '<div style="background:#1B6B4A;color:white;padding:20px;border-radius:8px 8px 0 0;">'
+            + (isTest ? '<div style="background:#F59E0B;color:white;padding:10px;text-align:center;border-radius:8px 8px 0 0;font-weight:bold;">⚠️ TEST ORDER — Not a real payment</div>' : '')
+            + '<div style="background:#1B6B4A;color:white;padding:20px;' + (isTest ? '' : 'border-radius:8px 8px 0 0;') + '">'
             + '<h1 style="margin:0;font-size:22px;">New Order: ' + orderId + '</h1>'
             + '<p style="margin:8px 0 0;opacity:0.9;">Total: $' + (session.amount_total / 100).toFixed(2) + ' CAD</p>'
             + '</div>'
@@ -62,7 +67,6 @@ export async function POST(request) {
             + '</div></div>',
         }),
       });
-
       if (!emailResponse.ok) {
         console.error('Email send failed:', await emailResponse.text());
       } else {
@@ -72,6 +76,5 @@ export async function POST(request) {
       console.error('Email error:', emailError);
     }
   }
-
   return NextResponse.json({ received: true });
 }
