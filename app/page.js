@@ -252,6 +252,17 @@ export default function EdiblePrintApp() {
     else if (!SIZES[shape]?.find((sz) => sz.id === sizeId)) { setSizeId(SIZES[shape]?.[0]?.id || ''); }
   }, [shape]);
 
+  /* ═══ PREVENT BROWSER DEFAULT DRAG/DROP (opens file in new tab) ═══ */
+  useEffect(() => {
+    const prevent = (e) => { e.preventDefault(); e.stopPropagation(); };
+    document.addEventListener('dragover', prevent);
+    document.addEventListener('drop', prevent);
+    return () => {
+      document.removeEventListener('dragover', prevent);
+      document.removeEventListener('drop', prevent);
+    };
+  }, []);
+
   /* ═══ GOOGLE PLACES AUTOCOMPLETE ═══ */
   useEffect(() => {
     if (step !== 3 || !addressRef.current || autocompleteRef.current) return;
