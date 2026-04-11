@@ -89,17 +89,28 @@ function Logo({ size = 28 }) {
   );
 }
 
-/* ═══ IMAGE EDITOR ═══ */
-function ImageEditor({ image, shape, sizeObj, onCrop }) {
+/* ═══ IMAGE EDITOR (with hi-res export) ═══ */
+function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop }) {
   const canvasRef = useRef(null);
+  const hiResCanvasRef = useRef(null);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const [scale, setScale] = useState(1);
   const [dragging, setDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const imgRef = useRef(null);
+
+  /* Preview canvas size */
   const canvasW = 300;
   const ratio = sizeObj.h && sizeObj.w ? sizeObj.h / sizeObj.w : 1;
   const canvasH = shape === 'rectangular' ? Math.round(canvasW * ratio) : canvasW;
+
+  /* Hi-res output: 300 DPI based on the print size in inches */
+  const DPI = 300;
+  const printW = sizeObj.w || 6;
+  const printH = sizeObj.h || 6;
+  const hiResW = printW * DPI; /* e.g. 8" = 2400px */
+  const hiResH = printH * DPI; /* e.g. 8" = 2400px */
+  const scaleFactor = hiResW / canvasW; /* ratio between hi-res and preview */
 
   useEffect(() => {
     if (!image) return;
@@ -115,7 +126,11 @@ function ImageEditor({ image, shape, sizeObj, onCrop }) {
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !imgRef.current) return;
+    const hiResCanvas = hiResCanvasRef.current;
+    if (!canvas || !hiResCanvas || !imgRef.current) return;
+    const img = imgRef.current;
+
+    /* ── Draw preview canvas (what the user sees) ── */
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvasW, canvasH);
     ctx.save();
@@ -124,7 +139,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop }) {
       ctx.arc(canvasW / 2, canvasH / 2, canvasW / 2, 0, Math.PI * 2);
       ctx.clip();
     }
-    ctx.drawImage(imgRef.current, pos.x, pos.y, imgRef.current.width * scale, imgRef.current.height * scale);
+    ctx.drawImage(img, pos.x, pos.y, img.width * scale, img.height * scale);
     ctx.restore();
     ctx.strokeStyle = C.brand;
     ctx.lineWidth = 2;
@@ -138,7 +153,31 @@ function ImageEditor({ image, shape, sizeObj, onCrop }) {
     }
     ctx.setLineDash([]);
     if (onCrop) onCrop(canvas.toDataURL());
-  }, [pos, scale, shape]);
+
+    /* ── Draw hi-res canvas (what gets uploaded for printing) ── */
+    hiResCanvas.width = hiResW;
+    hiResCanvas.height = hiResH;
+    const hctx = hiResCanvas.getContext('2d');
+    hctx.clearRect(0, 0, hiResW, hiResH);
+    hctx.save();
+    if (shape === 'circular') {
+      hctx.beginPath();
+      hctx.arc(hiResW / 2, hiResH / 2, hiResW / 2, 0, Math.PI * 2);
+      hctx.clip();
+    }
+    /* Scale position & size proportionally */
+    const hrX = pos.x * scaleFactor;
+    const hrY = pos.y * scaleFactor;
+    const hrImgW = img.width * scale * scaleFactor;
+    const hrImgH = img.height * scale * scaleFactor;
+    hctx.drawImage(img, hrX, hrY, hrImgW, hrImgH);
+    hctx.restore();
+
+    /* Export hi-res as JPEG 95% quality */
+    if (onHiResCrop) {
+      onHiResCrop(hiResCanvas.toDataURL('image/jpeg', 0.95));
+    }
+  }, [pos, scale, shape, hiResW, hiResH, scaleFactor]);
 
   const handlePointerDown = (e) => { setDragging(true); setDragStart({ x: e.clientX - pos.x, y: e.clientY - pos.y }); };
   const handlePointerMove = (e) => { if (!dragging) return; setPos({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y }); };
@@ -152,6 +191,8 @@ function ImageEditor({ image, shape, sizeObj, onCrop }) {
           borderRadius: shape === 'circular' ? '50%' : 12,
           boxShadow: '0 8px 32px rgba(27,107,74,0.10)', maxWidth: '100%' }}
       />
+      {/* Hidden hi-res canvas for print-quality export */}
+      <canvas ref={hiResCanvasRef} style={{ display: 'none' }} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', maxWidth: 300 }}>
         <span style={{ fontSize: 18, color: C.muted, fontWeight: 700 }}>-</span>
         <input type="range" min={0.15} max={3} step={0.01} value={scale}
@@ -160,6 +201,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop }) {
         <span style={{ fontSize: 18, color: C.muted, fontWeight: 700 }}>+</span>
       </div>
       <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>Drag to reposition · Slider to zoom</p>
+      <p style={{ fontSize: 11, color: '#bbb', margin: 0 }}>Print output: {hiResW}×{hiResH}px ({DPI} DPI)</p>
     </div>
   );
 }
@@ -178,6 +220,7 @@ export default function EdiblePrintApp() {
   const [qty, setQty] = useState(1);
   const [notes, setNotes] = useState('');
   const [cropPreview, setCropPreview] = useState(null);
+  const [hiResCrop, setHiResCrop] = useState(null);
   const [shipping, setShipping] = useState('standard');
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
@@ -255,6 +298,22 @@ export default function EdiblePrintApp() {
     reader.readAsDataURL(file);
   };
 
+  /* ═══ DRAG & DROP ═══ */
+  const [isDragOver, setIsDragOver] = useState(false);
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer?.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/') && file.type !== 'application/pdf') return;
+    setImageName(file.name);
+    const reader = new FileReader();
+    reader.onload = (ev) => { setImage(ev.target.result); setStep(2); };
+    reader.readAsDataURL(file);
+  };
+  const handleDragOver = (e) => { e.preventDefault(); setIsDragOver(true); };
+  const handleDragLeave = () => { setIsDragOver(false); };
+
   const updateForm = (key, val) => setForm((prev) => ({ ...prev, [key]: val }));
 
  /* ═══ STRIPE CHECKOUT ═══ */
@@ -265,13 +324,14 @@ export default function EdiblePrintApp() {
     }
     setLoading(true);
     try {
-      // Step 1: Upload image to Cloudinary
+      /* Upload the HI-RES CROPPED image (not the original) */
       let imageUrl = '';
-      if (image) {
+      const imageToUpload = hiResCrop || cropPreview || image;
+      if (imageToUpload) {
         const uploadRes = await fetch('/api/upload-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageData: image, fileName: imageName }),
+          body: JSON.stringify({ imageData: imageToUpload, fileName: imageName }),
         });
         const uploadData = await uploadRes.json();
         if (uploadData.url) {
@@ -466,19 +526,27 @@ export default function EdiblePrintApp() {
 
       <div style={{ maxWidth: 600, margin: '0 auto', padding: '32px 20px' }}>
 
-        {/* STEP 1: UPLOAD */}
+        {/* STEP 1: UPLOAD (with real drag & drop) */}
         {step === 1 && (
           <div style={{ textAlign: 'center' }}>
             <div style={stepBadge}>1</div>
             <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, margin: '16px 0 8px', fontWeight: 700 }}>Upload Your Image</h2>
             <p style={{ color: C.muted, marginBottom: 28 }}>JPG, PNG or PDF · High resolution for best results</p>
-            <div onClick={() => fileRef.current?.click()}
-              style={{ border: '2.5px dashed ' + C.border, borderRadius: 20, padding: '56px 24px',
-                cursor: 'pointer', transition: 'all 0.25s', background: C.white }}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.brand; e.currentTarget.style.background = C.brandLight; }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.white; }}>
+            <div
+              onClick={() => fileRef.current?.click()}
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              style={{
+                border: '2.5px dashed ' + (isDragOver ? C.brand : C.border),
+                borderRadius: 20, padding: '56px 24px',
+                cursor: 'pointer', transition: 'all 0.25s',
+                background: isDragOver ? C.brandLight : C.white,
+              }}>
               <div style={{ fontSize: 52, marginBottom: 14, opacity: 0.8 }}>🖼️</div>
-              <p style={{ margin: 0, fontWeight: 600, fontSize: 17 }}>Tap to upload your image</p>
+              <p style={{ margin: 0, fontWeight: 600, fontSize: 17 }}>
+                {isDragOver ? 'Drop your image here!' : 'Tap to upload your image'}
+              </p>
               <p style={{ margin: '8px 0 0', fontSize: 13, color: '#bbb' }}>or drag and drop here</p>
             </div>
             <input ref={fileRef} type="file" accept="image/*,.pdf" onChange={handleFile} style={{ display: 'none' }} />
@@ -547,7 +615,13 @@ export default function EdiblePrintApp() {
               <button onClick={() => setQty(qty + 1)} style={{ width: 38, height: 38, borderRadius: 10, border: '1.5px solid ' + C.border, background: C.white, fontSize: 18, cursor: 'pointer', fontWeight: 600 }}>+</button>
             </div>
             <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 10 }}>Adjust Your Image</label>
-            <ImageEditor image={image} shape={shape} sizeObj={selectedSize || { w: parseFloat(customW) || 6, h: parseFloat(customH) || 6 }} onCrop={setCropPreview} />
+            <ImageEditor
+              image={image}
+              shape={shape}
+              sizeObj={selectedSize || { w: parseFloat(customW) || 6, h: parseFloat(customH) || 6 }}
+              onCrop={setCropPreview}
+              onHiResCrop={setHiResCrop}
+            />
             <div style={{ marginTop: 22 }}>
               <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Special Instructions (optional)</label>
               <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Please make the background white..." rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
