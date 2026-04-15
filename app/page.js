@@ -133,6 +133,8 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop }) {
     /* ── Draw preview canvas (what the user sees) ── */
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvasW, canvasH);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, canvasW, canvasH);
     ctx.save();
     if (shape === 'circular') {
       ctx.beginPath();
@@ -159,12 +161,8 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop }) {
     hiResCanvas.height = hiResH;
     const hctx = hiResCanvas.getContext('2d');
     hctx.clearRect(0, 0, hiResW, hiResH);
-
-    /* For non-circular shapes, fill white background first */
-    if (shape !== 'circular') {
-      hctx.fillStyle = '#FFFFFF';
-      hctx.fillRect(0, 0, hiResW, hiResH);
-    }
+    hctx.fillStyle = '#FFFFFF';
+    hctx.fillRect(0, 0, hiResW, hiResH);
 
     hctx.save();
     if (shape === 'circular') {
@@ -180,14 +178,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop }) {
     hctx.drawImage(img, hrX, hrY, hrImgW, hrImgH);
     hctx.restore();
 
-    /* Export: PNG for circular (preserves transparency), JPEG for others */
-    if (onHiResCrop) {
-      if (shape === 'circular') {
-        onHiResCrop(hiResCanvas.toDataURL('image/png'));
-      } else {
-        onHiResCrop(hiResCanvas.toDataURL('image/jpeg', 0.95));
-      }
-    }
+    if (onHiResCrop) onHiResCrop(hiResCanvas.toDataURL('image/jpeg', 0.95));
   }, [pos, scale, shape, hiResW, hiResH, scaleFactor]);
 
   const handlePointerDown = (e) => { setDragging(true); setDragStart({ x: e.clientX - pos.x, y: e.clientY - pos.y }); };
