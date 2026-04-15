@@ -351,7 +351,7 @@ export default function EdiblePrintApp() {
 
  /* ═══ STRIPE CHECKOUT ═══ */
   const handlePlaceOrder = async () => {
-    if (!form.name || !form.email || !form.address || !form.city || !form.postal) {
+    if (!form.name || !form.email || (shipping !== 'pickup' && (!form.address || !form.city || !form.postal))) {
       alert('Please fill in all required fields.');
       return;
     }
@@ -728,6 +728,7 @@ export default function EdiblePrintApp() {
                   <input type="tel" value={form.phone} onChange={(e) => updateForm('phone', e.target.value)} style={inputStyle} placeholder="(519) 555-1234" />
                 </div>
               </div>
+              {shipping !== 'pickup' && (<>
               <div>
                 <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Street Address *</label>
                 <input ref={addressRef} value={form.address} onChange={(e) => handleAddressChange(e.target.value)} style={inputStyle} placeholder="e.g. 123 Main Street" autoComplete="off" />
@@ -752,6 +753,7 @@ export default function EdiblePrintApp() {
                 <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Postal Code *</label>
                 <input value={form.postal} onChange={(e) => updateForm('postal', e.target.value.toUpperCase())} style={inputStyle} placeholder="N6A 1B2" maxLength={7} />
               </div>
+              </>)}
             </div>
             <div style={{ marginTop: 26 }}>
               <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 10 }}>Shipping Method</label>
