@@ -23,9 +23,9 @@ const SIZES = {
 };
 
 /* ═══ SHIPPING & DELIVERY ZONES ═══ */
-const SHIPPING = { standard: 6.99, express: 14.99 };
+const SHIPPING = { standard: 9.99, express: 19.99 };
 const LOCAL_ZONES = {
-  south:   { name: 'South London',        price: 5,  fsas: ['N5Z','N5X','N5W','N6K','N6L'] },
+  south:   { name: 'South London',        price: 6.99, fsas: ['N5Z','N5X','N5W','N6K','N6L'] },
   central: { name: 'Central London',      price: 7,  fsas: ['N6A','N6B','N6C'] },
   eastwest:{ name: 'East/West London',     price: 8,  fsas: ['N5Y','N5V','N5P','N6E','N6G','N6H','N6J'] },
   north:   { name: 'North London',         price: 10, fsas: ['N6M','N6N','N6P'] },
@@ -96,6 +96,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop }) {
   const hiResCanvasRef = useRef(null);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const [scale, setScale] = useState(1);
+  const [minScale, setMinScale] = useState(0.3);
   const [dragging, setDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const imgRef = useRef(null);
@@ -118,7 +119,8 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop }) {
     const img = new Image();
     img.onload = () => {
       imgRef.current = img;
-      const sc = Math.max(canvasW / img.width, canvasH / img.height);
+      const sc = Math.min(canvasW / img.width, canvasH / img.height);
+      setMinScale(sc);
       setScale(sc);
       setPos({ x: (canvasW - img.width * sc) / 2, y: (canvasH - img.height * sc) / 2 });
     };
@@ -198,7 +200,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop }) {
       <canvas ref={hiResCanvasRef} style={{ display: 'none' }} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', maxWidth: 300 }}>
         <span style={{ fontSize: 18, color: C.muted, fontWeight: 700 }}>-</span>
-        <input type="range" min={0.15} max={3} step={0.01} value={scale}
+        <input type="range" min={minScale} max={3} step={0.01} value={scale}
           onChange={(e) => setScale(parseFloat(e.target.value))}
           style={{ flex: 1, accentColor: C.brand }} />
         <span style={{ fontSize: 18, color: C.muted, fontWeight: 700 }}>+</span>
@@ -227,7 +229,7 @@ export default function EdiblePrintApp() {
   const [shipping, setShipping] = useState('standard');
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
-    name: '', email: '', phone: '', address: '', unit: '', city: '', province: 'Ontario', postal: ''
+    name: '', email: '', phone: '', address: '', city: '', province: 'Ontario', postal: ''
   });
   const fileRef = useRef(null);
   const addressRef = useRef(null);
@@ -240,7 +242,7 @@ export default function EdiblePrintApp() {
     : selectedSize?.price || 0;
   const subtotal = unitPrice * qty;
   const localZone = getLocalZone(form.postal);
-  const shippingCost = shipping === 'local' ? (localZone?.price || 0) : (SHIPPING[shipping] || 0);
+  const shippingCost = shipping === 'local' ? (localZone?.price || 0) : shipping === 'pickup' ? 0 : (SHIPPING[shipping] || 0);
   const tax = (subtotal + shippingCost) * TAX_RATE;
   const total = subtotal + shippingCost + tax;
 
@@ -361,7 +363,7 @@ export default function EdiblePrintApp() {
           customerName: form.name,
           customerEmail: form.email,
           customerPhone: form.phone,
-          shippingAddress: form.address + (form.unit ? ', ' + form.unit : ''),
+          shippingAddress: form.address,
           shippingCity: form.city,
           shippingProvince: form.province,
           shippingPostal: form.postal,
@@ -678,11 +680,7 @@ export default function EdiblePrintApp() {
               </div>
               <div>
                 <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Street Address *</label>
-                <input ref={addressRef} value={form.address} onChange={(e) => updateForm('address', e.target.value)} style={inputStyle} placeholder="Start typing your address..." autoComplete="off" />
-              </div>
-              <div style={{ maxWidth: 200 }}>
-                <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Unit / Apt</label>
-                <input value={form.unit} onChange={(e) => updateForm('unit', e.target.value)} style={inputStyle} placeholder="Unit 503" />
+                <input ref={addressRef} value={form.address} onChange={(e) => updateForm('address', e.target.value)} style={inputStyle} placeholder="e.g. 3 Frontenac Road #503" autoComplete="off" />
               </div>
               <div style={{ display: 'flex', gap: 12 }}>
                 <div style={{ flex: 1 }}>
@@ -707,6 +705,7 @@ export default function EdiblePrintApp() {
                 { key: 'local', label: localZone ? 'Same Day Delivery — ' + localZone.name : 'Same Day Delivery — London, ON', price: localZone?.price || 0, disabled: !localZone },
                 { key: 'standard', label: 'Standard Shipping — 3-5 business days', price: SHIPPING.standard, disabled: false },
                 { key: 'express', label: 'Express Shipping — 1-2 business days', price: SHIPPING.express, disabled: false },
+                { key: 'pickup', label: 'Pickup — London, ON', price: 0, disabled: false, note: 'Pickup available by appointment. We\'ll send you the address after order confirmation.' },
               ].map((opt) => (
                 <label key={opt.key} style={{
                   display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 12,
@@ -721,6 +720,9 @@ export default function EdiblePrintApp() {
                     )}
                     {opt.key === 'local' && !form.postal && (
                       <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>Enter your postal code above</div>
+                    )}
+                    {opt.note && (
+                      <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{opt.note}</div>
                     )}
                   </div>
                   <span style={{ fontWeight: 700, fontSize: 14, color: opt.disabled ? C.muted : C.brand }}>{opt.key === 'local' && localZone ? '$' + localZone.price.toFixed(2) : opt.key === 'local' ? '—' : '$' + opt.price.toFixed(2)}</span>
