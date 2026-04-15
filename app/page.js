@@ -6,17 +6,18 @@ import './globals.css';
 /* ═══ PRICING CONFIG ═══ */
 const SIZES = {
   circular: [
-    { id: 'c6', label: '6" Round', w: 6, h: 6, price: 8.99 },
-    { id: 'c8', label: '8" Round', w: 8, h: 8, price: 11.99 },
-    { id: 'c10', label: '10" Round', w: 10, h: 10, price: 14.99 },
+    { id: 'c5', label: '5" Round (13cm)', w: 5, h: 5, price: 14.99 },
+    { id: 'c6', label: '6" Round (15cm)', w: 6, h: 6, price: 14.99 },
+    { id: 'c7', label: '7" Round (18cm)', w: 7, h: 7, price: 19.99 },
+    { id: 'c8', label: '8" Round (20cm)', w: 8, h: 8, price: 19.99 },
   ],
   square: [
-    { id: 's6', label: '6"×6"', w: 6, h: 6, price: 8.99 },
-    { id: 's8', label: '8"×8"', w: 8, h: 8, price: 11.99 },
+    { id: 's6', label: '6"×6" (15cm)', w: 6, h: 6, price: 14.99 },
+    { id: 's7', label: '7"×7" (18cm)', w: 7, h: 7, price: 19.99 },
   ],
   rectangular: [
-    { id: 'r6x9', label: '6"×9"', w: 6, h: 9, price: 10.99 },
-    { id: 'r8x11', label: '8"×11" (Full Sheet)', w: 8, h: 11, price: 14.99 },
+    { id: 'r7x10', label: '7"×10" (18×25cm)', w: 7, h: 10, price: 19.99 },
+    { id: 'r8x11', label: '8"×11" Full A4 (20×28cm)', w: 8, h: 11, price: 19.99 },
   ],
   custom: [{ id: 'custom', label: 'Custom Size', w: 0, h: 0, price: 0 }],
 };
