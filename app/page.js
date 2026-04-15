@@ -25,10 +25,11 @@ const SIZES = {
 /* ═══ SHIPPING & DELIVERY ZONES ═══ */
 const SHIPPING = { standard: 9.99, express: 19.99 };
 const LOCAL_ZONES = {
-  south:   { name: 'South London',        price: 6.99, fsas: ['N5Z','N5X','N5W','N6K','N6L'] },
-  central: { name: 'Central London',      price: 7,  fsas: ['N6A','N6B','N6C'] },
-  eastwest:{ name: 'East/West London',     price: 8,  fsas: ['N5Y','N5V','N5P','N6E','N6G','N6H','N6J'] },
-  north:   { name: 'North London',         price: 10, fsas: ['N6M','N6N','N6P'] },
+  south:   { name: 'South London',   price: 6.99, fsas: ['N5Z','N6E','N6J','N6L','N6M','N6N','N6P'] },
+  central: { name: 'Central London', price: 7,    fsas: ['N6A','N6B','N6C'] },
+  east:    { name: 'East London',    price: 8,    fsas: ['N5V','N5W'] },
+  west:    { name: 'West London',    price: 8,    fsas: ['N5P','N6G','N6H','N6K'] },
+  north:   { name: 'North London',   price: 10,   fsas: ['N5X','N5Y'] },
 };
 
 function getLocalZone(postalCode) {
@@ -97,6 +98,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop }) {
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const [scale, setScale] = useState(1);
   const [minScale, setMinScale] = useState(0.3);
+  const [maxScale, setMaxScale] = useState(3);
   const [dragging, setDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const imgRef = useRef(null);
@@ -119,10 +121,14 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop }) {
     const img = new Image();
     img.onload = () => {
       imgRef.current = img;
-      const sc = Math.min(canvasW / img.width, canvasH / img.height);
-      setMinScale(sc);
-      setScale(sc);
-      setPos({ x: (canvasW - img.width * sc) / 2, y: (canvasH - img.height * sc) / 2 });
+      /* cover = fills canvas exactly; slider is centered at this value */
+      const coverSc = Math.max(canvasW / img.width, canvasH / img.height);
+      const minSc = coverSc * 0.6; /* slightly smaller than canvas */
+      const maxSc = coverSc * 1.4; /* zoomed in; coverSc = (minSc+maxSc)/2 exactly */
+      setMinScale(minSc);
+      setMaxScale(maxSc);
+      setScale(coverSc);
+      setPos({ x: (canvasW - img.width * coverSc) / 2, y: (canvasH - img.height * coverSc) / 2 });
     };
     img.src = image;
   }, [image, canvasW, canvasH]);
@@ -200,7 +206,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop }) {
       <canvas ref={hiResCanvasRef} style={{ display: 'none' }} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', maxWidth: 300 }}>
         <span style={{ fontSize: 18, color: C.muted, fontWeight: 700 }}>-</span>
-        <input type="range" min={minScale} max={3} step={0.01} value={scale}
+        <input type="range" min={minScale} max={maxScale} step={0.001} value={scale}
           onChange={(e) => setScale(parseFloat(e.target.value))}
           style={{ flex: 1, accentColor: C.brand }} />
         <span style={{ fontSize: 18, color: C.muted, fontWeight: 700 }}>+</span>
@@ -229,7 +235,7 @@ export default function EdiblePrintApp() {
   const [shipping, setShipping] = useState('standard');
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
-    name: '', email: '', phone: '', address: '', city: '', province: 'Ontario', postal: ''
+    name: '', email: '', phone: '', address: '', unit: '', city: '', province: 'Ontario', postal: ''
   });
   const fileRef = useRef(null);
   const addressRef = useRef(null);
@@ -238,7 +244,7 @@ export default function EdiblePrintApp() {
   const sizes = SIZES[shape] || [];
   const selectedSize = sizes.find((sz) => sz.id === sizeId) || sizes[0];
   const unitPrice = shape === 'custom'
-    ? (parseFloat(customW || 0) * parseFloat(customH || 0) * 0.25 + 5)
+    ? (parseFloat(customW || 0) * parseFloat(customH || 0) <= 36 ? 14.99 : 19.99)
     : selectedSize?.price || 0;
   const subtotal = unitPrice * qty;
   const localZone = getLocalZone(form.postal);
@@ -332,6 +338,17 @@ export default function EdiblePrintApp() {
 
   const updateForm = (key, val) => setForm((prev) => ({ ...prev, [key]: val }));
 
+  /* Auto-split unit/suite from address string (e.g. "123 Main St #503" or "123 Main apt 2B") */
+  const handleAddressChange = (raw) => {
+    const unitPattern = /\s+(#\s*\w+|(?:unit|apt|suite|ste)\s*\.?\s*\w+)\s*$/i;
+    const match = raw.match(unitPattern);
+    if (match) {
+      setForm((prev) => ({ ...prev, address: raw.replace(unitPattern, '').trim(), unit: match[1].trim() }));
+    } else {
+      updateForm('address', raw);
+    }
+  };
+
  /* ═══ STRIPE CHECKOUT ═══ */
   const handlePlaceOrder = async () => {
     if (!form.name || !form.email || !form.address || !form.city || !form.postal) {
@@ -363,7 +380,7 @@ export default function EdiblePrintApp() {
           customerName: form.name,
           customerEmail: form.email,
           customerPhone: form.phone,
-          shippingAddress: form.address,
+          shippingAddress: form.address + (form.unit ? ', ' + form.unit : ''),
           shippingCity: form.city,
           shippingProvince: form.province,
           shippingPostal: form.postal,
@@ -680,7 +697,11 @@ export default function EdiblePrintApp() {
               </div>
               <div>
                 <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Street Address *</label>
-                <input ref={addressRef} value={form.address} onChange={(e) => updateForm('address', e.target.value)} style={inputStyle} placeholder="e.g. 3 Frontenac Road #503" autoComplete="off" />
+                <input ref={addressRef} value={form.address} onChange={(e) => handleAddressChange(e.target.value)} style={inputStyle} placeholder="e.g. 123 Main Street" autoComplete="off" />
+              </div>
+              <div style={{ maxWidth: 220 }}>
+                <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Unit / Suite (optional)</label>
+                <input value={form.unit} onChange={(e) => updateForm('unit', e.target.value)} style={inputStyle} placeholder="e.g. 503, Apt 2B" />
               </div>
               <div style={{ display: 'flex', gap: 12 }}>
                 <div style={{ flex: 1 }}>
