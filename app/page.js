@@ -92,7 +92,7 @@ function Logo({ size = 28 }) {
 }
 
 /* ═══ IMAGE EDITOR (with hi-res export) ═══ */
-function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF' }) {
+function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF', textOverlay = null }) {
   const canvasRef = useRef(null);
   const hiResCanvasRef = useRef(null);
   const [pos, setPos] = useState({ x: 0, y: 0 });
@@ -163,6 +163,22 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
       ctx.strokeRect(1, 1, canvasW - 2, canvasH - 2);
     }
     ctx.setLineDash([]);
+
+    /* ── Text overlay (preview) ── */
+    if (textOverlay?.text) {
+      const pxMap = { small: 18, medium: 26, large: 38 };
+      const px = pxMap[textOverlay.fontSize] || 26;
+      ctx.font = 'bold ' + px + 'px Arial, sans-serif';
+      ctx.textAlign = 'center';
+      const yMap = { top: px + 8, center: canvasH / 2, bottom: canvasH - 12 };
+      const ty = yMap[textOverlay.position] || canvasH - 12;
+      ctx.lineWidth = Math.max(2, px / 8);
+      ctx.strokeStyle = 'rgba(0,0,0,0.65)';
+      ctx.strokeText(textOverlay.text, canvasW / 2, ty);
+      ctx.fillStyle = textOverlay.color;
+      ctx.fillText(textOverlay.text, canvasW / 2, ty);
+    }
+
     if (onCrop) onCrop(canvas.toDataURL());
 
     /* ── Draw hi-res canvas (what gets uploaded for printing) ── */
@@ -187,6 +203,21 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
     hctx.drawImage(img, hrX, hrY, hrImgW, hrImgH);
     hctx.restore();
 
+    /* ── Text overlay (hi-res) ── */
+    if (textOverlay?.text) {
+      const pxMap = { small: 18, medium: 26, large: 38 };
+      const hrPx = (pxMap[textOverlay.fontSize] || 26) * scaleFactor;
+      hctx.font = 'bold ' + hrPx + 'px Arial, sans-serif';
+      hctx.textAlign = 'center';
+      const yMap = { top: hrPx + 8 * scaleFactor, center: hiResH / 2, bottom: hiResH - 12 * scaleFactor };
+      const hty = yMap[textOverlay.position] || hiResH - 12 * scaleFactor;
+      hctx.lineWidth = Math.max(2, hrPx / 8);
+      hctx.strokeStyle = 'rgba(0,0,0,0.65)';
+      hctx.strokeText(textOverlay.text, hiResW / 2, hty);
+      hctx.fillStyle = textOverlay.color;
+      hctx.fillText(textOverlay.text, hiResW / 2, hty);
+    }
+
     /* ── Cut guide: dotted line + label (hi-res only, not shown to user) ── */
     hctx.strokeStyle = '#CCCCCC';
     hctx.lineWidth = 3;
@@ -205,7 +236,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
     hctx.fillText('\u2702 Cut along dotted line', hiResW / 2, hiResH + 36);
 
     if (onHiResCrop) onHiResCrop(hiResCanvas.toDataURL('image/jpeg', 0.95));
-  }, [pos, scale, shape, hiResW, hiResH, scaleFactor, bgColor]);
+  }, [pos, scale, shape, hiResW, hiResH, scaleFactor, bgColor, textOverlay]);
 
   const handlePointerDown = (e) => { setDragging(true); setDragStart({ x: e.clientX - pos.x, y: e.clientY - pos.y }); };
   const handlePointerMove = (e) => { if (!dragging) return; setPos({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y }); };
@@ -359,6 +390,7 @@ export default function EdiblePrintApp() {
   const [qty, setQty] = useState(1);
   const [notes, setNotes] = useState('');
   const [bgColor, setBgColor] = useState('#FFFFFF');
+  const [textOverlay, setTextOverlay] = useState({ text: '', fontSize: 'medium', color: '#FFFFFF', position: 'bottom' });
   const [cropPreview, setCropPreview] = useState(null);
   const [hiResCrop, setHiResCrop] = useState(null);
   const [shipping, setShipping] = useState('standard');
@@ -817,11 +849,77 @@ export default function EdiblePrintApp() {
               onCrop={setCropPreview}
               onHiResCrop={setHiResCrop}
               bgColor={bgColor}
+              textOverlay={textOverlay}
             />
             <div style={{ marginTop: 18 }}>
               <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 10 }}>Background Fill Color <span style={{ fontWeight: 400, color: C.muted }}>(outside your image)</span></label>
               <BgColorPicker value={bgColor} onChange={setBgColor} />
             </div>
+
+            {/* ── Add Text to Image ── */}
+            <div style={{ ...card, marginTop: 18, padding: '18px 16px' }}>
+              <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 12 }}>Add Text to Image <span style={{ fontWeight: 400, color: C.muted, fontSize: 13 }}>(optional)</span></label>
+              <input
+                value={textOverlay.text}
+                onChange={(e) => setTextOverlay((p) => ({ ...p, text: e.target.value }))}
+                placeholder="Type your message..."
+                style={{ ...inputStyle, marginBottom: 12 }}
+              />
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                {/* Font size */}
+                <div style={{ flex: 1, minWidth: 130 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Size</div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {[{ key: 'small', label: 'S' }, { key: 'medium', label: 'M' }, { key: 'large', label: 'L' }].map(({ key, label }) => (
+                      <button key={key} onClick={() => setTextOverlay((p) => ({ ...p, fontSize: key }))} style={{
+                        flex: 1, padding: '8px 0', borderRadius: 8, fontWeight: 600, fontSize: 14, cursor: 'pointer',
+                        fontFamily: "'Outfit', sans-serif",
+                        border: textOverlay.fontSize === key ? '2.5px solid ' + C.brand : '1.5px solid ' + C.border,
+                        background: textOverlay.fontSize === key ? C.brandLight : C.white,
+                        color: textOverlay.fontSize === key ? C.brand : C.text,
+                      }}>{label}</button>
+                    ))}
+                  </div>
+                </div>
+                {/* Position */}
+                <div style={{ flex: 1, minWidth: 130 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Position</div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {[{ key: 'top', label: '↑' }, { key: 'center', label: '·' }, { key: 'bottom', label: '↓' }].map(({ key, label }) => (
+                      <button key={key} onClick={() => setTextOverlay((p) => ({ ...p, position: key }))} style={{
+                        flex: 1, padding: '8px 0', borderRadius: 8, fontWeight: 700, fontSize: 16, cursor: 'pointer',
+                        fontFamily: "'Outfit', sans-serif",
+                        border: textOverlay.position === key ? '2.5px solid ' + C.brand : '1.5px solid ' + C.border,
+                        background: textOverlay.position === key ? C.brandLight : C.white,
+                        color: textOverlay.position === key ? C.brand : C.text,
+                      }}>{label}</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              {/* Text color */}
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Text Color</div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  {[
+                    { color: '#FFFFFF', label: 'White' },
+                    { color: '#111111', label: 'Black' },
+                    { color: '#FF3333', label: 'Red' },
+                    { color: '#FFD700', label: 'Gold' },
+                    { color: '#4488FF', label: 'Blue' },
+                    { color: '#FF88CC', label: 'Pink' },
+                  ].map(({ color, label }) => (
+                    <button key={color} title={label} onClick={() => setTextOverlay((p) => ({ ...p, color }))} style={{
+                      width: 28, height: 28, borderRadius: 6, background: color, cursor: 'pointer',
+                      border: textOverlay.color === color ? '3px solid ' + C.brand : '2px solid ' + C.border,
+                      boxSizing: 'border-box',
+                      boxShadow: color === '#FFFFFF' ? 'inset 0 0 0 1px #d1d5db' : 'none',
+                    }} />
+                  ))}
+                </div>
+              </div>
+            </div>
+
             <div style={{ marginTop: 22 }}>
               <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Special Instructions (optional)</label>
               <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Add text, remove background, adjust colors..." rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
