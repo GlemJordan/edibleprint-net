@@ -761,7 +761,7 @@ export default function EdiblePrintApp() {
                 { key: 'local', label: localZone ? 'Same Day Delivery — ' + localZone.name : 'Same Day Delivery — London, ON', price: localZone?.price || 0, disabled: !localZone },
                 { key: 'standard', label: 'Standard Shipping — 3-5 business days', price: SHIPPING.standard, disabled: false },
                 { key: 'express', label: 'Express Shipping — 1-2 business days', price: SHIPPING.express, disabled: false },
-                { key: 'pickup', label: 'Pickup — London, ON', price: 0, disabled: false, note: 'Pickup available by appointment. We\'ll send you the address after order confirmation.' },
+                { key: 'pickup', label: 'Pickup — South London, ON', price: 0, disabled: false, note: '3 Frontenac Road area. We\'ll confirm the exact time by email.' },
               ].map((opt) => (
                 <label key={opt.key} style={{
                   display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 12,
