@@ -79,6 +79,10 @@ export async function POST(request) {
         : meta.shippingMethod === 'pickup' ? 'Pickup — London, ON'
         : 'Standard Shipping (3–5 business days)';
       const isPickup = meta.shippingMethod === 'pickup';
+      const subtotalAmt = (parseFloat(meta.unitPrice) * parseInt(meta.quantity, 10));
+      const shippingAmt = parseFloat(meta.shippingCost);
+      const totalAmt    = session.amount_total / 100;
+      const taxAmt      = totalAmt - subtotalAmt - shippingAmt;
 
       const customerEmailResponse = await fetch('https://api.resend.com/emails', {
         method: 'POST',
@@ -102,7 +106,13 @@ export async function POST(request) {
             + '<tr><td style="padding:10px 14px;font-weight:600;color:#374151;">Size</td><td style="padding:10px 14px;">' + meta.size + '</td></tr>'
             + '<tr style="background:#f3f4f6;"><td style="padding:10px 14px;font-weight:600;color:#374151;">Quantity</td><td style="padding:10px 14px;">' + meta.quantity + '</td></tr>'
             + '<tr><td style="padding:10px 14px;font-weight:600;color:#374151;">Shipping</td><td style="padding:10px 14px;">' + shippingLabel + '</td></tr>'
-            + '<tr style="background:#E8F5EE;"><td style="padding:12px 14px;font-weight:700;font-size:16px;color:#1B6B4A;">Total</td><td style="padding:12px 14px;font-weight:700;font-size:16px;color:#1B6B4A;">$' + (session.amount_total / 100).toFixed(2) + ' CAD</td></tr>'
+            + '</table>'
+
+            + '<table style="width:100%;border-collapse:collapse;margin-bottom:24px;border-top:2px solid #e5e7eb;">'
+            + '<tr><td style="padding:9px 14px;color:#374151;">Subtotal (' + meta.quantity + ' × $' + parseFloat(meta.unitPrice).toFixed(2) + ')</td><td style="padding:9px 14px;text-align:right;">$' + subtotalAmt.toFixed(2) + '</td></tr>'
+            + '<tr style="background:#f9fafb;"><td style="padding:9px 14px;color:#374151;">Shipping</td><td style="padding:9px 14px;text-align:right;">' + (shippingAmt === 0 ? 'Free' : '$' + shippingAmt.toFixed(2)) + '</td></tr>'
+            + '<tr><td style="padding:9px 14px;color:#374151;">HST (13%)</td><td style="padding:9px 14px;text-align:right;">$' + taxAmt.toFixed(2) + '</td></tr>'
+            + '<tr style="background:#E8F5EE;border-top:2px solid #1B6B4A;"><td style="padding:12px 14px;font-weight:700;font-size:16px;color:#1B6B4A;">Total</td><td style="padding:12px 14px;font-weight:700;font-size:16px;color:#1B6B4A;text-align:right;">$' + totalAmt.toFixed(2) + ' CAD</td></tr>'
             + '</table>'
 
             + (meta.imageUrl && meta.imageUrl !== 'No image'
@@ -121,6 +131,8 @@ export async function POST(request) {
 
             + '<hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;" />'
             + '<p style="font-size:13px;color:#6b7280;text-align:center;margin:0;">Questions? Reply to this email or contact <a href="mailto:hello@edibleprint.net" style="color:#1B6B4A;">hello@edibleprint.net</a></p>'
+            + '<hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0;" />'
+            + '<p style="font-size:12px;color:#9ca3af;text-align:center;margin:0;line-height:1.6;">This email serves as your official receipt.<br/>EdiblePrint.net — London, Ontario. HST Registration: [pending]</p>'
             + '</div></div>',
         }),
       });
