@@ -53,7 +53,7 @@ export async function POST(request) {
             + meta.shippingCity + ', ' + meta.shippingProvince + ' ' + meta.shippingPostal + '<br/>'
             + 'Method: ' + (meta.shippingMethod === 'express' ? 'Express (1-2 days)' : meta.shippingMethod === 'local' ? 'Same Day Delivery' : 'Standard (3-5 days)') + '</p>'
             + '<h3 style="color:#1B6B4A;">Order Details</h3>'
-            + '<p>Shape: ' + meta.shape + '<br/>'
+            + '<p>Shape: ' + (meta.shape ? meta.shape.charAt(0).toUpperCase() + meta.shape.slice(1) : '') + '<br/>'
             + 'Size: ' + meta.size + '<br/>'
             + 'Quantity: ' + meta.quantity + '<br/>'
             + 'Unit Price: $' + meta.unitPrice + '</p>'
@@ -79,10 +79,11 @@ export async function POST(request) {
         : meta.shippingMethod === 'pickup' ? 'Pickup — London, ON'
         : 'Standard Shipping (3–5 business days)';
       const isPickup = meta.shippingMethod === 'pickup';
-      const subtotalAmt = (parseFloat(meta.unitPrice) * parseInt(meta.quantity, 10));
-      const shippingAmt = parseFloat(meta.shippingCost);
+      const subtotalAmt = parseFloat(meta.unitPrice) * parseInt(meta.quantity, 10);
+      const shippingAmt = parseFloat(meta.shippingCost) || 0;
+      const taxAmt      = (subtotalAmt + shippingAmt) * 0.13;
       const totalAmt    = session.amount_total / 100;
-      const taxAmt      = totalAmt - subtotalAmt - shippingAmt;
+      const shapeLabel  = meta.shape ? meta.shape.charAt(0).toUpperCase() + meta.shape.slice(1) : '';
 
       const customerEmailResponse = await fetch('https://api.resend.com/emails', {
         method: 'POST',
@@ -102,7 +103,7 @@ export async function POST(request) {
             + '<div style="border:1px solid #e5e7eb;border-top:none;padding:28px 24px;border-radius:0 0 8px 8px;">'
 
             + '<table style="width:100%;border-collapse:collapse;margin-bottom:24px;">'
-            + '<tr style="background:#f3f4f6;"><td style="padding:10px 14px;font-weight:600;width:40%;color:#374151;">Shape</td><td style="padding:10px 14px;">' + meta.shape + '</td></tr>'
+            + '<tr style="background:#f3f4f6;"><td style="padding:10px 14px;font-weight:600;width:40%;color:#374151;">Shape</td><td style="padding:10px 14px;">' + shapeLabel + '</td></tr>'
             + '<tr><td style="padding:10px 14px;font-weight:600;color:#374151;">Size</td><td style="padding:10px 14px;">' + meta.size + '</td></tr>'
             + '<tr style="background:#f3f4f6;"><td style="padding:10px 14px;font-weight:600;color:#374151;">Quantity</td><td style="padding:10px 14px;">' + meta.quantity + '</td></tr>'
             + '<tr><td style="padding:10px 14px;font-weight:600;color:#374151;">Shipping</td><td style="padding:10px 14px;">' + shippingLabel + '</td></tr>'
@@ -125,7 +126,8 @@ export async function POST(request) {
 
             + (isPickup
               ? '<div style="background:#FFF4EB;border-left:4px solid #E8873C;padding:14px 16px;border-radius:0 6px 6px 0;margin-bottom:20px;">'
-              + '<p style="margin:0;font-size:14px;line-height:1.6;color:#374151;">We\'ll email you the pickup address and available times shortly.</p>'
+              + '<p style="margin:0 0 6px;font-size:14px;font-weight:600;color:#374151;">Pickup Address</p>'
+              + '<p style="margin:0;font-size:14px;line-height:1.6;color:#374151;">3 Frontenac Road, South London, ON.<br/>Please wait for our confirmation email with pickup time.</p>'
               + '</div>'
               : '')
 
