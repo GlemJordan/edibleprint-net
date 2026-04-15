@@ -26,6 +26,8 @@ export async function POST(request) {
     const meta = session.metadata;
     const orderId = 'EP-' + session.id.slice(-8).toUpperCase();
     console.log('--- NEW ORDER: ' + orderId + (isTest ? ' [TEST]' : '') + ' ---');
+    const SHAPE_LABELS = { circular: 'Round', square: 'Square', rectangular: 'Rectangle', custom: 'Custom' };
+    const shapeDisplay = SHAPE_LABELS[meta.shape] || meta.shape;
     try {
       const emailResponse = await fetch('https://api.resend.com/emails', {
         method: 'POST',
@@ -36,6 +38,7 @@ export async function POST(request) {
         body: JSON.stringify({
           from: 'EdiblePrint.net Orders <onboarding@resend.dev>',
           to: [process.env.ORDER_NOTIFICATION_EMAIL || 'glenj.belmar@gmail.com'],
+          reply_to: 'glenj.belmar@gmail.com',
           subject: (isTest ? '[TEST] ' : '') + 'New Order ' + orderId + ' - $' + (session.amount_total / 100).toFixed(2) + ' CAD',
           html: '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">'
             + (isTest ? '<div style="background:#F59E0B;color:white;padding:10px;text-align:center;border-radius:8px 8px 0 0;font-weight:bold;">⚠️ TEST ORDER — Not a real payment</div>' : '')
@@ -53,7 +56,7 @@ export async function POST(request) {
             + meta.shippingCity + ', ' + meta.shippingProvince + ' ' + meta.shippingPostal + '<br/>'
             + 'Method: ' + (meta.shippingMethod === 'express' ? 'Express (1-2 days)' : meta.shippingMethod === 'local' ? 'Same Day Delivery' : 'Standard (3-5 days)') + '</p>'
             + '<h3 style="color:#1B6B4A;">Order Details</h3>'
-            + '<p>Shape: ' + (meta.shape ? meta.shape.charAt(0).toUpperCase() + meta.shape.slice(1) : '') + '<br/>'
+            + '<p>Shape: ' + shapeDisplay + '<br/>'
             + 'Size: ' + meta.size + '<br/>'
             + 'Quantity: ' + meta.quantity + '<br/>'
             + 'Unit Price: $' + meta.unitPrice + '</p>'
@@ -83,7 +86,6 @@ export async function POST(request) {
       const shippingAmt = parseFloat(meta.shippingCost) || 0;
       const taxAmt      = (subtotalAmt + shippingAmt) * 0.13;
       const totalAmt    = session.amount_total / 100;
-      const shapeLabel  = meta.shape ? meta.shape.charAt(0).toUpperCase() + meta.shape.slice(1) : '';
 
       const customerEmailResponse = await fetch('https://api.resend.com/emails', {
         method: 'POST',
@@ -94,6 +96,7 @@ export async function POST(request) {
         body: JSON.stringify({
           from: 'EdiblePrint.net <onboarding@resend.dev>',
           to: [session.customer_email],
+          reply_to: 'glenj.belmar@gmail.com',
           subject: 'Order Confirmed — EdiblePrint.net #' + orderId,
           html: '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1a1a1a;">'
             + '<div style="background:#1B6B4A;color:white;padding:28px 24px;border-radius:8px 8px 0 0;text-align:center;">'
@@ -103,7 +106,7 @@ export async function POST(request) {
             + '<div style="border:1px solid #e5e7eb;border-top:none;padding:28px 24px;border-radius:0 0 8px 8px;">'
 
             + '<table style="width:100%;border-collapse:collapse;margin-bottom:24px;">'
-            + '<tr style="background:#f3f4f6;"><td style="padding:10px 14px;font-weight:600;width:40%;color:#374151;">Shape</td><td style="padding:10px 14px;">' + shapeLabel + '</td></tr>'
+            + '<tr style="background:#f3f4f6;"><td style="padding:10px 14px;font-weight:600;width:40%;color:#374151;">Shape</td><td style="padding:10px 14px;">' + shapeDisplay + '</td></tr>'
             + '<tr><td style="padding:10px 14px;font-weight:600;color:#374151;">Size</td><td style="padding:10px 14px;">' + meta.size + '</td></tr>'
             + '<tr style="background:#f3f4f6;"><td style="padding:10px 14px;font-weight:600;color:#374151;">Quantity</td><td style="padding:10px 14px;">' + meta.quantity + '</td></tr>'
             + '<tr><td style="padding:10px 14px;font-weight:600;color:#374151;">Shipping</td><td style="padding:10px 14px;">' + shippingLabel + '</td></tr>'
