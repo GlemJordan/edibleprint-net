@@ -266,7 +266,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
 }
 
 /* ═══ BACKGROUND COLOR PICKER ═══ */
-const BG_PRESETS = [
+const BG_QUICK = [
   { color: '#FFFFFF', label: 'White' },
   { color: '#FFD700', label: 'Yellow' },
   { color: '#FF4444', label: 'Red' },
@@ -274,104 +274,56 @@ const BG_PRESETS = [
   { color: '#FF88CC', label: 'Pink' },
   { color: '#44BB44', label: 'Green' },
   { color: '#222222', label: 'Black' },
+  { color: '#FF8C00', label: 'Orange' },
+  { color: '#8B4513', label: 'Brown' },
+];
+const BG_EXTENDED = [
+  { color: '#FFFFFF', label: 'White' },       { color: '#F5F5F5', label: 'Light Grey' },
+  { color: '#9E9E9E', label: 'Grey' },         { color: '#222222', label: 'Black' },
+  { color: '#FF4444', label: 'Red' },          { color: '#8B0000', label: 'Dark Red' },
+  { color: '#FF8C00', label: 'Orange' },       { color: '#CC5500', label: 'Dark Orange' },
+  { color: '#FFD700', label: 'Yellow' },       { color: '#FFC200', label: 'Gold' },
+  { color: '#66CC44', label: 'Light Green' },  { color: '#1B6B4A', label: 'Dark Green' },
+  { color: '#66AAFF', label: 'Light Blue' },   { color: '#0033AA', label: 'Dark Blue' },
+  { color: '#00BFFF', label: 'Sky Blue' },     { color: '#008080', label: 'Teal' },
+  { color: '#FF88CC', label: 'Pink' },         { color: '#FF1493', label: 'Hot Pink' },
+  { color: '#8844CC', label: 'Purple' },       { color: '#C8A0E8', label: 'Lavender' },
+  { color: '#F5DEB3', label: 'Beige' },        { color: '#8B4513', label: 'Brown' },
+  { color: '#D2691E', label: 'Light Brown' },  { color: '#FFFDD0', label: 'Cream' },
+  { color: '#FF6B6B', label: 'Coral' },        { color: '#FA8072', label: 'Salmon' },
+  { color: '#001F3F', label: 'Navy' },         { color: '#808000', label: 'Olive' },
+  { color: '#800020', label: 'Burgundy' },     { color: '#40E0D0', label: 'Turquoise' },
 ];
 function BgColorPicker({ value, onChange }) {
-  const hueRef   = useRef(null);
-  const lightRef = useRef(null);
-  /* fractions 0-1 representing position along each strip */
-  const [hueX,   setHueX]   = useState(0);
-  const [lightX, setLightX] = useState(0);
-  const [dragHue,   setDragHue]   = useState(false);
-  const [dragLight, setDragLight] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
-  const currentHue   = Math.round(hueX * 360);
-  const currentLight = Math.round(82 - lightX * 72); /* 82% → 10% */
-
-  /* Draw hue strip (once) */
-  useEffect(() => {
-    const canvas = hueRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const g = ctx.createLinearGradient(0, 0, canvas.width, 0);
-    for (let i = 0; i <= 12; i++) g.addColorStop(i / 12, `hsl(${i * 30},100%,50%)`);
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-  }, []);
-
-  /* Redraw lightness strip when hue changes */
-  useEffect(() => {
-    const canvas = lightRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const g = ctx.createLinearGradient(0, 0, canvas.width, 0);
-    g.addColorStop(0,   `hsl(${currentHue},60%,85%)`);
-    g.addColorStop(0.4, `hsl(${currentHue},100%,50%)`);
-    g.addColorStop(1,   `hsl(${currentHue},100%,8%)`);
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-  }, [currentHue]);
-
-  const frac = (e, ref) => {
-    const r = ref.current.getBoundingClientRect();
-    return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
-  };
-  const applyHue = (e) => {
-    const f = frac(e, hueRef);
-    setHueX(f);
-    onChange(`hsl(${Math.round(f * 360)},100%,${currentLight}%)`);
-  };
-  const applyLight = (e) => {
-    const f = frac(e, lightRef);
-    setLightX(f);
-    onChange(`hsl(${currentHue},100%,${Math.round(82 - f * 72)}%)`);
-  };
-
-  const indicatorStyle = (frac, size, bg) => ({
-    position: 'absolute', top: '50%', left: (frac * 100) + '%',
-    transform: 'translate(-50%,-50%)',
-    width: size, height: size, borderRadius: '50%',
-    border: '2.5px solid #fff', background: bg,
-    boxShadow: '0 1px 5px rgba(0,0,0,0.45)', pointerEvents: 'none',
-  });
+  const dot = (color, label, size = 30) => (
+    <button key={color} title={label} onClick={() => { onChange(color); setExpanded(false); }} style={{
+      width: size, height: size, borderRadius: '50%', background: color, cursor: 'pointer', flexShrink: 0,
+      border: value === color ? '3px solid ' + C.brand : '2px solid #D1D5DB',
+      boxSizing: 'border-box', padding: 0,
+      boxShadow: color === '#FFFFFF' || color === '#F5F5F5' || color === '#FFFDD0' ? 'inset 0 0 0 1px #d1d5db' : 'none',
+    }} />
+  );
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 10 }}>
-        {BG_PRESETS.map(({ color, label }) => (
-          <button key={color} title={label} onClick={() => onChange(color)} style={{
-            width: 30, height: 30, borderRadius: 7, background: color, cursor: 'pointer',
-            border: value === color ? '3px solid ' + C.brand : '2px solid ' + C.border,
-            boxSizing: 'border-box',
-            boxShadow: color === '#FFFFFF' ? 'inset 0 0 0 1px #d1d5db' : 'none',
-          }} />
-        ))}
+      <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', alignItems: 'center' }}>
+        {BG_QUICK.map(({ color, label }) => dot(color, label))}
+        <button title="More colors" onClick={() => setExpanded((v) => !v)} style={{
+          width: 30, height: 30, borderRadius: '50%', cursor: 'pointer', flexShrink: 0,
+          border: '2px solid ' + C.border, background: C.white, boxSizing: 'border-box',
+          fontSize: 18, lineHeight: '26px', color: C.muted, fontWeight: 700, padding: 0,
+        }}>+</button>
       </div>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'stretch' }}>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {/* Hue strip */}
-          <div style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', boxShadow: '0 1px 5px rgba(0,0,0,0.13)' }}>
-            <canvas ref={hueRef} width={280} height={38}
-              style={{ display: 'block', width: '100%', cursor: 'crosshair', touchAction: 'none' }}
-              onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); setDragHue(true); applyHue(e); }}
-              onPointerMove={(e) => { if (dragHue) applyHue(e); }}
-              onPointerUp={() => setDragHue(false)} />
-            <div style={indicatorStyle(hueX, 18, `hsl(${currentHue},100%,50%)`)} />
-          </div>
-          {/* Lightness strip */}
-          <div style={{ position: 'relative', borderRadius: 6, overflow: 'hidden', boxShadow: '0 1px 5px rgba(0,0,0,0.13)' }}>
-            <canvas ref={lightRef} width={280} height={22}
-              style={{ display: 'block', width: '100%', cursor: 'crosshair', touchAction: 'none' }}
-              onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); setDragLight(true); applyLight(e); }}
-              onPointerMove={(e) => { if (dragLight) applyLight(e); }}
-              onPointerUp={() => setDragLight(false)} />
-            <div style={indicatorStyle(lightX, 14, `hsl(${currentHue},100%,${currentLight}%)`)} />
+      {expanded && (
+        <div style={{ marginTop: 10, padding: '12px', background: C.white, borderRadius: 12,
+          border: '1px solid ' + C.border, boxShadow: '0 4px 16px rgba(0,0,0,0.08)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 28px)', gap: 8, justifyContent: 'start' }}>
+            {BG_EXTENDED.map(({ color, label }) => dot(color, label, 28))}
           </div>
         </div>
-        {/* Live preview swatch */}
-        <div style={{ width: 44, borderRadius: 10, background: value, flexShrink: 0,
-          border: '2px solid ' + C.border, boxShadow: '0 2px 8px rgba(0,0,0,0.10)',
-          minHeight: 66 }} />
-      </div>
+      )}
     </div>
   );
 }
@@ -852,7 +804,11 @@ export default function EdiblePrintApp() {
               textOverlay={textOverlay}
             />
             <div style={{ marginTop: 18 }}>
-              <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 10 }}>Background Fill Color <span style={{ fontWeight: 400, color: C.muted }}>(outside your image)</span></label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                <label style={{ fontWeight: 600, fontSize: 14, margin: 0 }}>Background Fill Color <span style={{ fontWeight: 400, color: C.muted }}>(outside your image)</span></label>
+                <div style={{ width: 26, height: 26, borderRadius: 6, background: bgColor, flexShrink: 0,
+                  border: '2px solid ' + C.border, boxShadow: bgColor === '#FFFFFF' ? 'inset 0 0 0 1px #d1d5db' : 'none' }} />
+              </div>
               <BgColorPicker value={bgColor} onChange={setBgColor} />
             </div>
 
