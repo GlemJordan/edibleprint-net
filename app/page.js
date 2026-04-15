@@ -435,10 +435,23 @@ export default function EdiblePrintApp() {
             Upload any photo, logo or design. We print it on premium edible paper with food-safe inks
             and ship it straight to your door — anywhere in Canada.
           </p>
-          <button onClick={() => setStep(1)} style={{ ...btnPrimary, fontSize: 18, padding: '17px 44px', borderRadius: 14 }}>
-            Start Your Order →
+          <button onClick={() => setStep(1)} style={{ ...btnPrimary, fontSize: 20, padding: '20px 52px', borderRadius: 16, boxShadow: '0 6px 24px rgba(27,107,74,0.35)', letterSpacing: 0.3 }}>
+            Upload Your Photo Now →
           </button>
           <p style={{ fontSize: 13, color: '#bbb', marginTop: 14 }}>No account needed · Takes under 2 minutes</p>
+
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 14, flexWrap: 'wrap', marginTop: 32 }}>
+            {[
+              { icon: '⚡', label: 'Fast Delivery' },
+              { icon: '✨', label: 'Premium Quality' },
+              { icon: '🔒', label: 'Secure Payment' },
+            ].map((b, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.white, border: '1px solid ' + C.border, borderRadius: 40, padding: '10px 20px', fontSize: 14, fontWeight: 600, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                <span style={{ fontSize: 18 }}>{b.icon}</span>
+                <span style={{ color: C.text }}>{b.label}</span>
+              </div>
+            ))}
+          </div>
         </section>
 
         <div style={{ display: 'flex', justifyContent: 'center', gap: 32, flexWrap: 'wrap', padding: '0 24px 40px' }}>
@@ -514,6 +527,26 @@ export default function EdiblePrintApp() {
               <p style={{ margin: '12px 0 0', fontSize: 14, color: C.muted, lineHeight: 1.65 }}>{faq[1]}</p>
             </details>
           ))}
+        </section>
+
+        <section style={{ padding: '48px 24px', maxWidth: 840, margin: '0 auto' }}>
+          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, textAlign: 'center', marginBottom: 32, fontWeight: 700 }}>
+            What Our Customers Say
+          </h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 20 }}>
+            {[
+              { quote: "Perfect photo on my daughter's birthday cake! Amazing quality.", name: 'Sarah M.', location: 'London, ON' },
+              { quote: 'Used it for my bakery business. Clients love the custom prints!', name: 'Maria L.', location: 'Toronto' },
+              { quote: 'Super easy to order and fast shipping. Will order again!', name: 'James K.', location: 'Ottawa' },
+            ].map((r, i) => (
+              <div key={i} style={{ ...card, padding: '24px 20px' }}>
+                <div style={{ color: '#FBBF24', fontSize: 18, marginBottom: 12, letterSpacing: 2 }}>★★★★★</div>
+                <p style={{ margin: '0 0 16px', fontSize: 14.5, lineHeight: 1.65, color: C.text }}>"{r.quote}"</p>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.brand }}>{r.name}</div>
+                <div style={{ fontSize: 12, color: C.muted }}>{r.location}</div>
+              </div>
+            ))}
+          </div>
         </section>
 
         <section style={{ padding: '52px 24px 64px', textAlign: 'center' }}>
