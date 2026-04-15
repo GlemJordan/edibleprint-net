@@ -234,6 +234,117 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
   );
 }
 
+/* ═══ BACKGROUND COLOR PICKER ═══ */
+const BG_PRESETS = [
+  { color: '#FFFFFF', label: 'White' },
+  { color: '#FFD700', label: 'Yellow' },
+  { color: '#FF4444', label: 'Red' },
+  { color: '#4488FF', label: 'Blue' },
+  { color: '#FF88CC', label: 'Pink' },
+  { color: '#44BB44', label: 'Green' },
+  { color: '#222222', label: 'Black' },
+];
+function BgColorPicker({ value, onChange }) {
+  const hueRef   = useRef(null);
+  const lightRef = useRef(null);
+  /* fractions 0-1 representing position along each strip */
+  const [hueX,   setHueX]   = useState(0);
+  const [lightX, setLightX] = useState(0);
+  const [dragHue,   setDragHue]   = useState(false);
+  const [dragLight, setDragLight] = useState(false);
+
+  const currentHue   = Math.round(hueX * 360);
+  const currentLight = Math.round(82 - lightX * 72); /* 82% → 10% */
+
+  /* Draw hue strip (once) */
+  useEffect(() => {
+    const canvas = hueRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const g = ctx.createLinearGradient(0, 0, canvas.width, 0);
+    for (let i = 0; i <= 12; i++) g.addColorStop(i / 12, `hsl(${i * 30},100%,50%)`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }, []);
+
+  /* Redraw lightness strip when hue changes */
+  useEffect(() => {
+    const canvas = lightRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const g = ctx.createLinearGradient(0, 0, canvas.width, 0);
+    g.addColorStop(0,   `hsl(${currentHue},60%,85%)`);
+    g.addColorStop(0.4, `hsl(${currentHue},100%,50%)`);
+    g.addColorStop(1,   `hsl(${currentHue},100%,8%)`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }, [currentHue]);
+
+  const frac = (e, ref) => {
+    const r = ref.current.getBoundingClientRect();
+    return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+  };
+  const applyHue = (e) => {
+    const f = frac(e, hueRef);
+    setHueX(f);
+    onChange(`hsl(${Math.round(f * 360)},100%,${currentLight}%)`);
+  };
+  const applyLight = (e) => {
+    const f = frac(e, lightRef);
+    setLightX(f);
+    onChange(`hsl(${currentHue},100%,${Math.round(82 - f * 72)}%)`);
+  };
+
+  const indicatorStyle = (frac, size, bg) => ({
+    position: 'absolute', top: '50%', left: (frac * 100) + '%',
+    transform: 'translate(-50%,-50%)',
+    width: size, height: size, borderRadius: '50%',
+    border: '2.5px solid #fff', background: bg,
+    boxShadow: '0 1px 5px rgba(0,0,0,0.45)', pointerEvents: 'none',
+  });
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 10 }}>
+        {BG_PRESETS.map(({ color, label }) => (
+          <button key={color} title={label} onClick={() => onChange(color)} style={{
+            width: 30, height: 30, borderRadius: 7, background: color, cursor: 'pointer',
+            border: value === color ? '3px solid ' + C.brand : '2px solid ' + C.border,
+            boxSizing: 'border-box',
+            boxShadow: color === '#FFFFFF' ? 'inset 0 0 0 1px #d1d5db' : 'none',
+          }} />
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'stretch' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {/* Hue strip */}
+          <div style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', boxShadow: '0 1px 5px rgba(0,0,0,0.13)' }}>
+            <canvas ref={hueRef} width={280} height={38}
+              style={{ display: 'block', width: '100%', cursor: 'crosshair', touchAction: 'none' }}
+              onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); setDragHue(true); applyHue(e); }}
+              onPointerMove={(e) => { if (dragHue) applyHue(e); }}
+              onPointerUp={() => setDragHue(false)} />
+            <div style={indicatorStyle(hueX, 18, `hsl(${currentHue},100%,50%)`)} />
+          </div>
+          {/* Lightness strip */}
+          <div style={{ position: 'relative', borderRadius: 6, overflow: 'hidden', boxShadow: '0 1px 5px rgba(0,0,0,0.13)' }}>
+            <canvas ref={lightRef} width={280} height={22}
+              style={{ display: 'block', width: '100%', cursor: 'crosshair', touchAction: 'none' }}
+              onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); setDragLight(true); applyLight(e); }}
+              onPointerMove={(e) => { if (dragLight) applyLight(e); }}
+              onPointerUp={() => setDragLight(false)} />
+            <div style={indicatorStyle(lightX, 14, `hsl(${currentHue},100%,${currentLight}%)`)} />
+          </div>
+        </div>
+        {/* Live preview swatch */}
+        <div style={{ width: 44, borderRadius: 10, background: value, flexShrink: 0,
+          border: '2px solid ' + C.border, boxShadow: '0 2px 8px rgba(0,0,0,0.10)',
+          minHeight: 66 }} />
+      </div>
+    </div>
+  );
+}
+
 /* ═══════════════════════════════════ */
 /* ═══ MAIN APP ═══ */
 /* ═══════════════════════════════════ */
@@ -248,7 +359,6 @@ export default function EdiblePrintApp() {
   const [qty, setQty] = useState(1);
   const [notes, setNotes] = useState('');
   const [bgColor, setBgColor] = useState('#FFFFFF');
-  const [hue, setHue] = useState(0);
   const [cropPreview, setCropPreview] = useState(null);
   const [hiResCrop, setHiResCrop] = useState(null);
   const [shipping, setShipping] = useState('standard');
@@ -710,38 +820,7 @@ export default function EdiblePrintApp() {
             />
             <div style={{ marginTop: 18 }}>
               <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 10 }}>Background Fill Color <span style={{ fontWeight: 400, color: C.muted }}>(outside your image)</span></label>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
-                {[
-                  { color: '#FFFFFF', label: 'White' },
-                  { color: '#FFD700', label: 'Yellow' },
-                  { color: '#FF4444', label: 'Red' },
-                  { color: '#4488FF', label: 'Blue' },
-                  { color: '#FF88CC', label: 'Pink' },
-                  { color: '#44BB44', label: 'Green' },
-                  { color: '#222222', label: 'Black' },
-                ].map(({ color, label }) => (
-                  <button key={color} title={label} onClick={() => setBgColor(color)} style={{
-                    width: 36, height: 36, borderRadius: 8, background: color, cursor: 'pointer',
-                    border: bgColor === color ? '3px solid ' + C.brand : '2px solid ' + C.border,
-                    boxSizing: 'border-box', transition: 'border 0.15s',
-                    boxShadow: color === '#FFFFFF' ? 'inset 0 0 0 1px #e5e7eb' : 'none',
-                  }} />
-                ))}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ flex: 1, position: 'relative', height: 24, borderRadius: 12,
-                  background: 'linear-gradient(to right, hsl(0,100%,50%), hsl(30,100%,50%), hsl(60,100%,50%), hsl(90,100%,50%), hsl(120,100%,50%), hsl(150,100%,50%), hsl(180,100%,50%), hsl(210,100%,50%), hsl(240,100%,50%), hsl(270,100%,50%), hsl(300,100%,50%), hsl(330,100%,50%), hsl(360,100%,50%))',
-                  boxShadow: '0 1px 4px rgba(0,0,0,0.1)' }}>
-                  {/* thumb indicator */}
-                  <div style={{ position: 'absolute', top: 2, bottom: 2, left: 'calc(' + (hue / 360 * 100) + '% - 2px)',
-                    width: 4, background: '#fff', borderRadius: 2, boxShadow: '0 0 3px rgba(0,0,0,0.4)', pointerEvents: 'none' }} />
-                  <input type="range" min={0} max={360} value={hue}
-                    onChange={(e) => { const h = parseInt(e.target.value); setHue(h); setBgColor('hsl(' + h + ',100%,50%)'); }}
-                    style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', margin: 0 }} />
-                </div>
-                <div title={bgColor} style={{ width: 36, height: 36, borderRadius: 8, background: bgColor, flexShrink: 0,
-                  border: '2px solid ' + C.border, boxShadow: bgColor === '#FFFFFF' ? 'inset 0 0 0 1px #e5e7eb' : 'none' }} />
-              </div>
+              <BgColorPicker value={bgColor} onChange={setBgColor} />
             </div>
             <div style={{ marginTop: 22 }}>
               <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Special Instructions (optional)</label>
