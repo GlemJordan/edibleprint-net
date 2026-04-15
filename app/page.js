@@ -167,11 +167,11 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop }) {
 
     /* ── Draw hi-res canvas (what gets uploaded for printing) ── */
     hiResCanvas.width = hiResW;
-    hiResCanvas.height = hiResH;
+    hiResCanvas.height = hiResH + 60; /* +60px margin below for cut-guide label */
     const hctx = hiResCanvas.getContext('2d');
-    hctx.clearRect(0, 0, hiResW, hiResH);
+    hctx.clearRect(0, 0, hiResW, hiResH + 60);
     hctx.fillStyle = '#FFFFFF';
-    hctx.fillRect(0, 0, hiResW, hiResH);
+    hctx.fillRect(0, 0, hiResW, hiResH + 60);
 
     hctx.save();
     if (shape === 'circular') {
@@ -186,6 +186,23 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop }) {
     const hrImgH = img.height * scale * scaleFactor;
     hctx.drawImage(img, hrX, hrY, hrImgW, hrImgH);
     hctx.restore();
+
+    /* ── Cut guide: dotted line + label (hi-res only, not shown to user) ── */
+    hctx.strokeStyle = '#CCCCCC';
+    hctx.lineWidth = 3;
+    hctx.setLineDash([20, 10]);
+    if (shape === 'circular') {
+      hctx.beginPath();
+      hctx.arc(hiResW / 2, hiResH / 2, hiResW / 2 - 2, 0, Math.PI * 2);
+      hctx.stroke();
+    } else {
+      hctx.strokeRect(2, 2, hiResW - 4, hiResH - 4);
+    }
+    hctx.setLineDash([]);
+    hctx.fillStyle = '#CCCCCC';
+    hctx.font = '24px Arial';
+    hctx.textAlign = 'center';
+    hctx.fillText('\u2702 Cut along dotted line', hiResW / 2, hiResH + 36);
 
     if (onHiResCrop) onHiResCrop(hiResCanvas.toDataURL('image/jpeg', 0.95));
   }, [pos, scale, shape, hiResW, hiResH, scaleFactor]);
