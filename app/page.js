@@ -92,7 +92,7 @@ function Logo({ size = 28 }) {
 }
 
 /* ═══ IMAGE EDITOR (with hi-res export) ═══ */
-function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop }) {
+function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF' }) {
   const canvasRef = useRef(null);
   const hiResCanvasRef = useRef(null);
   const [pos, setPos] = useState({ x: 0, y: 0 });
@@ -142,7 +142,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop }) {
     /* ── Draw preview canvas (what the user sees) ── */
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvasW, canvasH);
-    ctx.fillStyle = '#FFFFFF';
+    ctx.fillStyle = bgColor;
     ctx.fillRect(0, 0, canvasW, canvasH);
     ctx.save();
     if (shape === 'circular') {
@@ -170,7 +170,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop }) {
     hiResCanvas.height = hiResH + 60; /* +60px margin below for cut-guide label */
     const hctx = hiResCanvas.getContext('2d');
     hctx.clearRect(0, 0, hiResW, hiResH + 60);
-    hctx.fillStyle = '#FFFFFF';
+    hctx.fillStyle = bgColor;
     hctx.fillRect(0, 0, hiResW, hiResH + 60);
 
     hctx.save();
@@ -205,7 +205,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop }) {
     hctx.fillText('\u2702 Cut along dotted line', hiResW / 2, hiResH + 36);
 
     if (onHiResCrop) onHiResCrop(hiResCanvas.toDataURL('image/jpeg', 0.95));
-  }, [pos, scale, shape, hiResW, hiResH, scaleFactor]);
+  }, [pos, scale, shape, hiResW, hiResH, scaleFactor, bgColor]);
 
   const handlePointerDown = (e) => { setDragging(true); setDragStart({ x: e.clientX - pos.x, y: e.clientY - pos.y }); };
   const handlePointerMove = (e) => { if (!dragging) return; setPos({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y }); };
@@ -247,6 +247,7 @@ export default function EdiblePrintApp() {
   const [customH, setCustomH] = useState('');
   const [qty, setQty] = useState(1);
   const [notes, setNotes] = useState('');
+  const [bgColor, setBgColor] = useState('#FFFFFF');
   const [cropPreview, setCropPreview] = useState(null);
   const [hiResCrop, setHiResCrop] = useState(null);
   const [shipping, setShipping] = useState('standard');
@@ -704,7 +705,32 @@ export default function EdiblePrintApp() {
               sizeObj={selectedSize || { w: parseFloat(customW) || 6, h: parseFloat(customH) || 6 }}
               onCrop={setCropPreview}
               onHiResCrop={setHiResCrop}
+              bgColor={bgColor}
             />
+            <div style={{ marginTop: 18 }}>
+              <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 10 }}>Background Fill Color <span style={{ fontWeight: 400, color: C.muted }}>(outside your image)</span></label>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                {[
+                  { color: '#FFFFFF', label: 'White' },
+                  { color: '#FFD700', label: 'Yellow' },
+                  { color: '#FF4444', label: 'Red' },
+                  { color: '#4488FF', label: 'Blue' },
+                  { color: '#FF88CC', label: 'Pink' },
+                  { color: '#44BB44', label: 'Green' },
+                  { color: '#222222', label: 'Black' },
+                ].map(({ color, label }) => (
+                  <button key={color} title={label} onClick={() => setBgColor(color)} style={{
+                    width: 36, height: 36, borderRadius: 8, background: color, cursor: 'pointer',
+                    border: bgColor === color ? '3px solid ' + C.brand : '2px solid ' + C.border,
+                    boxSizing: 'border-box', transition: 'border 0.15s',
+                    boxShadow: color === '#FFFFFF' ? 'inset 0 0 0 1px #e5e7eb' : 'none',
+                  }} />
+                ))}
+                <input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)}
+                  title="Custom color"
+                  style={{ width: 36, height: 36, borderRadius: 8, border: '2px solid ' + C.border, cursor: 'pointer', padding: 2, background: 'none', boxSizing: 'border-box' }} />
+              </div>
+            </div>
             <div style={{ marginTop: 22 }}>
               <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Special Instructions (optional)</label>
               <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Please make the background white..." rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
