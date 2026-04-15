@@ -248,6 +248,7 @@ export default function EdiblePrintApp() {
   const [qty, setQty] = useState(1);
   const [notes, setNotes] = useState('');
   const [bgColor, setBgColor] = useState('#FFFFFF');
+  const [hue, setHue] = useState(0);
   const [cropPreview, setCropPreview] = useState(null);
   const [hiResCrop, setHiResCrop] = useState(null);
   const [shipping, setShipping] = useState('standard');
@@ -709,7 +710,7 @@ export default function EdiblePrintApp() {
             />
             <div style={{ marginTop: 18 }}>
               <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 10 }}>Background Fill Color <span style={{ fontWeight: 400, color: C.muted }}>(outside your image)</span></label>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
                 {[
                   { color: '#FFFFFF', label: 'White' },
                   { color: '#FFD700', label: 'Yellow' },
@@ -726,14 +727,25 @@ export default function EdiblePrintApp() {
                     boxShadow: color === '#FFFFFF' ? 'inset 0 0 0 1px #e5e7eb' : 'none',
                   }} />
                 ))}
-                <input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)}
-                  title="Custom color"
-                  style={{ width: 36, height: 36, borderRadius: 8, border: '2px solid ' + C.border, cursor: 'pointer', padding: 2, background: 'none', boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ flex: 1, position: 'relative', height: 24, borderRadius: 12,
+                  background: 'linear-gradient(to right, hsl(0,100%,50%), hsl(30,100%,50%), hsl(60,100%,50%), hsl(90,100%,50%), hsl(120,100%,50%), hsl(150,100%,50%), hsl(180,100%,50%), hsl(210,100%,50%), hsl(240,100%,50%), hsl(270,100%,50%), hsl(300,100%,50%), hsl(330,100%,50%), hsl(360,100%,50%))',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.1)' }}>
+                  {/* thumb indicator */}
+                  <div style={{ position: 'absolute', top: 2, bottom: 2, left: 'calc(' + (hue / 360 * 100) + '% - 2px)',
+                    width: 4, background: '#fff', borderRadius: 2, boxShadow: '0 0 3px rgba(0,0,0,0.4)', pointerEvents: 'none' }} />
+                  <input type="range" min={0} max={360} value={hue}
+                    onChange={(e) => { const h = parseInt(e.target.value); setHue(h); setBgColor('hsl(' + h + ',100%,50%)'); }}
+                    style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', margin: 0 }} />
+                </div>
+                <div title={bgColor} style={{ width: 36, height: 36, borderRadius: 8, background: bgColor, flexShrink: 0,
+                  border: '2px solid ' + C.border, boxShadow: bgColor === '#FFFFFF' ? 'inset 0 0 0 1px #e5e7eb' : 'none' }} />
               </div>
             </div>
             <div style={{ marginTop: 22 }}>
               <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Special Instructions (optional)</label>
-              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Please make the background white..." rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
+              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Add text, remove background, adjust colors..." rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
             </div>
             <div style={{ ...card, marginTop: 24 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 600 }}>
@@ -804,7 +816,7 @@ export default function EdiblePrintApp() {
                 { key: 'local', label: localZone ? 'Same Day Delivery — ' + localZone.name : 'Same Day Delivery — London, ON', price: localZone?.price || 0, disabled: !localZone },
                 { key: 'standard', label: 'Standard Shipping — 3-5 business days', price: SHIPPING.standard, disabled: false },
                 { key: 'express', label: 'Express Shipping — 1-2 business days', price: SHIPPING.express, disabled: false },
-                { key: 'pickup', label: 'Pickup — South London, ON', price: 0, disabled: false, note: '3 Frontenac Road area. We\'ll confirm the exact time by email.' },
+                { key: 'pickup', label: 'Pickup — South London, ON', price: 0, disabled: false, note: 'Glen Cairn area. We\'ll confirm the exact time by email.' },
               ].map((opt) => (
                 <label key={opt.key} style={{
                   display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 12,
