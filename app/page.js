@@ -92,7 +92,31 @@ function Logo({ size = 28 }) {
 }
 
 /* ═══ IMAGE EDITOR (with hi-res export) ═══ */
-function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF', textOverlay = null }) {
+const FONT_STYLE_MAP = {
+  normal:       { style: 'normal',  weight: 'normal' },
+  bold:         { style: 'normal',  weight: 'bold'   },
+  italic:       { style: 'italic',  weight: 'normal' },
+  'bold italic':{ style: 'italic',  weight: 'bold'   },
+};
+const FONT_SIZE_PX = { small: 18, medium: 26, large: 38 };
+
+function drawText(ctx, textOverlay, w, h, sf = 1) {
+  if (!textOverlay?.text) return;
+  const px   = (FONT_SIZE_PX[textOverlay.fontSize] || 26) * sf;
+  const { style, weight } = FONT_STYLE_MAP[textOverlay.fontStyle] || FONT_STYLE_MAP.normal;
+  ctx.font        = `${style} ${weight} ${px}px ${textOverlay.fontFamily || 'Arial'}, sans-serif`;
+  ctx.textAlign   = 'center';
+  ctx.textBaseline= 'middle';
+  const tx = (textOverlay.position?.x ?? 50) / 100 * w;
+  const ty = (textOverlay.position?.y ?? 85) / 100 * h;
+  ctx.lineWidth   = Math.max(2, px / 9);
+  ctx.strokeStyle = 'rgba(0,0,0,0.70)';
+  ctx.strokeText(textOverlay.text, tx, ty);
+  ctx.fillStyle   = textOverlay.color || '#FFFFFF';
+  ctx.fillText(textOverlay.text, tx, ty);
+}
+
+function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF', textOverlay = null, onTextPositionChange }) {
   const canvasRef = useRef(null);
   const hiResCanvasRef = useRef(null);
   const [pos, setPos] = useState({ x: 0, y: 0 });
@@ -101,6 +125,8 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
   const [maxScale, setMaxScale] = useState(3);
   const [dragging, setDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [textDragging, setTextDragging] = useState(false);
+  const textDragOffset = useRef({ dx: 0, dy: 0 });
   const imgRef = useRef(null);
 
   /* Preview canvas size */
@@ -165,19 +191,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
     ctx.setLineDash([]);
 
     /* ── Text overlay (preview) ── */
-    if (textOverlay?.text) {
-      const pxMap = { small: 18, medium: 26, large: 38 };
-      const px = pxMap[textOverlay.fontSize] || 26;
-      ctx.font = 'bold ' + px + 'px Arial, sans-serif';
-      ctx.textAlign = 'center';
-      const yMap = { top: px + 8, center: canvasH / 2, bottom: canvasH - 12 };
-      const ty = yMap[textOverlay.position] || canvasH - 12;
-      ctx.lineWidth = Math.max(2, px / 8);
-      ctx.strokeStyle = 'rgba(0,0,0,0.65)';
-      ctx.strokeText(textOverlay.text, canvasW / 2, ty);
-      ctx.fillStyle = textOverlay.color;
-      ctx.fillText(textOverlay.text, canvasW / 2, ty);
-    }
+    drawText(ctx, textOverlay, canvasW, canvasH);
 
     if (onCrop) onCrop(canvas.toDataURL());
 
@@ -204,19 +218,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
     hctx.restore();
 
     /* ── Text overlay (hi-res) ── */
-    if (textOverlay?.text) {
-      const pxMap = { small: 18, medium: 26, large: 38 };
-      const hrPx = (pxMap[textOverlay.fontSize] || 26) * scaleFactor;
-      hctx.font = 'bold ' + hrPx + 'px Arial, sans-serif';
-      hctx.textAlign = 'center';
-      const yMap = { top: hrPx + 8 * scaleFactor, center: hiResH / 2, bottom: hiResH - 12 * scaleFactor };
-      const hty = yMap[textOverlay.position] || hiResH - 12 * scaleFactor;
-      hctx.lineWidth = Math.max(2, hrPx / 8);
-      hctx.strokeStyle = 'rgba(0,0,0,0.65)';
-      hctx.strokeText(textOverlay.text, hiResW / 2, hty);
-      hctx.fillStyle = textOverlay.color;
-      hctx.fillText(textOverlay.text, hiResW / 2, hty);
-    }
+    drawText(hctx, textOverlay, hiResW, hiResH, scaleFactor);
 
     /* ── Cut guide: dotted line + label (hi-res only, not shown to user) ── */
     hctx.strokeStyle = '#CCCCCC';
@@ -238,15 +240,55 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
     if (onHiResCrop) onHiResCrop(hiResCanvas.toDataURL('image/jpeg', 0.95));
   }, [pos, scale, shape, hiResW, hiResH, scaleFactor, bgColor, textOverlay]);
 
-  const handlePointerDown = (e) => { setDragging(true); setDragStart({ x: e.clientX - pos.x, y: e.clientY - pos.y }); };
-  const handlePointerMove = (e) => { if (!dragging) return; setPos({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y }); };
+  const handlePointerDown = (e) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvasW / rect.width;
+    const scaleY = canvasH / rect.height;
+    const cx = (e.clientX - rect.left) * scaleX;
+    const cy = (e.clientY - rect.top)  * scaleY;
+    /* Check if near text label */
+    if (textOverlay?.text && onTextPositionChange) {
+      const tx = (textOverlay.position?.x ?? 50) / 100 * canvasW;
+      const ty = (textOverlay.position?.y ?? 85) / 100 * canvasH;
+      const hitR = (FONT_SIZE_PX[textOverlay.fontSize] || 26) * 1.5;
+      if (Math.hypot(cx - tx, cy - ty) < hitR) {
+        setTextDragging(true);
+        textDragOffset.current = { dx: cx - tx, dy: cy - ty };
+        e.currentTarget.setPointerCapture(e.pointerId);
+        return;
+      }
+    }
+    setDragging(true);
+    setDragStart({ x: e.clientX - pos.x, y: e.clientY - pos.y });
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const handlePointerMove = (e) => {
+    if (textDragging) {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvasW / rect.width;
+      const scaleY = canvasH / rect.height;
+      const cx = (e.clientX - rect.left) * scaleX;
+      const cy = (e.clientY - rect.top)  * scaleY;
+      const nx = Math.min(100, Math.max(0, ((cx - textDragOffset.current.dx) / canvasW) * 100));
+      const ny = Math.min(100, Math.max(0, ((cy - textDragOffset.current.dy) / canvasH) * 100));
+      onTextPositionChange({ x: nx, y: ny });
+      return;
+    }
+    if (!dragging) return;
+    setPos({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+  };
+  const handlePointerUp = () => { setDragging(false); setTextDragging(false); };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
       <canvas ref={canvasRef} width={canvasW} height={canvasH}
         onPointerDown={handlePointerDown} onPointerMove={handlePointerMove}
-        onPointerUp={() => setDragging(false)} onPointerLeave={() => setDragging(false)}
-        style={{ cursor: dragging ? 'grabbing' : 'grab', touchAction: 'none',
+        onPointerUp={handlePointerUp} onPointerLeave={handlePointerUp}
+        style={{ cursor: textDragging ? 'move' : dragging ? 'grabbing' : 'grab', touchAction: 'none',
           borderRadius: shape === 'circular' ? '50%' : 12,
           boxShadow: '0 8px 32px rgba(27,107,74,0.10)', maxWidth: '100%' }}
       />
@@ -342,7 +384,7 @@ export default function EdiblePrintApp() {
   const [qty, setQty] = useState(1);
   const [notes, setNotes] = useState('');
   const [bgColor, setBgColor] = useState('#FFFFFF');
-  const [textOverlay, setTextOverlay] = useState({ text: '', fontSize: 'medium', color: '#FFFFFF', position: 'bottom' });
+  const [textOverlay, setTextOverlay] = useState({ text: '', fontSize: 'medium', color: '#FFFFFF', position: { x: 50, y: 85 }, fontFamily: 'Arial', fontStyle: 'normal' });
   const [cropPreview, setCropPreview] = useState(null);
   const [hiResCrop, setHiResCrop] = useState(null);
   const [shipping, setShipping] = useState('standard');
@@ -802,6 +844,7 @@ export default function EdiblePrintApp() {
               onHiResCrop={setHiResCrop}
               bgColor={bgColor}
               textOverlay={textOverlay}
+              onTextPositionChange={(pos) => setTextOverlay((p) => ({ ...p, position: pos }))}
             />
             <div style={{ marginTop: 18 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
@@ -837,22 +880,34 @@ export default function EdiblePrintApp() {
                     ))}
                   </div>
                 </div>
-                {/* Position */}
+                {/* Font style */}
                 <div style={{ flex: 1, minWidth: 130 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Position</div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {[{ key: 'top', label: '↑' }, { key: 'center', label: '·' }, { key: 'bottom', label: '↓' }].map(({ key, label }) => (
-                      <button key={key} onClick={() => setTextOverlay((p) => ({ ...p, position: key }))} style={{
-                        flex: 1, padding: '8px 0', borderRadius: 8, fontWeight: 700, fontSize: 16, cursor: 'pointer',
-                        fontFamily: "'Outfit', sans-serif",
-                        border: textOverlay.position === key ? '2.5px solid ' + C.brand : '1.5px solid ' + C.border,
-                        background: textOverlay.position === key ? C.brandLight : C.white,
-                        color: textOverlay.position === key ? C.brand : C.text,
-                      }}>{label}</button>
-                    ))}
-                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Style</div>
+                  <select value={textOverlay.fontStyle} onChange={(e) => setTextOverlay((p) => ({ ...p, fontStyle: e.target.value }))} style={{
+                    width: '100%', padding: '8px 6px', borderRadius: 8, border: '1.5px solid ' + C.border,
+                    fontSize: 13, cursor: 'pointer', background: C.white, color: C.text,
+                  }}>
+                    <option value="normal">Normal</option>
+                    <option value="bold">Bold</option>
+                    <option value="italic">Italic</option>
+                    <option value="bold italic">Bold Italic</option>
+                  </select>
                 </div>
               </div>
+              {/* Font family */}
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Font</div>
+                <select value={textOverlay.fontFamily} onChange={(e) => setTextOverlay((p) => ({ ...p, fontFamily: e.target.value }))} style={{
+                  width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid ' + C.border,
+                  fontSize: 15, cursor: 'pointer', background: C.white, color: C.text,
+                  fontFamily: textOverlay.fontFamily,
+                }}>
+                  {['Arial', 'Georgia', 'Impact', 'Comic Sans MS', 'Courier New', 'Brush Script MT'].map((f) => (
+                    <option key={f} value={f} style={{ fontFamily: f }}>{f}</option>
+                  ))}
+                </select>
+              </div>
+              <p style={{ fontSize: 11, color: C.muted, margin: '8px 0 0', textAlign: 'center' }}>Drag text in preview to reposition</p>
               {/* Text color */}
               <div style={{ marginTop: 12 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Text Color</div>
@@ -878,7 +933,7 @@ export default function EdiblePrintApp() {
 
             <div style={{ marginTop: 22 }}>
               <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Special Instructions (optional)</label>
-              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Add text, remove background, adjust colors..." rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
+              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Adjust colors, add border, special requests..." rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
             </div>
             <div style={{ ...card, marginTop: 24 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 600 }}>
