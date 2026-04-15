@@ -159,6 +159,13 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop }) {
     hiResCanvas.height = hiResH;
     const hctx = hiResCanvas.getContext('2d');
     hctx.clearRect(0, 0, hiResW, hiResH);
+
+    /* For non-circular shapes, fill white background first */
+    if (shape !== 'circular') {
+      hctx.fillStyle = '#FFFFFF';
+      hctx.fillRect(0, 0, hiResW, hiResH);
+    }
+
     hctx.save();
     if (shape === 'circular') {
       hctx.beginPath();
@@ -173,9 +180,13 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop }) {
     hctx.drawImage(img, hrX, hrY, hrImgW, hrImgH);
     hctx.restore();
 
-    /* Export hi-res as JPEG 95% quality */
+    /* Export: PNG for circular (preserves transparency), JPEG for others */
     if (onHiResCrop) {
-      onHiResCrop(hiResCanvas.toDataURL('image/jpeg', 0.95));
+      if (shape === 'circular') {
+        onHiResCrop(hiResCanvas.toDataURL('image/png'));
+      } else {
+        onHiResCrop(hiResCanvas.toDataURL('image/jpeg', 0.95));
+      }
     }
   }, [pos, scale, shape, hiResW, hiResH, scaleFactor]);
 
