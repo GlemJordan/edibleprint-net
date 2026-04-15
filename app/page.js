@@ -821,13 +821,14 @@ export default function EdiblePrintApp() {
               <div style={{ display: 'flex', gap: 12, marginBottom: 22 }}>
                 <div style={{ flex: 1 }}>
                   <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>Width (inches)</label>
-                  <input type="number" value={customW} onChange={(e) => setCustomW(e.target.value)} placeholder="e.g. 5" style={inputStyle} />
+                  <input type="number" value={customW} onChange={(e) => { const v = parseFloat(e.target.value); setCustomW(isNaN(v) ? '' : String(Math.min(8, v))); }} placeholder="e.g. 5" style={inputStyle} />
                 </div>
                 <div style={{ flex: 1 }}>
                   <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>Height (inches)</label>
-                  <input type="number" value={customH} onChange={(e) => setCustomH(e.target.value)} placeholder="e.g. 7" style={inputStyle} />
+                  <input type="number" value={customH} onChange={(e) => { const v = parseFloat(e.target.value); setCustomH(isNaN(v) ? '' : String(Math.min(11, v))); }} placeholder="e.g. 7" style={inputStyle} />
                 </div>
               </div>
+              <p style={{ fontSize: 12, color: C.muted, margin: '6px 0 0', textAlign: 'center' }}>Max size: 8″ × 11″ (A4 sheet)</p>
             )}
             <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Quantity</label>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 26 }}>
