@@ -171,32 +171,34 @@ function drawText(ctx, textOverlay, w, h, sf = 1) {
   ctx.fillText(textOverlay.text, tx, ty);
 }
 
-function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF', textOverlay = null, onTextPositionChange }) {
+function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF', textOverlay = null, onTextPositionChange }) {
   const canvasRef = useRef(null);
   const hiResCanvasRef = useRef(null);
-  const [pos, setPos] = useState({ x: 0, y: 0 });
-  const [scale, setScale] = useState(1);
-  const [minScale, setMinScale] = useState(0.3);
-  const [maxScale, setMaxScale] = useState(3);
+  const imgRefs = useRef({});
+  const addLayerFileRef = useRef(null);
+  const onLayersChangeRef = useRef(onLayersChange);
+  onLayersChangeRef.current = onLayersChange;
+
+  const [selectedLayerId, setSelectedLayerId] = useState(null);
   const [dragging, setDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [dragLayerId, setDragLayerId] = useState(null);
+  const [dragStart, setDragStart] = useState({ clientX: 0, clientY: 0, layerX: 0, layerY: 0 });
   const [textDragging, setTextDragging] = useState(false);
   const textDragOffset = useRef({ dx: 0, dy: 0 });
-  const imgRef = useRef(null);
-  const [rotation, setRotation] = useState(0);
+  const [redrawTick, setRedrawTick] = useState(0);
 
   /* Preview canvas size */
   const canvasW = 300;
   const ratio = sizeObj.h && sizeObj.w ? sizeObj.h / sizeObj.w : 1;
   const canvasH = (shape === 'fullsheet' || shape === 'multicircle') ? Math.round(canvasW * ratio) : canvasW;
 
-  /* Hi-res output: 300 DPI based on the print size in inches */
+  /* Hi-res output: 300 DPI */
   const DPI = 300;
   const printW = sizeObj.w || 6;
   const printH = sizeObj.h || 6;
-  const hiResW = printW * DPI; /* e.g. 8" = 2400px */
-  const hiResH = printH * DPI; /* e.g. 8" = 2400px */
-  const scaleFactor = hiResW / canvasW; /* ratio between hi-res and preview */
+  const hiResW = printW * DPI;
+  const hiResH = printH * DPI;
+  const scaleFactor = hiResW / canvasW;
 
   /* Multi-circle layout */
   const isMultiCircle = shape === 'multicircle';
@@ -213,40 +215,59 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
   const mcOffsetX = isMultiCircle ? (canvasW - mcTotalW) / 2 : 0;
   const mcOffsetY = isMultiCircle ? (canvasH - mcTotalH) / 2 : 0;
 
-  useEffect(() => {
-    if (!image) return;
-    const img = new Image();
-    img.onload = () => {
-      imgRef.current = img;
-      /* For multicircle, fit image to one circle; otherwise fill full canvas */
-      const effW = isMultiCircle ? circlePx : canvasW;
-      const effH = isMultiCircle ? circlePx : canvasH;
-      const coverSc = Math.max(effW / img.width, effH / img.height);
-      const minSc = coverSc * 0.6;
-      const maxSc = coverSc * 1.4;
-      setMinScale(minSc);
-      setMaxScale(maxSc);
-      setScale(coverSc);
-      setPos({ x: (effW - img.width * coverSc) / 2, y: (effH - img.height * coverSc) / 2 });
-      setRotation(0);
-    };
-    img.src = image;
-  }, [image, canvasW, canvasH, isMultiCircle, circlePx]);
+  /* Effective selected layer (handles stale selectedLayerId on design switch) */
+  const effectiveSelectedId = layers.find(l => l.id === selectedLayerId)?.id
+    ?? layers[layers.length - 1]?.id ?? null;
+  const selectedLayer = layers.find(l => l.id === effectiveSelectedId) ?? null;
 
+  /* Load images for layers; auto-fit new ones */
+  useEffect(() => {
+    layers.forEach(layer => {
+      if (imgRefs.current[layer.id]) {
+        if (layer._autoFit) {
+          const img = imgRefs.current[layer.id];
+          const effW = isMultiCircle ? circlePx : canvasW;
+          const effH = isMultiCircle ? circlePx : canvasH;
+          const coverSc = Math.max(effW / img.width, effH / img.height);
+          onLayersChangeRef.current(prev => prev.map(l =>
+            l.id === layer.id ? { ...l, x: (effW - img.width * coverSc) / 2, y: (effH - img.height * coverSc) / 2, scale: coverSc, _autoFit: false } : l
+          ));
+        }
+        return;
+      }
+      const img = new Image();
+      img.onload = () => {
+        imgRefs.current[layer.id] = img;
+        const effW = isMultiCircle ? circlePx : canvasW;
+        const effH = isMultiCircle ? circlePx : canvasH;
+        const coverSc = Math.max(effW / img.width, effH / img.height);
+        onLayersChangeRef.current(prev => prev.map(l =>
+          l.id === layer.id && l._autoFit
+            ? { ...l, x: (effW - img.width * coverSc) / 2, y: (effH - img.height * coverSc) / 2, scale: coverSc, _autoFit: false }
+            : l
+        ));
+        setRedrawTick(t => t + 1);
+      };
+      img.src = layer.src;
+    });
+    /* Clean up refs for removed layers */
+    const ids = new Set(layers.map(l => l.id));
+    Object.keys(imgRefs.current).forEach(id => { if (!ids.has(id)) delete imgRefs.current[id]; });
+  }, [layers]);
+
+  /* Draw canvases */
   useEffect(() => {
     const canvas = canvasRef.current;
     const hiResCanvas = hiResCanvasRef.current;
-    if (!canvas || !hiResCanvas || !imgRef.current) return;
-    const img = imgRef.current;
+    if (!canvas || !hiResCanvas) return;
 
-    /* ── Draw preview canvas ── */
+    /* ── Preview canvas ── */
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvasW, canvasH);
     ctx.fillStyle = bgColor;
     ctx.fillRect(0, 0, canvasW, canvasH);
 
     if (isMultiCircle) {
-      /* Clip & draw image in each circle (with margin + gap) */
       for (let row = 0; row < mcRows; row++) {
         for (let col = 0; col < mcCols; col++) {
           const cx = mcOffsetX + col * mcStepPx + circlePx / 2;
@@ -255,16 +276,25 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
           ctx.beginPath();
           ctx.arc(cx, cy, circlePx / 2, 0, Math.PI * 2);
           ctx.clip();
-          if (rotation !== 0) {
-            ctx.translate(cx, cy);
-            ctx.rotate(rotation * Math.PI / 180);
-            ctx.translate(-cx, -cy);
-          }
-          ctx.drawImage(img, mcOffsetX + col * mcStepPx + pos.x, mcOffsetY + row * mcStepPx + pos.y, img.width * scale, img.height * scale);
+          layers.forEach(layer => {
+            const img = imgRefs.current[layer.id];
+            if (!img) return;
+            ctx.save();
+            const lx = mcOffsetX + col * mcStepPx + layer.x;
+            const ly = mcOffsetY + row * mcStepPx + layer.y;
+            const imgW = img.width * layer.scale;
+            const imgH = img.height * layer.scale;
+            if (layer.rotation !== 0) {
+              ctx.translate(lx + imgW / 2, ly + imgH / 2);
+              ctx.rotate(layer.rotation * Math.PI / 180);
+              ctx.translate(-(lx + imgW / 2), -(ly + imgH / 2));
+            }
+            ctx.drawImage(img, lx, ly, imgW, imgH);
+            ctx.restore();
+          });
           ctx.restore();
         }
       }
-      /* Dotted circle outlines */
       ctx.strokeStyle = C.brand;
       ctx.lineWidth = 1.5;
       ctx.setLineDash([4, 3]);
@@ -286,13 +316,35 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
         drawHeartPath(ctx, 0, 0, canvasW, canvasH);
         ctx.clip();
       }
-      if (rotation !== 0) {
-        ctx.translate(canvasW / 2, canvasH / 2);
-        ctx.rotate(rotation * Math.PI / 180);
-        ctx.translate(-canvasW / 2, -canvasH / 2);
-      }
-      ctx.drawImage(img, pos.x, pos.y, img.width * scale, img.height * scale);
+      layers.forEach(layer => {
+        const img = imgRefs.current[layer.id];
+        if (!img) return;
+        ctx.save();
+        const imgW = img.width * layer.scale;
+        const imgH = img.height * layer.scale;
+        if (layer.rotation !== 0) {
+          ctx.translate(layer.x + imgW / 2, layer.y + imgH / 2);
+          ctx.rotate(layer.rotation * Math.PI / 180);
+          ctx.translate(-(layer.x + imgW / 2), -(layer.y + imgH / 2));
+        }
+        ctx.drawImage(img, layer.x, layer.y, imgW, imgH);
+        ctx.restore();
+      });
       ctx.restore();
+      /* Selection outline for active layer */
+      if (effectiveSelectedId) {
+        const sel = layers.find(l => l.id === effectiveSelectedId);
+        const selImg = sel ? imgRefs.current[sel.id] : null;
+        if (sel && selImg) {
+          ctx.save();
+          ctx.strokeStyle = '#22C55E';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([5, 3]);
+          ctx.strokeRect(sel.x - 1, sel.y - 1, selImg.width * sel.scale + 2, selImg.height * sel.scale + 2);
+          ctx.setLineDash([]);
+          ctx.restore();
+        }
+      }
       ctx.strokeStyle = C.brand;
       ctx.lineWidth = 2;
       ctx.setLineDash([6, 4]);
@@ -312,7 +364,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
 
     if (onCrop) onCrop(canvas.toDataURL());
 
-    /* ── Draw hi-res canvas ── */
+    /* ── Hi-res canvas ── */
     hiResCanvas.width = hiResW;
     hiResCanvas.height = hiResH;
     const hctx = hiResCanvas.getContext('2d');
@@ -336,21 +388,25 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
           hctx.beginPath();
           hctx.arc(hcx, hcy, hrCirclePx / 2, 0, Math.PI * 2);
           hctx.clip();
-          if (rotation !== 0) {
-            hctx.translate(hcx, hcy);
-            hctx.rotate(rotation * Math.PI / 180);
-            hctx.translate(-hcx, -hcy);
-          }
-          hctx.drawImage(img,
-            hrOffsetX + col * hrStepPx + pos.x * scaleFactor,
-            hrOffsetY + row * hrStepPx + pos.y * scaleFactor,
-            img.width * scale * scaleFactor,
-            img.height * scale * scaleFactor
-          );
+          layers.forEach(layer => {
+            const img = imgRefs.current[layer.id];
+            if (!img) return;
+            hctx.save();
+            const hrX = hrOffsetX + col * hrStepPx + layer.x * scaleFactor;
+            const hrY = hrOffsetY + row * hrStepPx + layer.y * scaleFactor;
+            const hrW = img.width * layer.scale * scaleFactor;
+            const hrH = img.height * layer.scale * scaleFactor;
+            if (layer.rotation !== 0) {
+              hctx.translate(hrX + hrW / 2, hrY + hrH / 2);
+              hctx.rotate(layer.rotation * Math.PI / 180);
+              hctx.translate(-(hrX + hrW / 2), -(hrY + hrH / 2));
+            }
+            hctx.drawImage(img, hrX, hrY, hrW, hrH);
+            hctx.restore();
+          });
           hctx.restore();
         }
       }
-      /* Cut guide: dotted circle per slot */
       hctx.strokeStyle = '#CCCCCC';
       hctx.lineWidth = 3;
       hctx.setLineDash([20, 10]);
@@ -372,19 +428,24 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
         drawHeartPath(hctx, 0, 0, hiResW, hiResH);
         hctx.clip();
       }
-      if (rotation !== 0) {
-        hctx.translate(hiResW / 2, hiResH / 2);
-        hctx.rotate(rotation * Math.PI / 180);
-        hctx.translate(-hiResW / 2, -hiResH / 2);
-      }
-      const hrX = pos.x * scaleFactor;
-      const hrY = pos.y * scaleFactor;
-      const hrImgW = img.width * scale * scaleFactor;
-      const hrImgH = img.height * scale * scaleFactor;
-      hctx.drawImage(img, hrX, hrY, hrImgW, hrImgH);
+      layers.forEach(layer => {
+        const img = imgRefs.current[layer.id];
+        if (!img) return;
+        hctx.save();
+        const hrX = layer.x * scaleFactor;
+        const hrY = layer.y * scaleFactor;
+        const hrW = img.width * layer.scale * scaleFactor;
+        const hrH = img.height * layer.scale * scaleFactor;
+        if (layer.rotation !== 0) {
+          hctx.translate(hrX + hrW / 2, hrY + hrH / 2);
+          hctx.rotate(layer.rotation * Math.PI / 180);
+          hctx.translate(-(hrX + hrW / 2), -(hrY + hrH / 2));
+        }
+        hctx.drawImage(img, hrX, hrY, hrW, hrH);
+        hctx.restore();
+      });
       hctx.restore();
       drawText(hctx, textOverlay, hiResW, hiResH, scaleFactor);
-      /* Cut guide */
       hctx.strokeStyle = '#CCCCCC';
       hctx.lineWidth = 3;
       hctx.setLineDash([20, 10]);
@@ -402,7 +463,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
     }
 
     if (onHiResCrop) onHiResCrop(hiResCanvas.toDataURL('image/jpeg', 0.95));
-  }, [pos, scale, shape, hiResW, hiResH, scaleFactor, bgColor, textOverlay, isMultiCircle, circlePx, mcCols, mcRows, mcOffsetX, mcOffsetY, mcStepPx, circleSize, rotation]);
+  }, [layers, redrawTick, effectiveSelectedId, shape, hiResW, hiResH, scaleFactor, bgColor, textOverlay, isMultiCircle, circlePx, mcCols, mcRows, mcOffsetX, mcOffsetY, mcStepPx, circleSize, canvasW, canvasH]);
 
   const handlePointerDown = (e) => {
     const canvas = canvasRef.current;
@@ -412,7 +473,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
     const scaleY = canvasH / rect.height;
     const cx = (e.clientX - rect.left) * scaleX;
     const cy = (e.clientY - rect.top)  * scaleY;
-    /* Check if near text label */
+    /* Text drag check */
     if (textOverlay?.text && onTextPositionChange) {
       const tx = (textOverlay.position?.x ?? 50) / 100 * canvasW;
       const ty = (textOverlay.position?.y ?? 85) / 100 * canvasH;
@@ -424,10 +485,34 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
         return;
       }
     }
-    setDragging(true);
-    setDragStart({ x: e.clientX - pos.x, y: e.clientY - pos.y });
-    e.currentTarget.setPointerCapture(e.pointerId);
+    /* Find topmost layer at click point */
+    for (let i = layers.length - 1; i >= 0; i--) {
+      const layer = layers[i];
+      const img = imgRefs.current[layer.id];
+      if (!img) continue;
+      const imgW = img.width * layer.scale;
+      const imgH = img.height * layer.scale;
+      if (cx >= layer.x && cx <= layer.x + imgW && cy >= layer.y && cy <= layer.y + imgH) {
+        setSelectedLayerId(layer.id);
+        setDragging(true);
+        setDragLayerId(layer.id);
+        setDragStart({ clientX: e.clientX, clientY: e.clientY, layerX: layer.x, layerY: layer.y });
+        e.currentTarget.setPointerCapture(e.pointerId);
+        return;
+      }
+    }
+    /* Fall back: drag the selected layer */
+    if (effectiveSelectedId) {
+      const layer = layers.find(l => l.id === effectiveSelectedId);
+      if (layer) {
+        setDragging(true);
+        setDragLayerId(effectiveSelectedId);
+        setDragStart({ clientX: e.clientX, clientY: e.clientY, layerX: layer.x, layerY: layer.y });
+        e.currentTarget.setPointerCapture(e.pointerId);
+      }
+    }
   };
+
   const handlePointerMove = (e) => {
     if (textDragging) {
       const canvas = canvasRef.current;
@@ -442,13 +527,86 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
       onTextPositionChange({ x: nx, y: ny });
       return;
     }
-    if (!dragging) return;
-    setPos({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+    if (!dragging || !dragLayerId) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const dx = (e.clientX - dragStart.clientX) * (canvasW / rect.width);
+    const dy = (e.clientY - dragStart.clientY) * (canvasH / rect.height);
+    onLayersChangeRef.current(prev => prev.map(l =>
+      l.id === dragLayerId ? { ...l, x: dragStart.layerX + dx, y: dragStart.layerY + dy } : l
+    ));
   };
-  const handlePointerUp = () => { setDragging(false); setTextDragging(false); };
+
+  const handlePointerUp = () => { setDragging(false); setDragLayerId(null); setTextDragging(false); };
+
+  const moveLayerUp = (id) => {
+    const idx = layers.findIndex(l => l.id === id);
+    if (idx >= layers.length - 1) return;
+    const next = [...layers];
+    [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+    onLayersChange(next);
+  };
+
+  const moveLayerDown = (id) => {
+    const idx = layers.findIndex(l => l.id === id);
+    if (idx <= 0) return;
+    const next = [...layers];
+    [next[idx], next[idx - 1]] = [next[idx - 1], next[idx]];
+    onLayersChange(next);
+  };
+
+  const deleteLayer = (id) => {
+    const remaining = layers.filter(l => l.id !== id);
+    onLayersChange(remaining);
+    if (selectedLayerId === id) setSelectedLayerId(remaining[remaining.length - 1]?.id ?? null);
+  };
+
+  const handleAddLayerFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (addLayerFileRef.current) addLayerFileRef.current.value = '';
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const newLayer = { id: String(Date.now()), src: ev.target.result, name: file.name, x: 0, y: 0, scale: 1, rotation: 0, _autoFit: true };
+      onLayersChange([...layers, newLayer]);
+      setSelectedLayerId(newLayer.id);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  /* Per-layer slider range */
+  const selImg = effectiveSelectedId ? imgRefs.current[effectiveSelectedId] : null;
+  const minScale = selImg ? Math.max(20 / selImg.width, 20 / selImg.height) : 0.05;
+  const maxScale = selImg ? Math.max(canvasW * 4 / selImg.width, canvasH * 4 / selImg.height) : 8;
+  const currentScale = selectedLayer?.scale ?? 1;
+  const currentRotation = selectedLayer?.rotation ?? 0;
+
+  const updateSelectedLayer = (patch) => {
+    if (!effectiveSelectedId) return;
+    onLayersChange(layers.map(l => l.id === effectiveSelectedId ? { ...l, ...patch } : l));
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+      {/* Add image + delete selected */}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', width: '100%', maxWidth: 300 }}>
+        <button onClick={() => addLayerFileRef.current?.click()}
+          style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1.5px dashed ' + C.brand,
+            background: C.brandLight, color: C.brand, cursor: 'pointer', fontSize: 13, fontWeight: 600,
+            fontFamily: "'Outfit', sans-serif" }}>
+          + Add Image
+        </button>
+        {layers.length > 1 && effectiveSelectedId && (
+          <button onClick={() => deleteLayer(effectiveSelectedId)} title="Delete selected layer"
+            style={{ padding: '8px 10px', borderRadius: 8, border: '1.5px solid #EF4444',
+              background: '#FEF2F2', color: '#EF4444', cursor: 'pointer', fontSize: 14 }}>
+            🗑
+          </button>
+        )}
+        <input ref={addLayerFileRef} type="file" accept="image/*" onChange={handleAddLayerFile} style={{ display: 'none' }} />
+      </div>
+
       <canvas ref={canvasRef} width={canvasW} height={canvasH}
         onPointerDown={handlePointerDown} onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp} onPointerLeave={handlePointerUp}
@@ -456,28 +614,80 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
           borderRadius: shape === 'circular' ? '50%' : (shape === 'heart' ? 12 : 4),
           boxShadow: '0 8px 32px rgba(27,107,74,0.10)', maxWidth: '100%' }}
       />
-      {/* Hidden hi-res canvas for print-quality export */}
+      {/* Hidden hi-res canvas */}
       <canvas ref={hiResCanvasRef} style={{ display: 'none' }} />
+
+      {/* Zoom */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', maxWidth: 300 }}>
         <span style={{ fontSize: 18, color: C.muted, fontWeight: 700 }}>-</span>
-        <input type="range" min={minScale} max={maxScale} step={0.001} value={scale}
-          onChange={(e) => setScale(parseFloat(e.target.value))}
+        <input type="range" min={minScale} max={maxScale} step={0.001} value={currentScale}
+          onChange={(e) => updateSelectedLayer({ scale: parseFloat(e.target.value) })}
+          disabled={!effectiveSelectedId}
           style={{ flex: 1, accentColor: C.brand }} />
         <span style={{ fontSize: 18, color: C.muted, fontWeight: 700 }}>+</span>
       </div>
-      <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>Drag to reposition · Slider to zoom</p>
+      <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>
+        {layers.length > 1 ? 'Click layer to select · Drag to reposition · Slider to zoom' : 'Drag to reposition · Slider to zoom'}
+      </p>
+
       {/* Rotation */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', maxWidth: 300 }}>
-        <button onClick={() => setRotation((r) => Math.max(-180, r - 90))} style={{ fontSize: 12, padding: '4px 8px', borderRadius: 7, border: '1.5px solid ' + C.border, background: C.white, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: "'Outfit', sans-serif" }}>↺ -90°</button>
-        <input type="range" min={-180} max={180} step={1} value={rotation}
-          onChange={(e) => setRotation(parseInt(e.target.value))}
+        <button onClick={() => updateSelectedLayer({ rotation: Math.max(-180, currentRotation - 90) })}
+          disabled={!effectiveSelectedId}
+          style={{ fontSize: 12, padding: '4px 8px', borderRadius: 7, border: '1.5px solid ' + C.border, background: C.white, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: "'Outfit', sans-serif" }}>↺ -90°</button>
+        <input type="range" min={-180} max={180} step={1} value={currentRotation}
+          onChange={(e) => updateSelectedLayer({ rotation: parseInt(e.target.value) })}
+          disabled={!effectiveSelectedId}
           style={{ flex: 1, accentColor: C.brand }} />
-        <button onClick={() => setRotation((r) => Math.min(180, r + 90))} style={{ fontSize: 12, padding: '4px 8px', borderRadius: 7, border: '1.5px solid ' + C.border, background: C.white, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: "'Outfit', sans-serif" }}>↻ +90°</button>
+        <button onClick={() => updateSelectedLayer({ rotation: Math.min(180, currentRotation + 90) })}
+          disabled={!effectiveSelectedId}
+          style={{ fontSize: 12, padding: '4px 8px', borderRadius: 7, border: '1.5px solid ' + C.border, background: C.white, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: "'Outfit', sans-serif" }}>↻ +90°</button>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>Rotation: {rotation}°</p>
-        {rotation !== 0 && <button onClick={() => setRotation(0)} style={{ fontSize: 11, color: C.brand, background: 'none', border: '1px solid ' + C.brand, borderRadius: 6, padding: '2px 8px', cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>Reset</button>}
+        <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>Rotation: {currentRotation}°</p>
+        {currentRotation !== 0 && (
+          <button onClick={() => updateSelectedLayer({ rotation: 0 })}
+            style={{ fontSize: 11, color: C.brand, background: 'none', border: '1px solid ' + C.brand, borderRadius: 6, padding: '2px 8px', cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>Reset</button>
+        )}
       </div>
+
+      {/* Layer list */}
+      {layers.length > 0 && (
+        <div style={{ width: '100%', maxWidth: 300 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>
+            Layers ({layers.length}) — top to bottom
+          </div>
+          {[...layers].reverse().map((layer, revIdx) => {
+            const realIdx = layers.length - 1 - revIdx;
+            const isSelected = layer.id === effectiveSelectedId;
+            return (
+              <div key={layer.id} onClick={() => setSelectedLayerId(layer.id)}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', cursor: 'pointer',
+                  background: isSelected ? C.brandLight : C.white,
+                  border: '1px solid ' + (isSelected ? C.brand : C.border),
+                  borderRadius: 8, marginBottom: 4 }}>
+                <img src={layer.src} alt="" style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />
+                <span style={{ flex: 1, fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  color: isSelected ? C.brand : C.text, fontWeight: isSelected ? 600 : 400 }}>{layer.name}</span>
+                <button onClick={(ev) => { ev.stopPropagation(); moveLayerUp(layer.id); }} title="Move up (higher z-index)"
+                  disabled={realIdx >= layers.length - 1}
+                  style={{ fontSize: 11, padding: '2px 5px', borderRadius: 5, border: '1px solid ' + C.border,
+                    background: C.white, cursor: realIdx >= layers.length - 1 ? 'default' : 'pointer',
+                    opacity: realIdx >= layers.length - 1 ? 0.3 : 1, fontFamily: "'Outfit', sans-serif" }}>↑</button>
+                <button onClick={(ev) => { ev.stopPropagation(); moveLayerDown(layer.id); }} title="Move down (lower z-index)"
+                  disabled={realIdx <= 0}
+                  style={{ fontSize: 11, padding: '2px 5px', borderRadius: 5, border: '1px solid ' + C.border,
+                    background: C.white, cursor: realIdx <= 0 ? 'default' : 'pointer',
+                    opacity: realIdx <= 0 ? 0.3 : 1, fontFamily: "'Outfit', sans-serif" }}>↓</button>
+                <button onClick={(ev) => { ev.stopPropagation(); deleteLayer(layer.id); }} title="Delete layer"
+                  style={{ fontSize: 11, padding: '2px 5px', borderRadius: 5, border: '1px solid #EF4444',
+                    background: '#FEF2F2', color: '#EF4444', cursor: 'pointer' }}>🗑</button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       <p style={{ fontSize: 11, color: '#bbb', margin: 0 }}>Print output: {hiResW}×{hiResH}px ({DPI} DPI)</p>
     </div>
   );
@@ -564,8 +774,7 @@ export default function EdiblePrintApp() {
 
   /* Active design aliases */
   const activeDesign = designs.find(d => d.id === activeDesignId) ?? designs[0] ?? null;
-  const image       = activeDesign?.image       ?? null;
-  const imageName   = activeDesign?.imageName   ?? '';
+  const layers      = activeDesign?.layers      ?? [];
   const shape       = activeDesign?.shape       ?? 'circular';
   const sizeId      = activeDesign?.sizeId      ?? 'c8';
   const customW     = activeDesign?.customW     ?? '';
@@ -581,8 +790,7 @@ export default function EdiblePrintApp() {
     if (!activeDesignId) return;
     setDesigns(ds => ds.map(d => d.id === activeDesignId ? { ...d, ...patch } : d));
   };
-  const setImage       = (v) => updateActive({ image: v });
-  const setImageName   = (v) => updateActive({ imageName: v });
+  const setLayers      = (v) => updateActive({ layers: typeof v === 'function' ? v(layers) : v });
   const setShape       = (v) => updateActive({ shape: v });
   const setSizeId      = (v) => updateActive({ sizeId: v });
   const setCustomW     = (v) => updateActive({ customW: v });
@@ -679,10 +887,10 @@ export default function EdiblePrintApp() {
     const reader = new FileReader();
     reader.onload = (ev) => {
       const newId = String(Date.now());
+      const initialLayer = { id: String(Date.now() + 1), src: ev.target.result, name: file.name, x: 0, y: 0, scale: 1, rotation: 0, _autoFit: true };
       setDesigns(ds => [...ds, {
         id: newId,
-        image: ev.target.result,
-        imageName: file.name,
+        layers: [initialLayer],
         shape: 'circular',
         sizeId: 'c8',
         customW: '',
@@ -755,7 +963,7 @@ export default function EdiblePrintApp() {
     try {
       const uploadedDesigns = await Promise.all(designs.map(async (d) => {
         let imageUrl = '';
-        const imageToUpload = d.hiResCrop || d.cropPreview || d.image;
+        const imageToUpload = d.hiResCrop || d.cropPreview || d.layers?.[0]?.src;
         if (imageToUpload) {
           const uploadRes = await fetch('/api/upload-image', {
             method: 'POST',
@@ -1026,10 +1234,12 @@ export default function EdiblePrintApp() {
                   <div key={d.id} style={{ ...card, display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, padding: '12px 16px' }}>
                     {d.cropPreview
                       ? <img src={d.cropPreview} alt="" style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
-                      : <div style={{ width: 48, height: 48, borderRadius: 8, background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0 }}>🖼️</div>}
+                      : d.layers?.[0]?.src
+                        ? <img src={d.layers[0].src} alt="" style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+                        : <div style={{ width: 48, height: 48, borderRadius: 8, background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0 }}>🖼️</div>}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 14 }}>Design {i + 1}</div>
-                      <div style={{ fontSize: 12, color: C.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.imageName}</div>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>Design {i + 1}{d.layers?.length > 1 ? ` (${d.layers.length} images)` : ''}</div>
+                      <div style={{ fontSize: 12, color: C.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.layers?.map(l => l.name).join(', ') || 'No image'}</div>
                     </div>
                     <button onClick={() => { setActiveDesignId(d.id); setStep(2); }}
                       style={{ fontSize: 12, color: C.brand, background: 'none', border: '1px solid ' + C.brand, borderRadius: 8, padding: '4px 10px', cursor: 'pointer', fontFamily: "'Outfit', sans-serif", flexShrink: 0 }}>
@@ -1118,7 +1328,8 @@ export default function EdiblePrintApp() {
               <div style={{ flex: isMobile ? 'none' : '0 0 auto', width: isMobile ? '100%' : 'auto' }}>
                 <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Adjust Your Image</label>
                 <ImageEditor
-                  image={image}
+                  layers={layers}
+                  onLayersChange={setLayers}
                   shape={shape}
                   sizeObj={selectedSize || { w: parseFloat(customW) || 6, h: parseFloat(customH) || 6 }}
                   onCrop={setCropPreview}
