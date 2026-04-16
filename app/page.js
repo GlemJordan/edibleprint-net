@@ -124,32 +124,34 @@ function getCircleGrid(sheetW, sheetH, circleSize) {
 function drawHeartPath(ctx, x, y, width, height) {
   const w = width;
   const h = height;
-  const topY = y + h * 0.25;
+  const centerX = x + w / 2;
+  const notchY  = y + h * 0.25;
   ctx.beginPath();
-  ctx.moveTo(x + w / 2, topY + h * 0.1);
-  // Left upper curve
+  // Start at the V-notch between the two bumps
+  ctx.moveTo(centerX, notchY);
+  // Left bump
   ctx.bezierCurveTo(
-    x + w / 2, topY - h * 0.05,
-    x + w * 0.05, topY - h * 0.05,
-    x + w * 0.05, topY + h * 0.15
+    centerX,         y + h * 0.05,
+    x + w * 0.05,    y + h * 0.05,
+    x + w * 0.05,    notchY
   );
   // Left side down to bottom tip
   ctx.bezierCurveTo(
-    x + w * 0.05, topY + h * 0.35,
-    x + w * 0.3, topY + h * 0.55,
-    x + w / 2, y + h * 0.95
+    x + w * 0.05,    y + h * 0.55,
+    x + w * 0.25,    y + h * 0.75,
+    centerX,         y + h * 0.98
   );
   // Right side up from tip
   ctx.bezierCurveTo(
-    x + w * 0.7, topY + h * 0.55,
-    x + w * 0.95, topY + h * 0.35,
-    x + w * 0.95, topY + h * 0.15
+    x + w * 0.75,    y + h * 0.75,
+    x + w * 0.95,    y + h * 0.55,
+    x + w * 0.95,    notchY
   );
-  // Right upper curve
+  // Right bump
   ctx.bezierCurveTo(
-    x + w * 0.95, topY - h * 0.05,
-    x + w / 2, topY - h * 0.05,
-    x + w / 2, topY + h * 0.1
+    x + w * 0.95,    y + h * 0.05,
+    centerX,         y + h * 0.05,
+    centerX,         notchY
   );
   ctx.closePath();
 }
@@ -205,9 +207,12 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
   const { cols: mcCols, rows: mcRows } = isMultiCircle
     ? getCircleGrid(sizeObj.w || 8.27, sizeObj.h || 11.69, circleSize)
     : { cols: 1, rows: 1 };
-  const mcMarginPx = isMultiCircle ? MC_MARGIN * previewPPI : 0;
-  const mcGapPx    = isMultiCircle ? MC_GAP    * previewPPI : 0;
-  const mcStepPx   = circlePx + mcGapPx;
+  const mcGapPx   = isMultiCircle ? MC_GAP * previewPPI : 0;
+  const mcStepPx  = circlePx + mcGapPx;
+  const mcTotalW  = isMultiCircle ? mcCols * circlePx + Math.max(0, mcCols - 1) * mcGapPx : 0;
+  const mcTotalH  = isMultiCircle ? mcRows * circlePx + Math.max(0, mcRows - 1) * mcGapPx : 0;
+  const mcOffsetX = isMultiCircle ? (canvasW - mcTotalW) / 2 : 0;
+  const mcOffsetY = isMultiCircle ? (canvasH - mcTotalH) / 2 : 0;
 
   useEffect(() => {
     if (!image) return;
@@ -245,8 +250,8 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
       /* Clip & draw image in each circle (with margin + gap) */
       for (let row = 0; row < mcRows; row++) {
         for (let col = 0; col < mcCols; col++) {
-          const cx = mcMarginPx + col * mcStepPx + circlePx / 2;
-          const cy = mcMarginPx + row * mcStepPx + circlePx / 2;
+          const cx = mcOffsetX + col * mcStepPx + circlePx / 2;
+          const cy = mcOffsetY + row * mcStepPx + circlePx / 2;
           ctx.save();
           ctx.beginPath();
           ctx.arc(cx, cy, circlePx / 2, 0, Math.PI * 2);
@@ -256,7 +261,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
             ctx.rotate(rotation * Math.PI / 180);
             ctx.translate(-cx, -cy);
           }
-          ctx.drawImage(img, mcMarginPx + col * mcStepPx + pos.x, mcMarginPx + row * mcStepPx + pos.y, img.width * scale, img.height * scale);
+          ctx.drawImage(img, mcOffsetX + col * mcStepPx + pos.x, mcOffsetY + row * mcStepPx + pos.y, img.width * scale, img.height * scale);
           ctx.restore();
         }
       }
@@ -267,7 +272,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
       for (let row = 0; row < mcRows; row++) {
         for (let col = 0; col < mcCols; col++) {
           ctx.beginPath();
-          ctx.arc(mcMarginPx + col * mcStepPx + circlePx / 2, mcMarginPx + row * mcStepPx + circlePx / 2, circlePx / 2 - 1, 0, Math.PI * 2);
+          ctx.arc(mcOffsetX + col * mcStepPx + circlePx / 2, mcOffsetY + row * mcStepPx + circlePx / 2, circlePx / 2 - 1, 0, Math.PI * 2);
           ctx.stroke();
         }
       }
@@ -318,13 +323,16 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
 
     if (isMultiCircle) {
       const hrCirclePx = circleSize * DPI;
-      const hrMarginPx = MC_MARGIN * DPI;
-      const hrGapPx    = MC_GAP    * DPI;
+      const hrGapPx    = MC_GAP * DPI;
       const hrStepPx   = hrCirclePx + hrGapPx;
+      const hrTotalW   = mcCols * hrCirclePx + Math.max(0, mcCols - 1) * hrGapPx;
+      const hrTotalH   = mcRows * hrCirclePx + Math.max(0, mcRows - 1) * hrGapPx;
+      const hrOffsetX  = (hiResW - hrTotalW) / 2;
+      const hrOffsetY  = (hiResH - hrTotalH) / 2;
       for (let row = 0; row < mcRows; row++) {
         for (let col = 0; col < mcCols; col++) {
-          const hcx = hrMarginPx + col * hrStepPx + hrCirclePx / 2;
-          const hcy = hrMarginPx + row * hrStepPx + hrCirclePx / 2;
+          const hcx = hrOffsetX + col * hrStepPx + hrCirclePx / 2;
+          const hcy = hrOffsetY + row * hrStepPx + hrCirclePx / 2;
           hctx.save();
           hctx.beginPath();
           hctx.arc(hcx, hcy, hrCirclePx / 2, 0, Math.PI * 2);
@@ -335,8 +343,8 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
             hctx.translate(-hcx, -hcy);
           }
           hctx.drawImage(img,
-            hrMarginPx + col * hrStepPx + pos.x * scaleFactor,
-            hrMarginPx + row * hrStepPx + pos.y * scaleFactor,
+            hrOffsetX + col * hrStepPx + pos.x * scaleFactor,
+            hrOffsetY + row * hrStepPx + pos.y * scaleFactor,
             img.width * scale * scaleFactor,
             img.height * scale * scaleFactor
           );
@@ -350,7 +358,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
       for (let row = 0; row < mcRows; row++) {
         for (let col = 0; col < mcCols; col++) {
           hctx.beginPath();
-          hctx.arc(hrMarginPx + col * hrStepPx + hrCirclePx / 2, hrMarginPx + row * hrStepPx + hrCirclePx / 2, hrCirclePx / 2 - 2, 0, Math.PI * 2);
+          hctx.arc(hrOffsetX + col * hrStepPx + hrCirclePx / 2, hrOffsetY + row * hrStepPx + hrCirclePx / 2, hrCirclePx / 2 - 2, 0, Math.PI * 2);
           hctx.stroke();
         }
       }
@@ -395,7 +403,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
     }
 
     if (onHiResCrop) onHiResCrop(hiResCanvas.toDataURL('image/jpeg', 0.95));
-  }, [pos, scale, shape, hiResW, hiResH, scaleFactor, bgColor, textOverlay, isMultiCircle, circlePx, mcCols, mcRows, mcMarginPx, mcStepPx, circleSize, rotation]);
+  }, [pos, scale, shape, hiResW, hiResH, scaleFactor, bgColor, textOverlay, isMultiCircle, circlePx, mcCols, mcRows, mcOffsetX, mcOffsetY, mcStepPx, circleSize, rotation]);
 
   const handlePointerDown = (e) => {
     const canvas = canvasRef.current;
