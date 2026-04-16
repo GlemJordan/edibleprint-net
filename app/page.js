@@ -122,36 +122,35 @@ function getCircleGrid(sheetW, sheetH, circleSize) {
 
 /* Heart clip path: x,y = top-left of bounding box, width & height */
 function drawHeartPath(ctx, x, y, width, height) {
+  ctx.beginPath();
   const w = width;
   const h = height;
   const centerX = x + w / 2;
-  const notchY  = y + h * 0.25;
-  ctx.beginPath();
-  // Start at the V-notch between the two bumps
+  const notchY  = y + h * 0.28;
   ctx.moveTo(centerX, notchY);
-  // Left bump
+  // Left bump — wide and rounded
   ctx.bezierCurveTo(
-    centerX,         y + h * 0.05,
-    x + w * 0.05,    y + h * 0.05,
-    x + w * 0.05,    notchY
+    centerX - w * 0.1,  y,              // ctrl 1: rises to top
+    x,                  y + h * 0.1,    // ctrl 2: extends to left edge
+    x + w * 0.02,       y + h * 0.38   // end: top of left side
   );
-  // Left side down to bottom tip
+  // Left side down to tip
   ctx.bezierCurveTo(
-    x + w * 0.05,    y + h * 0.55,
-    x + w * 0.25,    y + h * 0.75,
-    centerX,         y + h * 0.98
+    x + w * 0.02,  y + h * 0.58,
+    x + w * 0.3,   y + h * 0.78,
+    centerX,       y + h * 0.99
   );
   // Right side up from tip
   ctx.bezierCurveTo(
-    x + w * 0.75,    y + h * 0.75,
-    x + w * 0.95,    y + h * 0.55,
-    x + w * 0.95,    notchY
+    x + w * 0.7,   y + h * 0.78,
+    x + w * 0.98,  y + h * 0.58,
+    x + w * 0.98,  y + h * 0.38
   );
-  // Right bump
+  // Right bump — wide and rounded
   ctx.bezierCurveTo(
-    x + w * 0.95,    y + h * 0.05,
-    centerX,         y + h * 0.05,
-    centerX,         notchY
+    x + w,              y + h * 0.1,    // ctrl 1: extends to right edge
+    centerX + w * 0.1,  y,              // ctrl 2: rises to top
+    centerX,            notchY          // close at notch
   );
   ctx.closePath();
 }
