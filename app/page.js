@@ -11,6 +11,11 @@ const SIZES = {
     { id: 'c7', label: '7" Round (18cm)', w: 7, h: 7, price: 19.99 },
     { id: 'c8', label: '8" Round (20cm)', w: 8, h: 8, price: 19.99 },
   ],
+  heart: [
+    { id: 'h6', label: '6" Heart (15cm)', w: 6, h: 6, price: 14.99 },
+    { id: 'h7', label: '7" Heart (18cm)', w: 7, h: 7, price: 19.99 },
+    { id: 'h8', label: '8" Heart (20cm)', w: 8, h: 8, price: 19.99 },
+  ],
   square: [
     { id: 's5', label: '5"×5" (13cm)', w: 5, h: 5, price: 14.99 },
     { id: 's6', label: '6"×6" (15cm)', w: 6, h: 6, price: 14.99 },
@@ -99,6 +104,22 @@ const FONT_STYLE_MAP = {
   italic:       { style: 'italic',  weight: 'normal' },
   'bold italic':{ style: 'italic',  weight: 'bold'   },
 };
+/* Heart clip path centered at (cx, cy) fitting in size × size bounding box */
+function drawHeartPath(ctx, cx, cy, size) {
+  const s = size / 2;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy + s * 0.95);
+  // Left side down to left lobe
+  ctx.bezierCurveTo(cx - s, cy + s * 0.3, cx - s, cy - s * 0.4, cx - s * 0.5, cy - s * 0.4);
+  // Left lobe over top to center notch
+  ctx.bezierCurveTo(cx - s * 0.15, cy - s * 0.95, cx - s * 0.05, cy - s * 0.55, cx, cy - s * 0.45);
+  // Center notch over top to right lobe
+  ctx.bezierCurveTo(cx + s * 0.05, cy - s * 0.55, cx + s * 0.15, cy - s * 0.95, cx + s * 0.5, cy - s * 0.4);
+  // Right side down to bottom tip
+  ctx.bezierCurveTo(cx + s, cy - s * 0.4, cx + s, cy + s * 0.3, cx, cy + s * 0.95);
+  ctx.closePath();
+}
+
 function drawText(ctx, textOverlay, w, h, sf = 1) {
   if (!textOverlay?.text) return;
   const px   = (Number(textOverlay.fontSize) || 24) * sf;
@@ -174,6 +195,9 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
       ctx.beginPath();
       ctx.arc(canvasW / 2, canvasH / 2, canvasW / 2, 0, Math.PI * 2);
       ctx.clip();
+    } else if (shape === 'heart') {
+      drawHeartPath(ctx, canvasW / 2, canvasH / 2, canvasW);
+      ctx.clip();
     }
     ctx.drawImage(img, pos.x, pos.y, img.width * scale, img.height * scale);
     ctx.restore();
@@ -183,6 +207,9 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
     if (shape === 'circular') {
       ctx.beginPath();
       ctx.arc(canvasW / 2, canvasH / 2, canvasW / 2 - 1, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (shape === 'heart') {
+      drawHeartPath(ctx, canvasW / 2, canvasH / 2, canvasW - 2);
       ctx.stroke();
     } else {
       ctx.strokeRect(1, 1, canvasW - 2, canvasH - 2);
@@ -207,6 +234,9 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
       hctx.beginPath();
       hctx.arc(hiResW / 2, hiResH / 2, hiResW / 2, 0, Math.PI * 2);
       hctx.clip();
+    } else if (shape === 'heart') {
+      drawHeartPath(hctx, hiResW / 2, hiResH / 2, hiResW);
+      hctx.clip();
     }
     /* Scale position & size proportionally */
     const hrX = pos.x * scaleFactor;
@@ -226,6 +256,9 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
     if (shape === 'circular') {
       hctx.beginPath();
       hctx.arc(hiResW / 2, hiResH / 2, hiResW / 2 - 2, 0, Math.PI * 2);
+      hctx.stroke();
+    } else if (shape === 'heart') {
+      drawHeartPath(hctx, hiResW / 2, hiResH / 2, hiResW - 4);
       hctx.stroke();
     } else {
       hctx.strokeRect(2, 2, hiResW - 4, hiResH - 4);
@@ -697,7 +730,7 @@ export default function EdiblePrintApp() {
           <p style={{ color: C.muted, marginBottom: 8, fontSize: 15 }}>Premium edible paper + food-safe inks included in every order.</p>
           <p style={{ fontSize: 22, fontWeight: 700, color: C.brand, marginBottom: 28 }}>Starting at <strong>$14.99</strong></p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
-            {[...SIZES.circular, ...SIZES.square, ...SIZES.fullsheet].map((sz) => {
+            {[...SIZES.circular, ...SIZES.heart, ...SIZES.square, ...SIZES.fullsheet].map((sz) => {
               const popular = sz.id === 'c8';
               return (
                 <div key={sz.id} style={{ ...card, padding: '22px 16px', position: 'relative',
@@ -910,7 +943,8 @@ export default function EdiblePrintApp() {
                 {/* Shape */}
                 <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Shape</label>
                 <div style={{ display: 'flex', gap: 8, marginBottom: 22, flexWrap: 'wrap' }}>
-                  {[{ key: 'circular', icon: '⭕', label: 'Round' }, { key: 'square', icon: '⬜', label: 'Square' },
+                  {[{ key: 'circular', icon: '⭕', label: 'Round' }, { key: 'heart', icon: '❤️', label: 'Heart' },
+                    { key: 'square', icon: '⬜', label: 'Square' },
                     { key: 'fullsheet', icon: '▬', label: 'Full Sheet' }, { key: 'custom', icon: '✏️', label: 'Custom' }].map((sh) => (
                     <button key={sh.key} onClick={() => setShape(sh.key)} style={{
                       flex: 1, minWidth: 72, padding: '12px 8px', borderRadius: 12,
