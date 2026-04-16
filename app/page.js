@@ -12,12 +12,13 @@ const SIZES = {
     { id: 'c8', label: '8" Round (20cm)', w: 8, h: 8, price: 19.99 },
   ],
   square: [
+    { id: 's5', label: '5"×5" (13cm)', w: 5, h: 5, price: 14.99 },
     { id: 's6', label: '6"×6" (15cm)', w: 6, h: 6, price: 14.99 },
     { id: 's7', label: '7"×7" (18cm)', w: 7, h: 7, price: 19.99 },
+    { id: 's8', label: '8"×8" (20cm)', w: 8, h: 8, price: 19.99 },
   ],
-  rectangular: [
-    { id: 'r7x10', label: '7"×10" (18×25cm)', w: 7, h: 10, price: 19.99 },
-    { id: 'r8x11', label: '8"×11" Full A4 (20×28cm)', w: 8, h: 11, price: 19.99 },
+  fullsheet: [
+    { id: 'a4', label: 'A4 Full Sheet (8"×11" / 20×28cm)', w: 8, h: 11, price: 19.99 },
   ],
   custom: [{ id: 'custom', label: 'Custom Size', w: 0, h: 0, price: 0 }],
 };
@@ -132,7 +133,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
   /* Preview canvas size */
   const canvasW = 300;
   const ratio = sizeObj.h && sizeObj.w ? sizeObj.h / sizeObj.w : 1;
-  const canvasH = shape === 'rectangular' ? Math.round(canvasW * ratio) : canvasW;
+  const canvasH = shape === 'fullsheet' ? Math.round(canvasW * ratio) : canvasW;
 
   /* Hi-res output: 300 DPI based on the print size in inches */
   const DPI = 300;
@@ -694,7 +695,7 @@ export default function EdiblePrintApp() {
           <p style={{ color: C.muted, marginBottom: 8, fontSize: 15 }}>Premium edible paper + food-safe inks included in every order.</p>
           <p style={{ fontSize: 22, fontWeight: 700, color: C.brand, marginBottom: 28 }}>Starting at <strong>$14.99</strong></p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
-            {[...SIZES.circular, ...SIZES.square, ...SIZES.rectangular].map((sz) => {
+            {[...SIZES.circular, ...SIZES.square, ...SIZES.fullsheet].map((sz) => {
               const popular = sz.id === 'c8';
               return (
                 <div key={sz.id} style={{ ...card, padding: '22px 16px', position: 'relative',
@@ -887,7 +888,7 @@ export default function EdiblePrintApp() {
             <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Shape</label>
             <div style={{ display: 'flex', gap: 8, marginBottom: 22, flexWrap: 'wrap' }}>
               {[{ key: 'circular', icon: '⭕', label: 'Round' }, { key: 'square', icon: '⬜', label: 'Square' },
-                { key: 'rectangular', icon: '▬', label: 'Rectangle' }, { key: 'custom', icon: '✏️', label: 'Custom' }].map((sh) => (
+                { key: 'fullsheet', icon: '▬', label: 'Full Sheet' }, { key: 'custom', icon: '✏️', label: 'Custom' }].map((sh) => (
                 <button key={sh.key} onClick={() => setShape(sh.key)} style={{
                   flex: 1, minWidth: 72, padding: '12px 8px', borderRadius: 12,
                   border: shape === sh.key ? '2.5px solid ' + C.brand : '2px solid ' + C.border,
