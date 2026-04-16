@@ -264,8 +264,8 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     /* ── Preview canvas ── */
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvasW, canvasH);
-    /* For multicircle, sheet background is always white; bgColor fills only inside each circle */
-    ctx.fillStyle = isMultiCircle ? '#FFFFFF' : bgColor;
+    /* Circular/heart/multicircle: white outside, bgColor only inside the shape */
+    ctx.fillStyle = (isMultiCircle || shape === 'circular' || shape === 'heart') ? '#FFFFFF' : bgColor;
     ctx.fillRect(0, 0, canvasW, canvasH);
 
     if (isMultiCircle) {
@@ -316,9 +316,13 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
         ctx.beginPath();
         ctx.arc(canvasW / 2, canvasH / 2, canvasW / 2, 0, Math.PI * 2);
         ctx.clip();
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(0, 0, canvasW, canvasH);
       } else if (shape === 'heart') {
         drawHeartPath(ctx, 0, 0, canvasW, canvasH);
         ctx.clip();
+        ctx.fillStyle = bgColor;
+        ctx.fill();
       }
       layers.forEach(layer => {
         const img = imgRefs.current[layer.id];
@@ -373,8 +377,8 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     hiResCanvas.height = hiResH;
     const hctx = hiResCanvas.getContext('2d');
     hctx.clearRect(0, 0, hiResW, hiResH);
-    /* For multicircle, sheet background is white; bgColor fills only inside each circle */
-    hctx.fillStyle = isMultiCircle ? '#FFFFFF' : bgColor;
+    /* Circular/heart/multicircle: white outside, bgColor only inside the shape */
+    hctx.fillStyle = (isMultiCircle || shape === 'circular' || shape === 'heart') ? '#FFFFFF' : bgColor;
     hctx.fillRect(0, 0, hiResW, hiResH);
 
     if (isMultiCircle) {
@@ -432,9 +436,13 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
         hctx.beginPath();
         hctx.arc(hiResW / 2, hiResH / 2, hiResW / 2, 0, Math.PI * 2);
         hctx.clip();
+        hctx.fillStyle = bgColor;
+        hctx.fillRect(0, 0, hiResW, hiResH);
       } else if (shape === 'heart') {
         drawHeartPath(hctx, 0, 0, hiResW, hiResH);
         hctx.clip();
+        hctx.fillStyle = bgColor;
+        hctx.fill();
       }
       layers.forEach(layer => {
         const img = imgRefs.current[layer.id];
