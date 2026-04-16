@@ -17,8 +17,8 @@ const SIZES = {
     { id: 'h8', label: '8" Heart (20cm)', w: 8, h: 8, price: 19.99 },
   ],
   multicircle: [
-    { id: 'mc2', label: '2” Circles on A4 Sheet', w: 8, h: 11, price: 24.99, circleSize: 2 },
-    { id: 'mc3', label: '3” Circles on A4 Sheet', w: 8, h: 11, price: 24.99, circleSize: 3 },
+    { id: 'mc2', label: '2” Circles on A4 Sheet', w: 8.27, h: 11.69, price: 24.99, circleSize: 2 },
+    { id: 'mc3', label: '3” Circles on A4 Sheet', w: 8.27, h: 11.69, price: 24.99, circleSize: 3 },
   ],
   square: [
     { id: 's5', label: '5"×5" (13cm)', w: 5, h: 5, price: 14.99 },
@@ -108,26 +108,49 @@ const FONT_STYLE_MAP = {
   italic:       { style: 'italic',  weight: 'normal' },
   'bold italic':{ style: 'italic',  weight: 'bold'   },
 };
-/* Calculate circle grid layout for multi-circle sheet */
+/* Calculate circle grid layout for multi-circle sheet (0.25" margin, 0.15" gap) */
+const MC_MARGIN = 0.25; // inches on each side
+const MC_GAP    = 0.15; // inches between circles
 function getCircleGrid(sheetW, sheetH, circleSize) {
-  const cols = Math.floor(sheetW / circleSize);
-  const rows = Math.floor(sheetH / circleSize);
+  const usableW = sheetW - 2 * MC_MARGIN;
+  const usableH = sheetH - 2 * MC_MARGIN;
+  const step = circleSize + MC_GAP;
+  const cols = Math.floor((usableW + MC_GAP) / step);
+  const rows = Math.floor((usableH + MC_GAP) / step);
   return { cols, rows, count: cols * rows };
 }
 
-/* Heart clip path: cx = horizontal center, cy = top of bounding box, size = width & height */
-function drawHeartPath(ctx, cx, cy, size) {
-  const w = size;
-  const h = size;
+/* Heart clip path: x,y = top-left of bounding box, width & height */
+function drawHeartPath(ctx, x, y, width, height) {
+  const w = width;
+  const h = height;
+  const topY = y + h * 0.25;
   ctx.beginPath();
-  const topCurveHeight = h * 0.3;
-  ctx.moveTo(cx, cy + topCurveHeight);
-  // Left side
-  ctx.bezierCurveTo(cx, cy, cx - w / 2, cy, cx - w / 2, cy + topCurveHeight);
-  ctx.bezierCurveTo(cx - w / 2, cy + (h + topCurveHeight) / 2, cx, cy + (h + topCurveHeight) / 2, cx, cy + h);
-  // Right side
-  ctx.bezierCurveTo(cx, cy + (h + topCurveHeight) / 2, cx + w / 2, cy + (h + topCurveHeight) / 2, cx + w / 2, cy + topCurveHeight);
-  ctx.bezierCurveTo(cx + w / 2, cy, cx, cy, cx, cy + topCurveHeight);
+  ctx.moveTo(x + w / 2, topY + h * 0.1);
+  // Left upper curve
+  ctx.bezierCurveTo(
+    x + w / 2, topY - h * 0.05,
+    x + w * 0.05, topY - h * 0.05,
+    x + w * 0.05, topY + h * 0.15
+  );
+  // Left side down to bottom tip
+  ctx.bezierCurveTo(
+    x + w * 0.05, topY + h * 0.35,
+    x + w * 0.3, topY + h * 0.55,
+    x + w / 2, y + h * 0.95
+  );
+  // Right side up from tip
+  ctx.bezierCurveTo(
+    x + w * 0.7, topY + h * 0.55,
+    x + w * 0.95, topY + h * 0.35,
+    x + w * 0.95, topY + h * 0.15
+  );
+  // Right upper curve
+  ctx.bezierCurveTo(
+    x + w * 0.95, topY - h * 0.05,
+    x + w / 2, topY - h * 0.05,
+    x + w / 2, topY + h * 0.1
+  );
   ctx.closePath();
 }
 
@@ -180,8 +203,11 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
   const previewPPI = canvasW / (sizeObj.w || 8);
   const circlePx = isMultiCircle ? Math.round(circleSize * previewPPI) : canvasW;
   const { cols: mcCols, rows: mcRows } = isMultiCircle
-    ? getCircleGrid(sizeObj.w || 8, sizeObj.h || 11, circleSize)
+    ? getCircleGrid(sizeObj.w || 8.27, sizeObj.h || 11.69, circleSize)
     : { cols: 1, rows: 1 };
+  const mcMarginPx = isMultiCircle ? MC_MARGIN * previewPPI : 0;
+  const mcGapPx    = isMultiCircle ? MC_GAP    * previewPPI : 0;
+  const mcStepPx   = circlePx + mcGapPx;
 
   useEffect(() => {
     if (!image) return;
@@ -216,11 +242,11 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
     ctx.fillRect(0, 0, canvasW, canvasH);
 
     if (isMultiCircle) {
-      /* Clip & draw image in each circle */
+      /* Clip & draw image in each circle (with margin + gap) */
       for (let row = 0; row < mcRows; row++) {
         for (let col = 0; col < mcCols; col++) {
-          const cx = col * circlePx + circlePx / 2;
-          const cy = row * circlePx + circlePx / 2;
+          const cx = mcMarginPx + col * mcStepPx + circlePx / 2;
+          const cy = mcMarginPx + row * mcStepPx + circlePx / 2;
           ctx.save();
           ctx.beginPath();
           ctx.arc(cx, cy, circlePx / 2, 0, Math.PI * 2);
@@ -230,7 +256,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
             ctx.rotate(rotation * Math.PI / 180);
             ctx.translate(-cx, -cy);
           }
-          ctx.drawImage(img, col * circlePx + pos.x, row * circlePx + pos.y, img.width * scale, img.height * scale);
+          ctx.drawImage(img, mcMarginPx + col * mcStepPx + pos.x, mcMarginPx + row * mcStepPx + pos.y, img.width * scale, img.height * scale);
           ctx.restore();
         }
       }
@@ -241,7 +267,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
       for (let row = 0; row < mcRows; row++) {
         for (let col = 0; col < mcCols; col++) {
           ctx.beginPath();
-          ctx.arc(col * circlePx + circlePx / 2, row * circlePx + circlePx / 2, circlePx / 2 - 1, 0, Math.PI * 2);
+          ctx.arc(mcMarginPx + col * mcStepPx + circlePx / 2, mcMarginPx + row * mcStepPx + circlePx / 2, circlePx / 2 - 1, 0, Math.PI * 2);
           ctx.stroke();
         }
       }
@@ -253,7 +279,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
         ctx.arc(canvasW / 2, canvasH / 2, canvasW / 2, 0, Math.PI * 2);
         ctx.clip();
       } else if (shape === 'heart') {
-        drawHeartPath(ctx, canvasW / 2, canvasH * 0.05, canvasW * 0.9);
+        drawHeartPath(ctx, 0, 0, canvasW, canvasH);
         ctx.clip();
       }
       if (rotation !== 0) {
@@ -271,7 +297,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
         ctx.arc(canvasW / 2, canvasH / 2, canvasW / 2 - 1, 0, Math.PI * 2);
         ctx.stroke();
       } else if (shape === 'heart') {
-        drawHeartPath(ctx, canvasW / 2, canvasH * 0.05, canvasW * 0.9 - 2);
+        drawHeartPath(ctx, 1, 1, canvasW - 2, canvasH - 2);
         ctx.stroke();
       } else {
         ctx.strokeRect(1, 1, canvasW - 2, canvasH - 2);
@@ -292,10 +318,13 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
 
     if (isMultiCircle) {
       const hrCirclePx = circleSize * DPI;
+      const hrMarginPx = MC_MARGIN * DPI;
+      const hrGapPx    = MC_GAP    * DPI;
+      const hrStepPx   = hrCirclePx + hrGapPx;
       for (let row = 0; row < mcRows; row++) {
         for (let col = 0; col < mcCols; col++) {
-          const hcx = col * hrCirclePx + hrCirclePx / 2;
-          const hcy = row * hrCirclePx + hrCirclePx / 2;
+          const hcx = hrMarginPx + col * hrStepPx + hrCirclePx / 2;
+          const hcy = hrMarginPx + row * hrStepPx + hrCirclePx / 2;
           hctx.save();
           hctx.beginPath();
           hctx.arc(hcx, hcy, hrCirclePx / 2, 0, Math.PI * 2);
@@ -306,8 +335,8 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
             hctx.translate(-hcx, -hcy);
           }
           hctx.drawImage(img,
-            col * hrCirclePx + pos.x * scaleFactor,
-            row * hrCirclePx + pos.y * scaleFactor,
+            hrMarginPx + col * hrStepPx + pos.x * scaleFactor,
+            hrMarginPx + row * hrStepPx + pos.y * scaleFactor,
             img.width * scale * scaleFactor,
             img.height * scale * scaleFactor
           );
@@ -321,7 +350,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
       for (let row = 0; row < mcRows; row++) {
         for (let col = 0; col < mcCols; col++) {
           hctx.beginPath();
-          hctx.arc(col * hrCirclePx + hrCirclePx / 2, row * hrCirclePx + hrCirclePx / 2, hrCirclePx / 2 - 2, 0, Math.PI * 2);
+          hctx.arc(hrMarginPx + col * hrStepPx + hrCirclePx / 2, hrMarginPx + row * hrStepPx + hrCirclePx / 2, hrCirclePx / 2 - 2, 0, Math.PI * 2);
           hctx.stroke();
         }
       }
@@ -333,7 +362,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
         hctx.arc(hiResW / 2, hiResH / 2, hiResW / 2, 0, Math.PI * 2);
         hctx.clip();
       } else if (shape === 'heart') {
-        drawHeartPath(hctx, hiResW / 2, hiResH * 0.05, hiResW * 0.9);
+        drawHeartPath(hctx, 0, 0, hiResW, hiResH);
         hctx.clip();
       }
       if (rotation !== 0) {
@@ -357,7 +386,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
         hctx.arc(hiResW / 2, hiResH / 2, hiResW / 2 - 2, 0, Math.PI * 2);
         hctx.stroke();
       } else if (shape === 'heart') {
-        drawHeartPath(hctx, hiResW / 2, hiResH * 0.05, hiResW * 0.9 - 4);
+        drawHeartPath(hctx, 2, 2, hiResW - 4, hiResH - 4);
         hctx.stroke();
       } else {
         hctx.strokeRect(2, 2, hiResW - 4, hiResH - 4);
@@ -366,7 +395,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
     }
 
     if (onHiResCrop) onHiResCrop(hiResCanvas.toDataURL('image/jpeg', 0.95));
-  }, [pos, scale, shape, hiResW, hiResH, scaleFactor, bgColor, textOverlay, isMultiCircle, circlePx, mcCols, mcRows, circleSize, rotation]);
+  }, [pos, scale, shape, hiResW, hiResH, scaleFactor, bgColor, textOverlay, isMultiCircle, circlePx, mcCols, mcRows, mcMarginPx, mcStepPx, circleSize, rotation]);
 
   const handlePointerDown = (e) => {
     const canvas = canvasRef.current;
