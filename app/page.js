@@ -515,18 +515,8 @@ function BgColorPicker({ value, onChange }) {
 /* ═══════════════════════════════════ */
 export default function EdiblePrintApp() {
   const [step, setStep] = useState(0);
-  const [image, setImage] = useState(null);
-  const [imageName, setImageName] = useState('');
-  const [shape, setShape] = useState('circular');
-  const [sizeId, setSizeId] = useState('c8');
-  const [customW, setCustomW] = useState('');
-  const [customH, setCustomH] = useState('');
-  const [qty, setQty] = useState(1);
-  const [notes, setNotes] = useState('');
-  const [bgColor, setBgColor] = useState('#FFFFFF');
-  const [textOverlay, setTextOverlay] = useState({ text: '', fontSize: 24, color: '#FFFFFF', position: { x: 50, y: 85 }, fontFamily: 'Arial', fontStyle: 'normal' });
-  const [cropPreview, setCropPreview] = useState(null);
-  const [hiResCrop, setHiResCrop] = useState(null);
+  const [designs, setDesigns] = useState([]);
+  const [activeDesignId, setActiveDesignId] = useState(null);
   const [shipping, setShipping] = useState('standard');
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
@@ -536,16 +526,58 @@ export default function EdiblePrintApp() {
   const addressRef = useRef(null);
   const autocompleteRef = useRef(null);
 
+  /* Active design aliases */
+  const activeDesign = designs.find(d => d.id === activeDesignId) ?? designs[0] ?? null;
+  const image       = activeDesign?.image       ?? null;
+  const imageName   = activeDesign?.imageName   ?? '';
+  const shape       = activeDesign?.shape       ?? 'circular';
+  const sizeId      = activeDesign?.sizeId      ?? 'c8';
+  const customW     = activeDesign?.customW     ?? '';
+  const customH     = activeDesign?.customH     ?? '';
+  const qty         = activeDesign?.qty         ?? 1;
+  const notes       = activeDesign?.notes       ?? '';
+  const bgColor     = activeDesign?.bgColor     ?? '#FFFFFF';
+  const textOverlay = activeDesign?.textOverlay ?? { text: '', fontSize: 24, color: '#FFFFFF', position: { x: 50, y: 85 }, fontFamily: 'Arial', fontStyle: 'normal' };
+  const cropPreview = activeDesign?.cropPreview ?? null;
+  const hiResCrop   = activeDesign?.hiResCrop   ?? null;
+
+  const updateActive = (patch) => {
+    if (!activeDesignId) return;
+    setDesigns(ds => ds.map(d => d.id === activeDesignId ? { ...d, ...patch } : d));
+  };
+  const setImage       = (v) => updateActive({ image: v });
+  const setImageName   = (v) => updateActive({ imageName: v });
+  const setShape       = (v) => updateActive({ shape: v });
+  const setSizeId      = (v) => updateActive({ sizeId: v });
+  const setCustomW     = (v) => updateActive({ customW: v });
+  const setCustomH     = (v) => updateActive({ customH: v });
+  const setQty         = (v) => updateActive({ qty: v });
+  const setNotes       = (v) => updateActive({ notes: v });
+  const setBgColor     = (v) => updateActive({ bgColor: v });
+  const setTextOverlay = (v) => updateActive({ textOverlay: typeof v === 'function' ? v(textOverlay) : v });
+  const setCropPreview = (v) => updateActive({ cropPreview: v });
+  const setHiResCrop   = (v) => updateActive({ hiResCrop: v });
+
   const sizes = SIZES[shape] || [];
   const selectedSize = sizes.find((sz) => sz.id === sizeId) || sizes[0];
   const unitPrice = shape === 'custom'
     ? (parseFloat(customW || 0) * parseFloat(customH || 0) <= 36 ? 14.99 : 19.99)
     : selectedSize?.price || 0;
   const subtotal = unitPrice * qty;
+
+  const designsSubtotal = designs.reduce((sum, d) => {
+    const dSizes = SIZES[d.shape] || [];
+    const dSel = dSizes.find(sz => sz.id === d.sizeId) || dSizes[0];
+    const dPrice = d.shape === 'custom'
+      ? (parseFloat(d.customW || 0) * parseFloat(d.customH || 0) <= 36 ? 14.99 : 19.99)
+      : dSel?.price || 0;
+    return sum + dPrice * d.qty;
+  }, 0);
+
   const localZone = getLocalZone(form.postal);
   const shippingCost = shipping === 'local' ? (localZone?.price || 0) : shipping === 'pickup' ? 0 : (SHIPPING[shipping] || 0);
-  const tax = (subtotal + shippingCost) * TAX_RATE;
-  const total = subtotal + shippingCost + tax;
+  const tax = (designsSubtotal + shippingCost) * TAX_RATE;
+  const total = designsSubtotal + shippingCost + tax;
 
   useEffect(() => {
     if (shipping === 'local' && form.postal && !getLocalZone(form.postal)) {
@@ -554,11 +586,11 @@ export default function EdiblePrintApp() {
   }, [form.postal]);
 
   useEffect(() => {
+    if (!activeDesignId) return;
     if (shape === 'custom') { setSizeId('custom'); }
     else if (!SIZES[shape]?.find((sz) => sz.id === sizeId)) { setSizeId(SIZES[shape]?.[0]?.id || ''); }
-  }, [shape]);
+  }, [shape, activeDesignId]);
 
-  /* ═══ PREVENT BROWSER DEFAULT DRAG/DROP (opens file in new tab) ═══ */
   useEffect(() => {
     const prevent = (e) => { e.preventDefault(); e.stopPropagation(); };
     document.addEventListener('dragover', prevent);
@@ -569,7 +601,6 @@ export default function EdiblePrintApp() {
     };
   }, []);
 
-  /* ═══ GOOGLE PLACES AUTOCOMPLETE ═══ */
   useEffect(() => {
     if (step !== 3 || !addressRef.current || autocompleteRef.current) return;
     const checkGoogle = setInterval(() => {
@@ -606,16 +637,39 @@ export default function EdiblePrintApp() {
     return () => { clearInterval(checkGoogle); autocompleteRef.current = null; };
   }, [step]);
 
-  const handleFile = (e) => {
-    const file = e.target.files?.[0];
+  const addDesignFromFile = (file) => {
     if (!file) return;
-    setImageName(file.name);
+    if (designs.length >= 5) { alert('Maximum 5 designs per order.'); return; }
     const reader = new FileReader();
-    reader.onload = (ev) => { setImage(ev.target.result); setStep(2); };
+    reader.onload = (ev) => {
+      const newId = String(Date.now());
+      setDesigns(ds => [...ds, {
+        id: newId,
+        image: ev.target.result,
+        imageName: file.name,
+        shape: 'circular',
+        sizeId: 'c8',
+        customW: '',
+        customH: '',
+        qty: 1,
+        notes: '',
+        bgColor: '#FFFFFF',
+        textOverlay: { text: '', fontSize: 24, color: '#FFFFFF', position: { x: 50, y: 85 }, fontFamily: 'Arial', fontStyle: 'normal' },
+        cropPreview: null,
+        hiResCrop: null,
+      }]);
+      setActiveDesignId(newId);
+      setStep(2);
+    };
     reader.readAsDataURL(file);
   };
 
-  /* ═══ DRAG & DROP ═══ */
+  const handleFile = (e) => {
+    const file = e.target.files?.[0];
+    if (fileRef.current) fileRef.current.value = '';
+    addDesignFromFile(file);
+  };
+
   const [isDragOver, setIsDragOver] = useState(false);
   const handleDrop = (e) => {
     e.preventDefault();
@@ -623,10 +677,7 @@ export default function EdiblePrintApp() {
     const file = e.dataTransfer?.files?.[0];
     if (!file) return;
     if (!file.type.startsWith('image/') && file.type !== 'application/pdf') return;
-    setImageName(file.name);
-    const reader = new FileReader();
-    reader.onload = (ev) => { setImage(ev.target.result); setStep(2); };
-    reader.readAsDataURL(file);
+    addDesignFromFile(file);
   };
   const handleDragOver = (e) => { e.preventDefault(); setIsDragOver(true); };
   const handleDragLeave = () => { setIsDragOver(false); };
@@ -648,7 +699,6 @@ export default function EdiblePrintApp() {
 
   const updateForm = (key, val) => setForm((prev) => ({ ...prev, [key]: val }));
 
-  /* Auto-split unit/suite from address string (e.g. "123 Main St #503" or "123 Main apt 2B") */
   const handleAddressChange = (raw) => {
     const unitPattern = /\s+(#\s*\w+|(?:unit|apt|suite|ste)\s*\.?\s*\w+)\s*$/i;
     const match = raw.match(unitPattern);
@@ -659,30 +709,28 @@ export default function EdiblePrintApp() {
     }
   };
 
- /* ═══ STRIPE CHECKOUT ═══ */
   const handlePlaceOrder = async () => {
+    if (designs.length === 0) { alert('Please add at least one design.'); return; }
     if (!form.name || !form.email || (shipping !== 'pickup' && (!form.address || !form.city || !form.postal))) {
       alert('Please fill in all required fields.');
       return;
     }
     setLoading(true);
     try {
-      /* Upload the HI-RES CROPPED image (not the original) */
-      let imageUrl = '';
-      const imageToUpload = hiResCrop || cropPreview || image;
-      if (imageToUpload) {
-        const uploadRes = await fetch('/api/upload-image', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageData: imageToUpload, fileName: imageName }),
-        });
-        const uploadData = await uploadRes.json();
-        if (uploadData.url) {
-          imageUrl = uploadData.url;
+      const uploadedDesigns = await Promise.all(designs.map(async (d) => {
+        let imageUrl = '';
+        const imageToUpload = d.hiResCrop || d.cropPreview || d.image;
+        if (imageToUpload) {
+          const uploadRes = await fetch('/api/upload-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imageData: imageToUpload, fileName: d.imageName }),
+          });
+          const uploadData = await uploadRes.json();
+          if (uploadData.url) imageUrl = uploadData.url;
         }
-      }
-
-      // Step 2: Create Stripe checkout
+        return { ...d, uploadedImageUrl: imageUrl };
+      }));
       const response = await fetch('/api/create-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -694,14 +742,23 @@ export default function EdiblePrintApp() {
           shippingCity: form.city,
           shippingProvince: form.province,
           shippingPostal: form.postal,
-          shape,
-          size: shape === 'custom' ? customW + '"x' + customH + '"' : selectedSize?.label,
-          quantity: qty,
-          unitPrice,
           shippingMethod: shipping,
           shippingCost: shippingCost,
-          notes,
-          imageUrl,
+          designs: uploadedDesigns.map(d => {
+            const dSizes = SIZES[d.shape] || [];
+            const dSel = dSizes.find(sz => sz.id === d.sizeId) || dSizes[0];
+            const dPrice = d.shape === 'custom'
+              ? (parseFloat(d.customW || 0) * parseFloat(d.customH || 0) <= 36 ? 14.99 : 19.99)
+              : dSel?.price || 0;
+            return {
+              shape: d.shape,
+              size: d.shape === 'custom' ? d.customW + '"x' + d.customH + '"' : (dSel?.label || ''),
+              quantity: d.qty,
+              unitPrice: dPrice,
+              notes: d.notes || '',
+              imageUrl: d.uploadedImageUrl || '',
+            };
+          }),
         }),
       });
       const data = await response.json();
@@ -712,21 +769,17 @@ export default function EdiblePrintApp() {
       }
     } catch (error) {
       alert('Connection error. Please try again.');
-   } finally {
+    } finally {
       setLoading(false);
     }
   };
-  /* ════════════════════════════ */
-  /* ═══ HOME PAGE ═══ */
-  /* ════════════════════════════ */
+
+  /* HOME PAGE */
   if (step === 0) {
     const deliveryDay = new Date(Date.now() + 2 * 86400000).toLocaleDateString('en-US', { weekday: 'long' });
     const stepColors = ['#E8F5EE', '#FFF4EB', '#EEF2FF', '#FFF9E6'];
-
     return (
       <div style={{ fontFamily: "'Outfit', sans-serif", background: C.bg, minHeight: '100vh', color: C.text }}>
-
-        {/* ── Sticky nav ── */}
         <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 24px',
           borderBottom: '1px solid ' + C.border, background: 'rgba(255,255,255,0.92)',
           backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 100 }}>
@@ -735,8 +788,6 @@ export default function EdiblePrintApp() {
             Order Now
           </button>
         </nav>
-
-        {/* ── Hero ── */}
         <section style={{ padding: '60px 24px 52px', textAlign: 'center', maxWidth: 740, margin: '0 auto',
           background: 'linear-gradient(180deg, #E8F5EE 0%, #FAFBF9 100%)', borderRadius: '0 0 40px 40px' }}>
           <div style={{ display: 'inline-block', background: 'rgba(27,107,74,0.12)', color: C.brand,
@@ -751,34 +802,25 @@ export default function EdiblePrintApp() {
           <p style={{ fontSize: 18, color: C.muted, lineHeight: 1.65, margin: '0 auto 28px', maxWidth: 500 }}>
             Custom printed on premium edible sheets. Perfect for cakes, cookies &amp; celebrations.
           </p>
-
-          {/* Social proof above CTA */}
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: C.white,
             border: '1px solid ' + C.border, borderRadius: 40, padding: '8px 18px',
             fontSize: 13.5, fontWeight: 600, marginBottom: 22, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
             <span style={{ color: '#FBBF24', letterSpacing: 1 }}>★★★★★</span>
             <span style={{ color: C.text }}>Trusted by 200+ happy customers across Canada</span>
           </div>
-
           <div>
             <button onClick={() => setStep(1)} style={{ ...btnPrimary, fontSize: 20, padding: '20px 52px',
               borderRadius: 16, boxShadow: '0 8px 28px rgba(27,107,74,0.35)', letterSpacing: 0.3 }}>
               Upload Your Photo Now →
             </button>
           </div>
-
-          {/* Urgency banner */}
           <div style={{ display: 'inline-block', background: '#FFF4EB', border: '1px solid #FDDBB6',
             borderRadius: 10, padding: '8px 20px', marginTop: 14, fontSize: 13.5, fontWeight: 600, color: '#B45309' }}>
             🔥 Order today, delivered by <strong>{deliveryDay}</strong>
           </div>
-
           <p style={{ fontSize: 13, color: '#bbb', marginTop: 12 }}>No account needed · Takes under 2 minutes</p>
         </section>
-
-        {/* ── Trust bar ── */}
-        <div style={{ background: C.white, borderTop: '1px solid ' + C.border, borderBottom: '1px solid ' + C.border,
-          padding: '16px 24px' }}>
+        <div style={{ background: C.white, borderTop: '1px solid ' + C.border, borderBottom: '1px solid ' + C.border, padding: '16px 24px' }}>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 0, flexWrap: 'wrap', maxWidth: 760, margin: '0 auto' }}>
             {[
               { icon: '🍃', title: 'FDA-Approved', sub: 'Edible inks & sheets' },
@@ -797,12 +839,8 @@ export default function EdiblePrintApp() {
             ))}
           </div>
         </div>
-
-        {/* ── How It Works ── */}
         <section style={{ padding: '56px 24px', maxWidth: 860, margin: '0 auto' }}>
-          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, textAlign: 'center', marginBottom: 10, fontWeight: 700 }}>
-            How It Works
-          </h2>
+          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, textAlign: 'center', marginBottom: 10, fontWeight: 700 }}>How It Works</h2>
           <p style={{ textAlign: 'center', color: C.muted, marginBottom: 36, fontSize: 15 }}>Four simple steps to your edible print</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(175px, 1fr))', gap: 16 }}>
             {[
@@ -821,12 +859,8 @@ export default function EdiblePrintApp() {
             ))}
           </div>
         </section>
-
-        {/* ── Occasions ── */}
         <section style={{ padding: '44px 24px', maxWidth: 860, margin: '0 auto' }}>
-          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, textAlign: 'center', marginBottom: 32, fontWeight: 700 }}>
-            Perfect For Every Occasion
-          </h2>
+          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, textAlign: 'center', marginBottom: 32, fontWeight: 700 }}>Perfect For Every Occasion</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(185px, 1fr))', gap: 12 }}>
             {['🎂 Birthday Cakes','🎓 Graduation Parties','👶 Baby Showers','💼 Corporate Events',
               '🏷️ Brand Logos on Treats','🍪 Cookie Toppers','💒 Weddings & Anniversaries','📸 Photo Cupcakes'].map((item, i) => (
@@ -835,8 +869,6 @@ export default function EdiblePrintApp() {
             ))}
           </div>
         </section>
-
-        {/* ── Pricing ── */}
         <section style={{ padding: '52px 24px', maxWidth: 760, margin: '0 auto', textAlign: 'center' }}>
           <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, marginBottom: 8, fontWeight: 700 }}>Simple, Transparent Pricing</h2>
           <p style={{ color: C.muted, marginBottom: 8, fontSize: 15 }}>Premium edible paper + food-safe inks included in every order.</p>
@@ -851,9 +883,7 @@ export default function EdiblePrintApp() {
                   {popular && (
                     <div style={{ position: 'absolute', top: -11, left: '50%', transform: 'translateX(-50%)',
                       background: C.brand, color: '#fff', fontSize: 11, fontWeight: 700,
-                      borderRadius: 20, padding: '3px 10px', whiteSpace: 'nowrap' }}>
-                      Most Popular
-                    </div>
+                      borderRadius: 20, padding: '3px 10px', whiteSpace: 'nowrap' }}>Most Popular</div>
                   )}
                   <div style={{ fontSize: 26, fontWeight: 700, color: C.brand }}>{'$' + sz.price.toFixed(2)}</div>
                   <div style={{ fontSize: 13, color: C.muted, marginTop: 4, fontWeight: 500 }}>{sz.label}</div>
@@ -863,12 +893,8 @@ export default function EdiblePrintApp() {
           </div>
           <p style={{ fontSize: 13, color: '#bbb', marginTop: 16 }}>Custom sizes available · Shipping from $6.99 · HST calculated at checkout</p>
         </section>
-
-        {/* ── Reviews ── */}
         <section style={{ padding: '48px 24px', maxWidth: 860, margin: '0 auto' }}>
-          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, textAlign: 'center', marginBottom: 32, fontWeight: 700 }}>
-            What Our Customers Say
-          </h2>
+          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, textAlign: 'center', marginBottom: 32, fontWeight: 700 }}>What Our Customers Say</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 20 }}>
             {[
               { quote: "Perfect photo on my daughter's birthday cake! Amazing quality.", name: 'Sarah M.', location: 'London, ON' },
@@ -884,12 +910,8 @@ export default function EdiblePrintApp() {
             ))}
           </div>
         </section>
-
-        {/* ── FAQ ── */}
         <section style={{ padding: '48px 24px', maxWidth: 680, margin: '0 auto' }}>
-          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, textAlign: 'center', marginBottom: 28, fontWeight: 700 }}>
-            Frequently Asked Questions
-          </h2>
+          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, textAlign: 'center', marginBottom: 28, fontWeight: 700 }}>Frequently Asked Questions</h2>
           {[
             ['What are edible prints made of?', 'We use FDA-approved edible icing sheets with food-safe inks. They are 100% safe to eat and designed to be placed directly on cakes, cookies, cupcakes, and other baked goods.'],
             ['How do I use the edible print?', 'Simply peel the backing and place it on your frosted cake, cookies, or cupcakes. The print blends seamlessly with the icing.'],
@@ -897,76 +919,36 @@ export default function EdiblePrintApp() {
             ['What image quality do I need?', 'For best results, upload a high-resolution image (at least 1000×1000 pixels). We review every order before printing and will contact you if we notice any quality issues.'],
             ['Do you ship to all provinces?', 'Yes — we ship to every province and territory in Canada.'],
             ['Can I order multiple copies?', 'Absolutely. Adjust the quantity at checkout. Volume discounts are available for orders over 20 units — contact us for a quote.'],
-            ['What if I need help with my image?', 'We review every order within 24 hours. If adjustments are needed, we will reach out before printing. You can also include special instructions with your order.'],
-          ].map((faq, i) => (
-            <details key={i} style={{ ...card, padding: '16px 20px', marginBottom: 10, cursor: 'pointer', borderRadius: 12 }}>
-              <summary style={{ fontWeight: 600, fontSize: 15, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                {faq[0]} <span style={{ color: '#ccc', fontSize: 20, marginLeft: 8 }}>+</span>
+            ['Can I order multiple different designs?', 'Yes! Use the "Add Another Design" button during checkout to include up to 5 different designs in one order. Each design can have its own shape, size, and image.'],
+          ].map(([q, a], i) => (
+            <details key={i} style={{ borderBottom: '1px solid ' + C.border, paddingBottom: 16, marginBottom: 16 }}>
+              <summary style={{ fontWeight: 600, fontSize: 15, cursor: 'pointer', listStyle: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                {q} <span style={{ color: C.brand, fontSize: 20, fontWeight: 400 }}>+</span>
               </summary>
-              <p style={{ margin: '12px 0 0', fontSize: 14, color: C.muted, lineHeight: 1.65 }}>{faq[1]}</p>
+              <p style={{ margin: '10px 0 0', fontSize: 14, color: C.muted, lineHeight: 1.65 }}>{a}</p>
             </details>
           ))}
         </section>
-
-        {/* ── Bottom CTA ── */}
-        <section style={{ padding: '56px 24px 72px', textAlign: 'center',
-          background: 'linear-gradient(180deg, #FAFBF9 0%, #E8F5EE 100%)' }}>
-          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, marginBottom: 8, fontWeight: 700 }}>Ready to Print?</h2>
-          <p style={{ color: C.muted, marginBottom: 24, fontSize: 16 }}>Upload your image and get your edible prints shipped across Canada.</p>
-          <button onClick={() => setStep(1)} style={{ ...btnPrimary, fontSize: 18, padding: '17px 44px', borderRadius: 14, boxShadow: '0 6px 20px rgba(27,107,74,0.30)' }}>
+        <section style={{ background: C.brand, color: '#fff', padding: '52px 24px', textAlign: 'center' }}>
+          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, margin: '0 0 16px', fontWeight: 700 }}>Ready to Create Your Edible Print?</h2>
+          <p style={{ fontSize: 16, opacity: 0.88, margin: '0 0 28px' }}>Upload your image and get your custom edible print delivered to your door.</p>
+          <button onClick={() => setStep(1)} style={{ ...btnPrimary, background: '#fff', color: C.brand, fontSize: 18, padding: '16px 44px', borderRadius: 14 }}>
             Start Your Order →
           </button>
         </section>
-
-        {/* ── Footer ── */}
-        <footer style={{ borderTop: '1px solid ' + C.border, padding: '36px 24px 28px', background: C.white }}>
-          <div style={{ maxWidth: 760, margin: '0 auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 24, marginBottom: 28 }}>
-              <div>
-                <Logo size={22} />
-                <p style={{ fontSize: 13, color: C.muted, marginTop: 10, lineHeight: 1.65 }}>
-                  Serving London, Ontario &amp; shipping Canada-wide.<br />
-                  Handcrafted with care in the Glen Cairn area.
-                </p>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: C.brand, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Contact</div>
-                <a href="mailto:glenj.belmar@gmail.com" style={{ fontSize: 13, color: C.muted, textDecoration: 'none' }}>✉️ glenj.belmar@gmail.com</a>
-                <a href="https://instagram.com/edibleprint.net" target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: C.muted, textDecoration: 'none' }}>📸 @edibleprint.net</a>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: C.brand, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Order</div>
-                <button onClick={() => setStep(1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: C.muted, textAlign: 'left', padding: 0 }}>🎂 Start an Order</button>
-                <a href="mailto:hello@edibleprint.net?subject=Custom%20Quote" style={{ fontSize: 13, color: C.muted, textDecoration: 'none' }}>💼 Bulk / Business Quote</a>
-              </div>
-            </div>
-            <div style={{ borderTop: '1px solid ' + C.border, paddingTop: 18, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, fontSize: 12, color: '#aaa' }}>
-              <span>© 2026 EdiblePrint.net. All rights reserved.</span>
-              <span>HST Registration: [pending] · London, Ontario, Canada</span>
-            </div>
-          </div>
+        <footer style={{ padding: '28px 24px', textAlign: 'center', borderTop: '1px solid ' + C.border, color: C.muted, fontSize: 13 }}>
+          <Logo size={22} />
+          <p style={{ margin: '12px 0 4px' }}>
+            <a href="mailto:hello@edibleprint.net" style={{ color: C.brand, textDecoration: 'none' }}>hello@edibleprint.net</a>
+            {' · London, Ontario, Canada'}
+          </p>
+          <p style={{ margin: 0, fontSize: 12, color: '#bbb' }}>© {new Date().getFullYear()} EdiblePrint.net · All rights reserved</p>
         </footer>
-
-        {/* ── Sticky mobile CTA ── */}
-        {scrolled && (
-          <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 200,
-            padding: '12px 20px', background: 'rgba(255,255,255,0.96)',
-            borderTop: '1px solid ' + C.border, backdropFilter: 'blur(12px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
-            <span style={{ fontSize: 13, color: C.muted, fontWeight: 500 }}>🍃 FDA-Approved · Ships Canada-wide</span>
-            <button onClick={() => setStep(1)} style={{ ...btnPrimary, padding: '11px 28px', fontSize: 15, borderRadius: 10, flexShrink: 0 }}>
-              Order Now →
-            </button>
-          </div>
-        )}
-
       </div>
     );
   }
 
-  /* ════════════════════════════ */
-  /* ═══ ORDER FLOW ═══ */
-  /* ════════════════════════════ */
+  /* ORDER FLOW */
   return (
     <div style={{ fontFamily: "'Outfit', sans-serif", background: C.bg, minHeight: '100vh', color: C.text }}>
       <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 24px',
@@ -990,52 +972,113 @@ export default function EdiblePrintApp() {
 
       <div style={{ maxWidth: 600, margin: '0 auto', padding: '32px 20px' }}>
 
-        {/* STEP 1: UPLOAD (with real drag & drop) */}
+        {/* STEP 1: UPLOAD */}
         {step === 1 && (
-          <div style={{ textAlign: 'center' }}>
-            <div style={stepBadge}>1</div>
-            <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, margin: '16px 0 8px', fontWeight: 700 }}>Upload Your Image</h2>
-            <p style={{ color: C.muted, marginBottom: 28 }}>JPG, PNG or PDF · High resolution for best results</p>
-            <div
-              onClick={() => fileRef.current?.click()}
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              style={{
-                border: '2.5px dashed ' + (isDragOver ? C.brand : C.border),
-                borderRadius: 20, padding: '56px 24px',
-                cursor: 'pointer', transition: 'all 0.25s',
-                background: isDragOver ? C.brandLight : C.white,
-              }}>
-              <div style={{ fontSize: 52, marginBottom: 14, opacity: 0.8 }}>🖼️</div>
-              <p style={{ margin: 0, fontWeight: 600, fontSize: 17 }}>
-                {isDragOver ? 'Drop your image here!' : 'Tap to upload your image'}
-              </p>
-              <p style={{ margin: '8px 0 0', fontSize: 13, color: '#bbb' }}>or drag and drop here</p>
+          <div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={stepBadge}>1</div>
+              <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, margin: '16px 0 8px', fontWeight: 700 }}>
+                {designs.length > 0 ? 'Add Another Design' : 'Upload Your Image'}
+              </h2>
+              <p style={{ color: C.muted, marginBottom: 24 }}>JPG, PNG or PDF · High resolution for best results</p>
             </div>
+
+            {designs.length > 0 && (
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 10 }}>Your Designs ({designs.length}/5)</label>
+                {designs.map((d, i) => (
+                  <div key={d.id} style={{ ...card, display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, padding: '12px 16px' }}>
+                    {d.cropPreview
+                      ? <img src={d.cropPreview} alt="" style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+                      : <div style={{ width: 48, height: 48, borderRadius: 8, background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0 }}>🖼️</div>}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>Design {i + 1}</div>
+                      <div style={{ fontSize: 12, color: C.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.imageName}</div>
+                    </div>
+                    <button onClick={() => { setActiveDesignId(d.id); setStep(2); }}
+                      style={{ fontSize: 12, color: C.brand, background: 'none', border: '1px solid ' + C.brand, borderRadius: 8, padding: '4px 10px', cursor: 'pointer', fontFamily: "'Outfit', sans-serif", flexShrink: 0 }}>
+                      Edit
+                    </button>
+                    <button onClick={() => {
+                        const remaining = designs.filter(x => x.id !== d.id);
+                        setDesigns(remaining);
+                        if (activeDesignId === d.id) setActiveDesignId(remaining[0]?.id ?? null);
+                      }}
+                      style={{ fontSize: 12, color: '#EF4444', background: 'none', border: '1px solid #EF4444', borderRadius: 8, padding: '4px 10px', cursor: 'pointer', fontFamily: "'Outfit', sans-serif", flexShrink: 0 }}>
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {designs.length < 5 && (
+              <div
+                onClick={() => fileRef.current?.click()}
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                style={{
+                  border: '2.5px dashed ' + (isDragOver ? C.brand : C.border),
+                  borderRadius: 20, padding: designs.length > 0 ? '36px 24px' : '56px 24px',
+                  cursor: 'pointer', transition: 'all 0.25s',
+                  background: isDragOver ? C.brandLight : C.white, textAlign: 'center',
+                }}>
+                <div style={{ fontSize: designs.length > 0 ? 36 : 52, marginBottom: 14, opacity: 0.8 }}>🖼️</div>
+                <p style={{ margin: 0, fontWeight: 600, fontSize: designs.length > 0 ? 15 : 17 }}>
+                  {isDragOver ? 'Drop your image here!' : designs.length > 0 ? 'Upload another image' : 'Tap to upload your image'}
+                </p>
+                <p style={{ margin: '8px 0 0', fontSize: 13, color: '#bbb' }}>or drag and drop here</p>
+              </div>
+            )}
             <input ref={fileRef} type="file" accept="image/*,.pdf" onChange={handleFile} style={{ display: 'none' }} />
-            {image && (
-              <div style={{ marginTop: 20 }}>
-                <p style={{ color: C.brand, fontWeight: 600 }}>{'✓ ' + imageName}</p>
-                <button onClick={() => setStep(2)} style={btnPrimary}>Continue →</button>
+
+            {designs.length > 0 && (
+              <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
+                <button onClick={() => { setActiveDesignId(designs[0].id); setStep(2); }} style={{ ...btnPrimary, flex: 1 }}>
+                  Continue to Customize →
+                </button>
               </div>
             )}
           </div>
         )}
 
         {/* STEP 2: CUSTOMIZE */}
-        {step === 2 && (
+        {step === 2 && activeDesign && (
           <div>
             <div style={{ textAlign: 'center' }}>
               <div style={stepBadge}>2</div>
               <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, margin: '16px 0 8px', fontWeight: 700 }}>Customize Your Print</h2>
-              <p style={{ color: C.muted, marginBottom: 24 }}>Choose shape, size, and adjust the crop area</p>
+              <p style={{ color: C.muted, marginBottom: 16 }}>Choose shape, size, and adjust the crop area</p>
             </div>
 
-            {/* Two-column layout */}
-            <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 24, alignItems: 'flex-start' }}>
+            {/* Design tabs */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 20, overflowX: 'auto', paddingBottom: 4 }}>
+              {designs.map((d, i) => (
+                <button key={d.id}
+                  onClick={() => setActiveDesignId(d.id)}
+                  style={{
+                    padding: '8px 16px', borderRadius: 20, flexShrink: 0,
+                    border: activeDesignId === d.id ? '2px solid ' + C.brand : '2px solid ' + C.border,
+                    background: activeDesignId === d.id ? C.brandLight : C.white,
+                    fontWeight: activeDesignId === d.id ? 700 : 400,
+                    fontSize: 13, cursor: 'pointer', color: activeDesignId === d.id ? C.brand : C.text,
+                    fontFamily: "'Outfit', sans-serif",
+                  }}>
+                  Design {i + 1}
+                </button>
+              ))}
+              {designs.length < 5 && (
+                <button onClick={() => setStep(1)} style={{
+                  padding: '8px 16px', borderRadius: 20, flexShrink: 0,
+                  border: '2px dashed ' + C.border, background: C.white,
+                  fontSize: 13, cursor: 'pointer', color: C.muted,
+                  fontFamily: "'Outfit', sans-serif",
+                }}>+ Add Design</button>
+              )}
+            </div>
 
-              {/* ── LEFT: canvas ── */}
+            <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 24, alignItems: 'flex-start' }}>
               <div style={{ flex: isMobile ? 'none' : '0 0 auto', width: isMobile ? '100%' : 'auto' }}>
                 <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Adjust Your Image</label>
                 <ImageEditor
@@ -1050,9 +1093,7 @@ export default function EdiblePrintApp() {
                 />
               </div>
 
-              {/* ── RIGHT: controls ── */}
               <div style={{ flex: 1, minWidth: 0 }}>
-                {/* Shape */}
                 <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Shape</label>
                 <div style={{ display: 'flex', gap: 8, marginBottom: 22, flexWrap: 'wrap' }}>
                   {[{ key: 'circular', icon: '⭕', label: 'Round' }, { key: 'heart', icon: '❤️', label: 'Heart' },
@@ -1069,7 +1110,6 @@ export default function EdiblePrintApp() {
                   ))}
                 </div>
 
-                {/* Size */}
                 {shape !== 'custom' ? (
                   <>
                     <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Size</label>
@@ -1082,268 +1122,7 @@ export default function EdiblePrintApp() {
                             border: sizeId === sz.id ? '2.5px solid ' + C.brand : '2px solid ' + C.border,
                             background: sizeId === sz.id ? C.brandLight : C.white,
                             cursor: 'pointer', textAlign: 'center', fontFamily: "'Outfit', sans-serif", transition: 'all 0.2s' }}>
-                            <div style={{ fontWeight: 700, fontSize: 17, color: C.brand }}>{'
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div style={{ display: 'flex', gap: 12, marginBottom: 22 }}>
-                      <div style={{ flex: 1 }}>
-                        <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>Width (inches)</label>
-                        <input type="number" value={customW} onChange={(e) => { const v = parseFloat(e.target.value); setCustomW(isNaN(v) ? '' : String(Math.min(8, v))); }} placeholder="e.g. 5" style={inputStyle} />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>Height (inches)</label>
-                        <input type="number" value={customH} onChange={(e) => { const v = parseFloat(e.target.value); setCustomH(isNaN(v) ? '' : String(Math.min(11, v))); }} placeholder="e.g. 7" style={inputStyle} />
-                      </div>
-                    </div>
-                    <p style={{ fontSize: 12, color: C.muted, margin: '-14px 0 22px', textAlign: 'center' }}>Max size: 8″ × 11″ (A4 sheet)</p>
-                  </>
-                )}
-
-                {/* Quantity */}
-                <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Quantity</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 22 }}>
-                  <button onClick={() => setQty(Math.max(1, qty - 1))} style={{ width: 38, height: 38, borderRadius: 10, border: '1.5px solid ' + C.border, background: C.white, fontSize: 18, cursor: 'pointer', fontWeight: 600 }}>-</button>
-                  <span style={{ fontSize: 20, fontWeight: 700, minWidth: 32, textAlign: 'center' }}>{qty}</span>
-                  <button onClick={() => setQty(qty + 1)} style={{ width: 38, height: 38, borderRadius: 10, border: '1.5px solid ' + C.border, background: C.white, fontSize: 18, cursor: 'pointer', fontWeight: 600 }}>+</button>
-                </div>
-
-                {/* Background Color */}
-                <div style={{ marginBottom: 22 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                    <label style={{ fontWeight: 600, fontSize: 14, margin: 0 }}>Background Fill Color <span style={{ fontWeight: 400, color: C.muted }}>(outside your image)</span></label>
-                    <div style={{ width: 26, height: 26, borderRadius: 6, background: bgColor, flexShrink: 0,
-                      border: '2px solid ' + C.border, boxShadow: bgColor === '#FFFFFF' ? 'inset 0 0 0 1px #d1d5db' : 'none' }} />
-                  </div>
-                  <BgColorPicker value={bgColor} onChange={setBgColor} />
-                </div>
-
-                {/* Add Text to Image */}
-                <div style={{ ...card, padding: '18px 16px', marginBottom: 22 }}>
-                  <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 12 }}>Add Text to Image <span style={{ fontWeight: 400, color: C.muted, fontSize: 13 }}>(optional)</span></label>
-                  <input
-                    value={textOverlay.text}
-                    onChange={(e) => setTextOverlay((p) => ({ ...p, text: e.target.value }))}
-                    placeholder="Type your message..."
-                    style={{ ...inputStyle, marginBottom: 12 }}
-                  />
-                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    {/* Font size */}
-                    <div style={{ flex: 1, minWidth: 100 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Size</div>
-                      <select value={textOverlay.fontSize} onChange={(e) => setTextOverlay((p) => ({ ...p, fontSize: Number(e.target.value) }))} style={{
-                        width: '100%', padding: '8px 6px', borderRadius: 8, border: '1.5px solid ' + C.border,
-                        fontSize: 14, cursor: 'pointer', background: C.white, color: C.text, fontFamily: "'Outfit', sans-serif",
-                      }}>
-                        {[8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48, 56, 72, 96].map((s) => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                      </select>
-                    </div>
-                    {/* Font style */}
-                    <div style={{ flex: 1, minWidth: 130 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Style</div>
-                      <select value={textOverlay.fontStyle} onChange={(e) => setTextOverlay((p) => ({ ...p, fontStyle: e.target.value }))} style={{
-                        width: '100%', padding: '8px 6px', borderRadius: 8, border: '1.5px solid ' + C.border,
-                        fontSize: 13, cursor: 'pointer', background: C.white, color: C.text,
-                      }}>
-                        <option value="normal">Normal</option>
-                        <option value="bold">Bold</option>
-                        <option value="italic">Italic</option>
-                        <option value="bold italic">Bold Italic</option>
-                      </select>
-                    </div>
-                  </div>
-                  {/* Font family */}
-                  <div style={{ marginTop: 10 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Font</div>
-                    <select value={textOverlay.fontFamily} onChange={(e) => setTextOverlay((p) => ({ ...p, fontFamily: e.target.value }))} style={{
-                      width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid ' + C.border,
-                      fontSize: 15, cursor: 'pointer', background: C.white, color: C.text,
-                      fontFamily: textOverlay.fontFamily,
-                    }}>
-                      {[
-                        { value: 'Arial', label: 'Arial' },
-                        { value: 'Georgia', label: 'Georgia' },
-                        { value: 'Impact', label: 'Impact' },
-                        { value: 'Comic Sans MS', label: 'Comic Sans MS' },
-                        { value: 'Courier New', label: 'Courier New' },
-                        { value: 'Brush Script MT', label: 'Brush Script MT' },
-                        { value: 'Lobster', label: 'Lobster — Festive Script' },
-                        { value: 'Pacifico', label: 'Pacifico — Birthday Style' },
-                        { value: 'Dancing Script', label: 'Dancing Script — Elegant Cursive' },
-                        { value: 'Great Vibes', label: 'Great Vibes — Wedding Style' },
-                        { value: 'Bangers', label: 'Bangers — Comic/Party' },
-                        { value: 'Permanent Marker', label: 'Permanent Marker — Handwritten' },
-                        { value: 'Fredoka One', label: 'Fredoka One — Round Bold' },
-                      ].map(({ value, label }) => (
-                        <option key={value} value={value} style={{ fontFamily: value }}>{label}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <p style={{ fontSize: 11, color: C.muted, margin: '8px 0 0', textAlign: 'center' }}>Drag text in preview to reposition</p>
-                  {/* Text color */}
-                  <div style={{ marginTop: 12 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Text Color</div>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                      {[
-                        { color: '#FFFFFF', label: 'White' },
-                        { color: '#111111', label: 'Black' },
-                        { color: '#FF3333', label: 'Red' },
-                        { color: '#FFD700', label: 'Gold' },
-                        { color: '#4488FF', label: 'Blue' },
-                        { color: '#FF88CC', label: 'Pink' },
-                      ].map(({ color, label }) => (
-                        <button key={color} title={label} onClick={() => setTextOverlay((p) => ({ ...p, color }))} style={{
-                          width: 28, height: 28, borderRadius: 6, background: color, cursor: 'pointer',
-                          border: textOverlay.color === color ? '3px solid ' + C.brand : '2px solid ' + C.border,
-                          boxSizing: 'border-box',
-                          boxShadow: color === '#FFFFFF' ? 'inset 0 0 0 1px #d1d5db' : 'none',
-                        }} />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Special Instructions */}
-                <div>
-                  <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Special Instructions (optional)</label>
-                  <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Adjust colors, add border, special requests..." rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
-                </div>
-              </div>
-            </div>
-
-            {/* Order summary + navigation (full width) */}
-            <div style={{ ...card, marginTop: 24 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 600 }}>
-                <span>{qty + 'x ' + (shape === 'custom' ? customW + '"x' + customH + '"' : selectedSize?.label) + ' (' + shape + ')'}</span>
-                <span style={{ color: C.brand, fontSize: 18 }}>{'$' + subtotal.toFixed(2)}</span>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 12, marginTop: 26 }}>
-              <button onClick={() => setStep(1)} style={{ ...btnSecondary, flex: 1 }}>← Back</button>
-              <button onClick={() => setStep(3)} style={{ ...btnPrimary, flex: 2 }}>Continue →</button>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 3: SHIPPING & PAYMENT */}
-        {step === 3 && (
-          <div>
-            <div style={{ textAlign: 'center' }}>
-              <div style={stepBadge}>3</div>
-              <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, margin: '16px 0 8px', fontWeight: 700 }}>Shipping & Payment</h2>
-              <p style={{ color: C.muted, marginBottom: 24 }}>Where should we ship your edible prints?</p>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div>
-                <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Full Name *</label>
-                <input value={form.name} onChange={(e) => updateForm('name', e.target.value)} style={inputStyle} placeholder="Jane Smith" />
-              </div>
-              <div style={{ display: 'flex', gap: 12 }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Email *</label>
-                  <input type="email" value={form.email} onChange={(e) => updateForm('email', e.target.value)} style={inputStyle} placeholder="jane@email.com" />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Phone</label>
-                  <input type="tel" value={form.phone} onChange={(e) => updateForm('phone', e.target.value)} style={inputStyle} placeholder="(519) 555-1234" />
-                </div>
-              </div>
-              {shipping !== 'pickup' && (<>
-              <div>
-                <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Street Address *</label>
-                <input ref={addressRef} value={form.address} onChange={(e) => handleAddressChange(e.target.value)} style={inputStyle} placeholder="e.g. 123 Main Street" autoComplete="off" />
-              </div>
-              <div style={{ maxWidth: 220 }}>
-                <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Unit / Suite (optional)</label>
-                <input value={form.unit} onChange={(e) => updateForm('unit', e.target.value)} style={inputStyle} placeholder="e.g. 503, Apt 2B" />
-              </div>
-              <div style={{ display: 'flex', gap: 12 }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>City *</label>
-                  <input value={form.city} onChange={(e) => updateForm('city', e.target.value)} style={inputStyle} placeholder="Toronto" />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Province *</label>
-                  <select value={form.province} onChange={(e) => updateForm('province', e.target.value)} style={inputStyle}>
-                    {PROVINCES.map((prov) => <option key={prov} value={prov}>{prov}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div style={{ maxWidth: 200 }}>
-                <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Postal Code *</label>
-                <input value={form.postal} onChange={(e) => updateForm('postal', e.target.value.toUpperCase())} style={inputStyle} placeholder="N6A 1B2" maxLength={7} />
-              </div>
-              </>)}
-            </div>
-            <div style={{ marginTop: 26 }}>
-              <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 10 }}>Shipping Method</label>
-              {[
-                { key: 'local', label: localZone ? 'Same Day Delivery — ' + localZone.name : 'Same Day Delivery — London, ON', price: localZone?.price || 0, disabled: !localZone },
-                { key: 'standard', label: 'Standard Shipping — 3-5 business days', price: SHIPPING.standard, disabled: false },
-                { key: 'express', label: 'Express Shipping — 1-2 business days', price: SHIPPING.express, disabled: false },
-                { key: 'pickup', label: 'Pickup — South London, ON', price: 0, disabled: false, note: 'South London (Glen Cairn / Westmount area). We\'ll confirm the exact time by email.' },
-              ].map((opt) => (
-                <label key={opt.key} style={{
-                  display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 12,
-                  border: shipping === opt.key ? '2.5px solid ' + C.brand : '2px solid ' + C.border,
-                  background: shipping === opt.key ? C.brandLight : opt.disabled ? '#f9fafb' : C.white, marginBottom: 8,
-                  cursor: opt.disabled ? 'not-allowed' : 'pointer', transition: 'all 0.2s', opacity: opt.disabled ? 0.5 : 1 }}>
-                  <input type="radio" name="shipping" checked={shipping === opt.key} onChange={() => { if (!opt.disabled) setShipping(opt.key); }} disabled={opt.disabled} style={{ accentColor: C.brand, width: 18, height: 18 }} />
-                  <div style={{ flex: 1 }}>
-                    <span style={{ fontSize: 14, fontWeight: 500 }}>{opt.label}</span>
-                    {opt.key === 'local' && !localZone && form.postal && (
-                      <div style={{ fontSize: 12, color: '#EF4444', marginTop: 2 }}>Not available for your postal code</div>
-                    )}
-                    {opt.key === 'local' && !form.postal && (
-                      <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>Enter your postal code above</div>
-                    )}
-                    {opt.note && (
-                      <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{opt.note}</div>
-                    )}
-                  </div>
-                  <span style={{ fontWeight: 700, fontSize: 14, color: opt.disabled ? C.muted : C.brand }}>{opt.key === 'local' && localZone ? '$' + localZone.price.toFixed(2) : opt.key === 'local' ? '—' : '$' + opt.price.toFixed(2)}</span>
-                </label>
-              ))}
-            </div>
-            <div style={{ ...card, marginTop: 26 }}>
-              <h3 style={{ margin: '0 0 14px', fontSize: 16, fontWeight: 700 }}>Order Summary</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>{qty + 'x ' + (shape === 'custom' ? customW + '"x' + customH + '"' : selectedSize?.label) + ' (' + shape + ')'}</span>
-                  <span style={{ fontWeight: 600 }}>{'$' + subtotal.toFixed(2)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Shipping</span><span style={{ fontWeight: 600 }}>{'$' + shippingCost.toFixed(2)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: C.muted }}>
-                  <span>HST (13%)</span><span>{'$' + tax.toFixed(2)}</span>
-                </div>
-                <div style={{ borderTop: '1.5px solid ' + C.border, paddingTop: 12, display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 20 }}>
-                  <span>Total</span>
-                  <span style={{ color: C.brand }}>{'$' + total.toFixed(2)} <span style={{ fontSize: 13, fontWeight: 400, color: C.muted }}>CAD</span></span>
-                </div>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 12, marginTop: 26 }}>
-              <button onClick={() => setStep(2)} style={{ ...btnSecondary, flex: 1 }}>← Back</button>
-              <button onClick={handlePlaceOrder} disabled={loading}
-                style={{ ...btnPrimary, flex: 2, opacity: loading ? 0.7 : 1 }}>
-                {loading ? 'Redirecting to payment...' : 'Place Order →'}
-              </button>
-            </div>
-            <p style={{ fontSize: 12, color: '#bbb', textAlign: 'center', marginTop: 14 }}>
-              🔒 Payment processed securely via Stripe
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
- + sz.price.toFixed(2)}</div>
+                            <div style={{ fontWeight: 700, fontSize: 17, color: C.brand }}>{'$' + sz.price.toFixed(2)}</div>
                             <div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>{sz.label}</div>
                             {cookieGrid && <div style={{ fontSize: 12, color: C.brand, fontWeight: 600, marginTop: 3 }}>{cookieGrid.count} cookies/sheet</div>}
                           </button>
@@ -1367,7 +1146,6 @@ export default function EdiblePrintApp() {
                   </>
                 )}
 
-                {/* Quantity */}
                 <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Quantity</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 22 }}>
                   <button onClick={() => setQty(Math.max(1, qty - 1))} style={{ width: 38, height: 38, borderRadius: 10, border: '1.5px solid ' + C.border, background: C.white, fontSize: 18, cursor: 'pointer', fontWeight: 600 }}>-</button>
@@ -1375,7 +1153,6 @@ export default function EdiblePrintApp() {
                   <button onClick={() => setQty(qty + 1)} style={{ width: 38, height: 38, borderRadius: 10, border: '1.5px solid ' + C.border, background: C.white, fontSize: 18, cursor: 'pointer', fontWeight: 600 }}>+</button>
                 </div>
 
-                {/* Background Color */}
                 <div style={{ marginBottom: 22 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
                     <label style={{ fontWeight: 600, fontSize: 14, margin: 0 }}>Background Fill Color <span style={{ fontWeight: 400, color: C.muted }}>(outside your image)</span></label>
@@ -1385,7 +1162,6 @@ export default function EdiblePrintApp() {
                   <BgColorPicker value={bgColor} onChange={setBgColor} />
                 </div>
 
-                {/* Add Text to Image */}
                 <div style={{ ...card, padding: '18px 16px', marginBottom: 22 }}>
                   <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 12 }}>Add Text to Image <span style={{ fontWeight: 400, color: C.muted, fontSize: 13 }}>(optional)</span></label>
                   <input
@@ -1395,7 +1171,6 @@ export default function EdiblePrintApp() {
                     style={{ ...inputStyle, marginBottom: 12 }}
                   />
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    {/* Font size */}
                     <div style={{ flex: 1, minWidth: 100 }}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Size</div>
                       <select value={textOverlay.fontSize} onChange={(e) => setTextOverlay((p) => ({ ...p, fontSize: Number(e.target.value) }))} style={{
@@ -1407,7 +1182,6 @@ export default function EdiblePrintApp() {
                         ))}
                       </select>
                     </div>
-                    {/* Font style */}
                     <div style={{ flex: 1, minWidth: 130 }}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Style</div>
                       <select value={textOverlay.fontStyle} onChange={(e) => setTextOverlay((p) => ({ ...p, fontStyle: e.target.value }))} style={{
@@ -1421,7 +1195,6 @@ export default function EdiblePrintApp() {
                       </select>
                     </div>
                   </div>
-                  {/* Font family */}
                   <div style={{ marginTop: 10 }}>
                     <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Font</div>
                     <select value={textOverlay.fontFamily} onChange={(e) => setTextOverlay((p) => ({ ...p, fontFamily: e.target.value }))} style={{
@@ -1449,7 +1222,6 @@ export default function EdiblePrintApp() {
                     </select>
                   </div>
                   <p style={{ fontSize: 11, color: C.muted, margin: '8px 0 0', textAlign: 'center' }}>Drag text in preview to reposition</p>
-                  {/* Text color */}
                   <div style={{ marginTop: 12 }}>
                     <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Text Color</div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -1472,7 +1244,6 @@ export default function EdiblePrintApp() {
                   </div>
                 </div>
 
-                {/* Special Instructions */}
                 <div>
                   <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Special Instructions (optional)</label>
                   <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Adjust colors, add border, special requests..." rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
@@ -1480,12 +1251,30 @@ export default function EdiblePrintApp() {
               </div>
             </div>
 
-            {/* Order summary + navigation (full width) */}
+            {/* Order summary */}
             <div style={{ ...card, marginTop: 24 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 600 }}>
-                <span>{qty + 'x ' + (shape === 'custom' ? customW + '"x' + customH + '"' : selectedSize?.label) + ' (' + shape + ')'}</span>
-                <span style={{ color: C.brand, fontSize: 18 }}>{'$' + subtotal.toFixed(2)}</span>
-              </div>
+              {designs.map((d, i) => {
+                const dSizes = SIZES[d.shape] || [];
+                const dSel = dSizes.find(sz => sz.id === d.sizeId) || dSizes[0];
+                const dPrice = d.shape === 'custom'
+                  ? (parseFloat(d.customW || 0) * parseFloat(d.customH || 0) <= 36 ? 14.99 : 19.99)
+                  : dSel?.price || 0;
+                return (
+                  <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: d.id === activeDesignId ? 700 : 500,
+                    marginBottom: i < designs.length - 1 ? 8 : 0, paddingBottom: i < designs.length - 1 ? 8 : 0,
+                    borderBottom: i < designs.length - 1 ? '1px solid ' + C.border : 'none',
+                    color: d.id === activeDesignId ? C.text : C.muted }}>
+                    <span>Design {i + 1}: {d.qty}x {d.shape === 'custom' ? (d.customW + '"x' + d.customH + '"') : (dSel?.label || d.shape)}</span>
+                    <span style={{ color: C.brand }}>{'$' + (dPrice * d.qty).toFixed(2)}</span>
+                  </div>
+                );
+              })}
+              {designs.length > 1 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 700, marginTop: 10, paddingTop: 10, borderTop: '1.5px solid ' + C.border }}>
+                  <span>Subtotal</span>
+                  <span style={{ color: C.brand }}>{'$' + designsSubtotal.toFixed(2)}</span>
+                </div>
+              )}
             </div>
             <div style={{ display: 'flex', gap: 12, marginTop: 26 }}>
               <button onClick={() => setStep(1)} style={{ ...btnSecondary, flex: 1 }}>← Back</button>
@@ -1550,7 +1339,7 @@ export default function EdiblePrintApp() {
                 { key: 'local', label: localZone ? 'Same Day Delivery — ' + localZone.name : 'Same Day Delivery — London, ON', price: localZone?.price || 0, disabled: !localZone },
                 { key: 'standard', label: 'Standard Shipping — 3-5 business days', price: SHIPPING.standard, disabled: false },
                 { key: 'express', label: 'Express Shipping — 1-2 business days', price: SHIPPING.express, disabled: false },
-                { key: 'pickup', label: 'Pickup — South London, ON', price: 0, disabled: false, note: 'South London (Glen Cairn / Westmount area). We\'ll confirm the exact time by email.' },
+                { key: 'pickup', label: 'Pickup — South London, ON', price: 0, disabled: false, note: "South London (Glen Cairn / Westmount area). We'll confirm the exact time by email." },
               ].map((opt) => (
                 <label key={opt.key} style={{
                   display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 12,
@@ -1577,10 +1366,24 @@ export default function EdiblePrintApp() {
             <div style={{ ...card, marginTop: 26 }}>
               <h3 style={{ margin: '0 0 14px', fontSize: 16, fontWeight: 700 }}>Order Summary</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>{qty + 'x ' + (shape === 'custom' ? customW + '"x' + customH + '"' : selectedSize?.label) + ' (' + shape + ')'}</span>
-                  <span style={{ fontWeight: 600 }}>{'$' + subtotal.toFixed(2)}</span>
-                </div>
+                {designs.map((d, i) => {
+                  const dSizes = SIZES[d.shape] || [];
+                  const dSel = dSizes.find(sz => sz.id === d.sizeId) || dSizes[0];
+                  const dPrice = d.shape === 'custom'
+                    ? (parseFloat(d.customW || 0) * parseFloat(d.customH || 0) <= 36 ? 14.99 : 19.99)
+                    : dSel?.price || 0;
+                  return (
+                    <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Design {i + 1}: {d.qty}x {d.shape === 'custom' ? (d.customW + '"x' + d.customH + '"') : (dSel?.label || d.shape)}</span>
+                      <span style={{ fontWeight: 600 }}>{'$' + (dPrice * d.qty).toFixed(2)}</span>
+                    </div>
+                  );
+                })}
+                {designs.length > 1 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid ' + C.border, paddingTop: 8 }}>
+                    <span style={{ color: C.muted }}>Subtotal</span><span style={{ fontWeight: 600 }}>{'$' + designsSubtotal.toFixed(2)}</span>
+                  </div>
+                )}
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span>Shipping</span><span style={{ fontWeight: 600 }}>{'$' + shippingCost.toFixed(2)}</span>
                 </div>
@@ -1609,3 +1412,4 @@ export default function EdiblePrintApp() {
     </div>
   );
 }
+
