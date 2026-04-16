@@ -491,6 +491,13 @@ export default function EdiblePrintApp() {
   const handleDragOver = (e) => { e.preventDefault(); setIsDragOver(true); };
   const handleDragLeave = () => { setIsDragOver(false); };
 
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 320);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
   const updateForm = (key, val) => setForm((prev) => ({ ...prev, [key]: val }));
 
   /* Auto-split unit/suite from address string (e.g. "123 Main St #503" or "123 Main apt 2B") */
@@ -565,79 +572,111 @@ export default function EdiblePrintApp() {
   /* ═══ HOME PAGE ═══ */
   /* ════════════════════════════ */
   if (step === 0) {
+    const deliveryDay = new Date(Date.now() + 2 * 86400000).toLocaleDateString('en-US', { weekday: 'long' });
+    const stepColors = ['#E8F5EE', '#FFF4EB', '#EEF2FF', '#FFF9E6'];
+
     return (
       <div style={{ fontFamily: "'Outfit', sans-serif", background: C.bg, minHeight: '100vh', color: C.text }}>
+
+        {/* ── Sticky nav ── */}
         <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 24px',
           borderBottom: '1px solid ' + C.border, background: 'rgba(255,255,255,0.92)',
-          backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 10 }}>
+          backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 100 }}>
           <Logo />
           <button onClick={() => setStep(1)} style={{ ...btnPrimary, padding: '10px 22px', fontSize: 14, borderRadius: 10 }}>
             Order Now
           </button>
         </nav>
 
-        <section style={{ padding: '56px 24px 44px', textAlign: 'center', maxWidth: 720, margin: '0 auto' }}>
-          <div style={{ display: 'inline-block', background: C.brandLight, color: C.brand,
+        {/* ── Hero ── */}
+        <section style={{ padding: '60px 24px 52px', textAlign: 'center', maxWidth: 740, margin: '0 auto',
+          background: 'linear-gradient(180deg, #E8F5EE 0%, #FAFBF9 100%)', borderRadius: '0 0 40px 40px' }}>
+          <div style={{ display: 'inline-block', background: 'rgba(27,107,74,0.12)', color: C.brand,
             borderRadius: 24, padding: '7px 18px', fontSize: 13, fontWeight: 600, marginBottom: 22 }}>
             🇨🇦 Free Standard Shipping on Orders Over $50
           </div>
-          <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 'clamp(34px, 7vw, 56px)',
-            lineHeight: 1.1, margin: '0 0 20px', fontWeight: 700, letterSpacing: -1 }}>
-            Your Image, Printed<br />
-            <span style={{ color: C.brand }}>On Edible Sheets</span>
+          <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 'clamp(36px, 7vw, 62px)',
+            lineHeight: 1.08, margin: '0 0 20px', fontWeight: 700, letterSpacing: -1 }}>
+            Turn Any Photo Into an<br />
+            <span style={{ color: C.brand }}>Edible Masterpiece</span>
           </h1>
-          <p style={{ fontSize: 18, color: C.muted, lineHeight: 1.65, margin: '0 auto 36px', maxWidth: 520 }}>
-            Upload any photo, logo or design. We print it on premium edible paper with food-safe inks
-            and ship it straight to your door — anywhere in Canada.
+          <p style={{ fontSize: 18, color: C.muted, lineHeight: 1.65, margin: '0 auto 28px', maxWidth: 500 }}>
+            Custom printed on premium edible sheets. Perfect for cakes, cookies &amp; celebrations.
           </p>
-          <button onClick={() => setStep(1)} style={{ ...btnPrimary, fontSize: 20, padding: '20px 52px', borderRadius: 16, boxShadow: '0 6px 24px rgba(27,107,74,0.35)', letterSpacing: 0.3 }}>
-            Upload Your Photo Now →
-          </button>
-          <p style={{ fontSize: 13, color: '#bbb', marginTop: 14 }}>No account needed · Takes under 2 minutes</p>
 
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 14, flexWrap: 'wrap', marginTop: 32 }}>
+          {/* Social proof above CTA */}
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: C.white,
+            border: '1px solid ' + C.border, borderRadius: 40, padding: '8px 18px',
+            fontSize: 13.5, fontWeight: 600, marginBottom: 22, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+            <span style={{ color: '#FBBF24', letterSpacing: 1 }}>★★★★★</span>
+            <span style={{ color: C.text }}>Trusted by 200+ happy customers across Canada</span>
+          </div>
+
+          <div>
+            <button onClick={() => setStep(1)} style={{ ...btnPrimary, fontSize: 20, padding: '20px 52px',
+              borderRadius: 16, boxShadow: '0 8px 28px rgba(27,107,74,0.35)', letterSpacing: 0.3 }}>
+              Upload Your Photo Now →
+            </button>
+          </div>
+
+          {/* Urgency banner */}
+          <div style={{ display: 'inline-block', background: '#FFF4EB', border: '1px solid #FDDBB6',
+            borderRadius: 10, padding: '8px 20px', marginTop: 14, fontSize: 13.5, fontWeight: 600, color: '#B45309' }}>
+            🔥 Order today, delivered by <strong>{deliveryDay}</strong>
+          </div>
+
+          <p style={{ fontSize: 13, color: '#bbb', marginTop: 12 }}>No account needed · Takes under 2 minutes</p>
+        </section>
+
+        {/* ── Trust bar ── */}
+        <div style={{ background: C.white, borderTop: '1px solid ' + C.border, borderBottom: '1px solid ' + C.border,
+          padding: '16px 24px' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 0, flexWrap: 'wrap', maxWidth: 760, margin: '0 auto' }}>
             {[
-              { icon: '⚡', label: 'Fast Delivery' },
-              { icon: '✨', label: 'Premium Quality' },
-              { icon: '🔒', label: 'Secure Payment' },
+              { icon: '🍃', title: 'FDA-Approved', sub: 'Edible inks & sheets' },
+              { icon: '🇨🇦', title: 'Made in Canada', sub: 'London, Ontario' },
+              { icon: '⭐', title: '5-Star Rated', sub: '200+ orders' },
+              { icon: '🔒', title: 'Secure Checkout', sub: 'Powered by Stripe' },
             ].map((b, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.white, border: '1px solid ' + C.border, borderRadius: 40, padding: '10px 20px', fontSize: 14, fontWeight: 600, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                <span style={{ fontSize: 18 }}>{b.icon}</span>
-                <span style={{ color: C.text }}>{b.label}</span>
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 22px',
+                borderRight: i < 3 ? '1px solid ' + C.border : 'none', flexShrink: 0 }}>
+                <span style={{ fontSize: 22 }}>{b.icon}</span>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: C.text }}>{b.title}</div>
+                  <div style={{ fontSize: 11.5, color: C.muted }}>{b.sub}</div>
+                </div>
               </div>
             ))}
           </div>
-        </section>
-
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 32, flexWrap: 'wrap', padding: '0 24px 40px' }}>
-          {['🍃 FDA-Approved Inks', '🚗 Same-Day London Delivery', '📦 Canada-Wide Shipping', '🔒 Secure Payment'].map((t, i) => (
-            <span key={i} style={{ fontSize: 13, color: C.muted, fontWeight: 500 }}>{t}</span>
-          ))}
         </div>
 
-        <section style={{ padding: '48px 24px', maxWidth: 840, margin: '0 auto' }}>
-          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, textAlign: 'center', marginBottom: 36, fontWeight: 700 }}>
+        {/* ── How It Works ── */}
+        <section style={{ padding: '56px 24px', maxWidth: 860, margin: '0 auto' }}>
+          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, textAlign: 'center', marginBottom: 10, fontWeight: 700 }}>
             How It Works
           </h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(175px, 1fr))', gap: 20 }}>
+          <p style={{ textAlign: 'center', color: C.muted, marginBottom: 36, fontSize: 15 }}>Four simple steps to your edible print</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(175px, 1fr))', gap: 16 }}>
             {[
-              { num: '01', icon: '📤', title: 'Upload', desc: 'Upload your photo, logo, or any custom design' },
-              { num: '02', icon: '✂️', title: 'Customize', desc: 'Choose shape, size, and adjust the print area' },
-              { num: '03', icon: '💳', title: 'Pay', desc: 'Secure checkout — Visa, Mastercard, Apple Pay' },
-              { num: '04', icon: '📬', title: 'Receive', desc: 'We review, print & ship to your door in days' },
+              { num: '01', icon: '📤', title: 'Upload', desc: 'Upload your photo, logo, or any custom design', bg: stepColors[0] },
+              { num: '02', icon: '✂️', title: 'Customize', desc: 'Choose shape, size, and adjust the print area', bg: stepColors[1] },
+              { num: '03', icon: '💳', title: 'Pay Securely', desc: 'Visa, Mastercard, Apple Pay & more', bg: stepColors[2] },
+              { num: '04', icon: '📬', title: 'Receive', desc: 'We review, print & ship to your door in days', bg: stepColors[3] },
             ].map((item, i) => (
-              <div key={i} style={{ ...card, textAlign: 'center', padding: '28px 20px', position: 'relative' }}>
-                <div style={{ position: 'absolute', top: 12, right: 14, fontSize: 11, fontWeight: 700, color: C.brand, opacity: 0.4 }}>{item.num}</div>
-                <div style={{ fontSize: 32, marginBottom: 10 }}>{item.icon}</div>
-                <h3 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 700 }}>{item.title}</h3>
+              <div key={i} style={{ background: item.bg, borderRadius: 16, textAlign: 'center', padding: '30px 20px', position: 'relative',
+                border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
+                <div style={{ position: 'absolute', top: 12, right: 14, fontSize: 11, fontWeight: 700, color: '#00000030' }}>{item.num}</div>
+                <div style={{ fontSize: 40, marginBottom: 12 }}>{item.icon}</div>
+                <h3 style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 700 }}>{item.title}</h3>
                 <p style={{ margin: 0, fontSize: 13.5, color: C.muted, lineHeight: 1.5 }}>{item.desc}</p>
               </div>
             ))}
           </div>
         </section>
 
-        <section style={{ padding: '44px 24px', maxWidth: 840, margin: '0 auto' }}>
-          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, textAlign: 'center', marginBottom: 32, fontWeight: 700 }}>
+        {/* ── Occasions ── */}
+        <section style={{ padding: '44px 24px', maxWidth: 860, margin: '0 auto' }}>
+          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, textAlign: 'center', marginBottom: 32, fontWeight: 700 }}>
             Perfect For Every Occasion
           </h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(185px, 1fr))', gap: 12 }}>
@@ -649,43 +688,37 @@ export default function EdiblePrintApp() {
           </div>
         </section>
 
-        <section style={{ padding: '48px 24px', maxWidth: 740, margin: '0 auto', textAlign: 'center' }}>
-          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, marginBottom: 8, fontWeight: 700 }}>Simple, Transparent Pricing</h2>
-          <p style={{ color: C.muted, marginBottom: 28, fontSize: 15 }}>Premium edible paper + food-safe inks included in every order.</p>
+        {/* ── Pricing ── */}
+        <section style={{ padding: '52px 24px', maxWidth: 760, margin: '0 auto', textAlign: 'center' }}>
+          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, marginBottom: 8, fontWeight: 700 }}>Simple, Transparent Pricing</h2>
+          <p style={{ color: C.muted, marginBottom: 8, fontSize: 15 }}>Premium edible paper + food-safe inks included in every order.</p>
+          <p style={{ fontSize: 22, fontWeight: 700, color: C.brand, marginBottom: 28 }}>Starting at <strong>$14.99</strong></p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
-            {[...SIZES.circular, ...SIZES.square, ...SIZES.rectangular].map((sz) => (
-              <div key={sz.id} style={{ ...card, padding: '22px 16px' }}>
-                <div style={{ fontSize: 26, fontWeight: 700, color: C.brand }}>{'$' + sz.price.toFixed(2)}</div>
-                <div style={{ fontSize: 14, color: C.muted, marginTop: 4, fontWeight: 500 }}>{sz.label}</div>
-              </div>
-            ))}
+            {[...SIZES.circular, ...SIZES.square, ...SIZES.rectangular].map((sz) => {
+              const popular = sz.id === 'c8';
+              return (
+                <div key={sz.id} style={{ ...card, padding: '22px 16px', position: 'relative',
+                  border: popular ? '2.5px solid ' + C.brand : '1px solid ' + C.border,
+                  boxShadow: popular ? '0 4px 20px rgba(27,107,74,0.15)' : card.boxShadow }}>
+                  {popular && (
+                    <div style={{ position: 'absolute', top: -11, left: '50%', transform: 'translateX(-50%)',
+                      background: C.brand, color: '#fff', fontSize: 11, fontWeight: 700,
+                      borderRadius: 20, padding: '3px 10px', whiteSpace: 'nowrap' }}>
+                      Most Popular
+                    </div>
+                  )}
+                  <div style={{ fontSize: 26, fontWeight: 700, color: C.brand }}>{'$' + sz.price.toFixed(2)}</div>
+                  <div style={{ fontSize: 13, color: C.muted, marginTop: 4, fontWeight: 500 }}>{sz.label}</div>
+                </div>
+              );
+            })}
           </div>
           <p style={{ fontSize: 13, color: '#bbb', marginTop: 16 }}>Custom sizes available · Shipping from $6.99 · HST calculated at checkout</p>
         </section>
 
-        <section style={{ padding: '48px 24px', maxWidth: 660, margin: '0 auto' }}>
-          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, textAlign: 'center', marginBottom: 28, fontWeight: 700 }}>
-            Frequently Asked Questions
-          </h2>
-          {[
-            ['What are edible prints made of?', 'We use FDA-approved edible icing sheets with food-safe inks. They are 100% safe to eat and designed to be placed directly on cakes, cookies, cupcakes, and other baked goods.'],
-            ['How long does shipping take?', 'Same-day delivery is available in London, Ontario (from $5). Standard shipping takes 3-5 business days anywhere in Canada via Canada Post. Express shipping (1-2 business days) is also available.'],
-            ['What image quality do I need?', 'For best results, upload a high-resolution image (at least 1000x1000 pixels). We review every order before printing and will contact you if we notice any quality issues.'],
-            ['Do you ship to all provinces?', 'Yes — we ship to every province and territory in Canada.'],
-            ['Can I order multiple copies?', 'Absolutely. Adjust the quantity at checkout. Volume discounts are available for orders over 20 units — contact us for a quote.'],
-            ['What if I need help with my image?', 'We review every order within 24 hours. If adjustments are needed, we will reach out before printing. You can also include special instructions with your order.'],
-          ].map((faq, i) => (
-            <details key={i} style={{ ...card, padding: '16px 20px', marginBottom: 10, cursor: 'pointer', borderRadius: 12 }}>
-              <summary style={{ fontWeight: 600, fontSize: 15, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                {faq[0]} <span style={{ color: '#ccc', fontSize: 20, marginLeft: 8 }}>+</span>
-              </summary>
-              <p style={{ margin: '12px 0 0', fontSize: 14, color: C.muted, lineHeight: 1.65 }}>{faq[1]}</p>
-            </details>
-          ))}
-        </section>
-
-        <section style={{ padding: '48px 24px', maxWidth: 840, margin: '0 auto' }}>
-          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, textAlign: 'center', marginBottom: 32, fontWeight: 700 }}>
+        {/* ── Reviews ── */}
+        <section style={{ padding: '48px 24px', maxWidth: 860, margin: '0 auto' }}>
+          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, textAlign: 'center', marginBottom: 32, fontWeight: 700 }}>
             What Our Customers Say
           </h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 20 }}>
@@ -704,19 +737,82 @@ export default function EdiblePrintApp() {
           </div>
         </section>
 
-        <section style={{ padding: '52px 24px 64px', textAlign: 'center' }}>
-          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, marginBottom: 8, fontWeight: 700 }}>Ready to Print?</h2>
+        {/* ── FAQ ── */}
+        <section style={{ padding: '48px 24px', maxWidth: 680, margin: '0 auto' }}>
+          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, textAlign: 'center', marginBottom: 28, fontWeight: 700 }}>
+            Frequently Asked Questions
+          </h2>
+          {[
+            ['What are edible prints made of?', 'We use FDA-approved edible icing sheets with food-safe inks. They are 100% safe to eat and designed to be placed directly on cakes, cookies, cupcakes, and other baked goods.'],
+            ['How do I use the edible print?', 'Simply peel the backing and place it on your frosted cake, cookies, or cupcakes. The print blends seamlessly with the icing.'],
+            ['How long does shipping take?', 'Same-day delivery is available in London, Ontario (from $6.99). Standard shipping takes 3–5 business days anywhere in Canada via Canada Post. Express shipping (1–2 business days) is also available.'],
+            ['What image quality do I need?', 'For best results, upload a high-resolution image (at least 1000×1000 pixels). We review every order before printing and will contact you if we notice any quality issues.'],
+            ['Do you ship to all provinces?', 'Yes — we ship to every province and territory in Canada.'],
+            ['Can I order multiple copies?', 'Absolutely. Adjust the quantity at checkout. Volume discounts are available for orders over 20 units — contact us for a quote.'],
+            ['What if I need help with my image?', 'We review every order within 24 hours. If adjustments are needed, we will reach out before printing. You can also include special instructions with your order.'],
+          ].map((faq, i) => (
+            <details key={i} style={{ ...card, padding: '16px 20px', marginBottom: 10, cursor: 'pointer', borderRadius: 12 }}>
+              <summary style={{ fontWeight: 600, fontSize: 15, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                {faq[0]} <span style={{ color: '#ccc', fontSize: 20, marginLeft: 8 }}>+</span>
+              </summary>
+              <p style={{ margin: '12px 0 0', fontSize: 14, color: C.muted, lineHeight: 1.65 }}>{faq[1]}</p>
+            </details>
+          ))}
+        </section>
+
+        {/* ── Bottom CTA ── */}
+        <section style={{ padding: '56px 24px 72px', textAlign: 'center',
+          background: 'linear-gradient(180deg, #FAFBF9 0%, #E8F5EE 100%)' }}>
+          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, marginBottom: 8, fontWeight: 700 }}>Ready to Print?</h2>
           <p style={{ color: C.muted, marginBottom: 24, fontSize: 16 }}>Upload your image and get your edible prints shipped across Canada.</p>
-          <button onClick={() => setStep(1)} style={{ ...btnPrimary, fontSize: 18, padding: '17px 44px', borderRadius: 14 }}>
+          <button onClick={() => setStep(1)} style={{ ...btnPrimary, fontSize: 18, padding: '17px 44px', borderRadius: 14, boxShadow: '0 6px 20px rgba(27,107,74,0.30)' }}>
             Start Your Order →
           </button>
         </section>
 
-        <footer style={{ borderTop: '1px solid ' + C.border, padding: '28px 24px', textAlign: 'center', fontSize: 13, color: '#aaa', background: C.white }}>
-          <Logo size={22} />
-          <p style={{ margin: '10px 0 0' }}>London, Ontario · Shipping Canada-wide</p>
-          <p style={{ margin: '4px 0 0' }}>hello@edibleprint.net · © 2026 EdiblePrint.net. All rights reserved.</p>
+        {/* ── Footer ── */}
+        <footer style={{ borderTop: '1px solid ' + C.border, padding: '36px 24px 28px', background: C.white }}>
+          <div style={{ maxWidth: 760, margin: '0 auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 24, marginBottom: 28 }}>
+              <div>
+                <Logo size={22} />
+                <p style={{ fontSize: 13, color: C.muted, marginTop: 10, lineHeight: 1.65 }}>
+                  Serving London, Ontario &amp; shipping Canada-wide.<br />
+                  Handcrafted with care in the Glen Cairn area.
+                </p>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: C.brand, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Contact</div>
+                <a href="mailto:hello@edibleprint.net" style={{ fontSize: 13, color: C.muted, textDecoration: 'none' }}>✉️ hello@edibleprint.net</a>
+                <a href="tel:+15196012345" style={{ fontSize: 13, color: C.muted, textDecoration: 'none' }}>📞 (519) 601-2345</a>
+                <a href="https://instagram.com/edibleprint.net" target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: C.muted, textDecoration: 'none' }}>📸 @edibleprint.net</a>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: C.brand, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Order</div>
+                <button onClick={() => setStep(1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: C.muted, textAlign: 'left', padding: 0 }}>🎂 Start an Order</button>
+                <a href="mailto:hello@edibleprint.net?subject=Custom%20Quote" style={{ fontSize: 13, color: C.muted, textDecoration: 'none' }}>💼 Bulk / Business Quote</a>
+              </div>
+            </div>
+            <div style={{ borderTop: '1px solid ' + C.border, paddingTop: 18, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, fontSize: 12, color: '#aaa' }}>
+              <span>© 2026 EdiblePrint.net. All rights reserved.</span>
+              <span>HST Registration: [pending] · London, Ontario, Canada</span>
+            </div>
+          </div>
         </footer>
+
+        {/* ── Sticky mobile CTA ── */}
+        {scrolled && (
+          <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 200,
+            padding: '12px 20px', background: 'rgba(255,255,255,0.96)',
+            borderTop: '1px solid ' + C.border, backdropFilter: 'blur(12px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+            <span style={{ fontSize: 13, color: C.muted, fontWeight: 500 }}>🍃 FDA-Approved · Ships Canada-wide</span>
+            <button onClick={() => setStep(1)} style={{ ...btnPrimary, padding: '11px 28px', fontSize: 15, borderRadius: 10, flexShrink: 0 }}>
+              Order Now →
+            </button>
+          </div>
+        )}
+
       </div>
     );
   }
