@@ -781,6 +781,9 @@ export default function EdiblePrintApp() {
   const [activeDesignId, setActiveDesignId] = useState(null);
   const [shipping, setShipping] = useState('standard');
   const [pricingTab, setPricingTab] = useState('circular');
+  const [hoveredCardId, setHoveredCardId] = useState(null);
+  const [pendingShape, setPendingShape] = useState(null);
+  const [pendingSizeId, setPendingSizeId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     name: '', email: '', phone: '', address: '', unit: '', city: '', province: 'Ontario', postal: ''
@@ -905,11 +908,13 @@ export default function EdiblePrintApp() {
     reader.onload = (ev) => {
       const newId = String(Date.now());
       const initialLayer = { id: String(Date.now() + 1), src: ev.target.result, name: file.name, x: 0, y: 0, scale: 1, rotation: 0, _autoFit: true };
+      const newShape = pendingShape || 'circular';
+      const newSizeId = pendingSizeId || (SIZES[newShape]?.[SIZES[newShape].length - 1]?.id || 'c8');
       setDesigns(ds => [...ds, {
         id: newId,
         layers: [initialLayer],
-        shape: 'circular',
-        sizeId: 'c8',
+        shape: newShape,
+        sizeId: newSizeId,
         customW: '',
         customH: '',
         qty: 1,
@@ -919,6 +924,8 @@ export default function EdiblePrintApp() {
         cropPreview: null,
         hiResCrop: null,
       }]);
+      setPendingShape(null);
+      setPendingSizeId(null);
       setActiveDesignId(newId);
       setStep(2);
     };
@@ -928,11 +935,13 @@ export default function EdiblePrintApp() {
   const addTextOnlyDesign = () => {
     if (designs.length >= 5) { alert('Maximum 5 designs per order.'); return; }
     const newId = String(Date.now());
+    const newShape = pendingShape || 'circular';
+    const newSizeId = pendingSizeId || (SIZES[newShape]?.[SIZES[newShape].length - 1]?.id || 'c8');
     setDesigns(ds => [...ds, {
       id: newId,
       layers: [],
-      shape: 'circular',
-      sizeId: 'c8',
+      shape: newShape,
+      sizeId: newSizeId,
       customW: '',
       customH: '',
       qty: 1,
@@ -942,8 +951,16 @@ export default function EdiblePrintApp() {
       cropPreview: null,
       hiResCrop: null,
     }]);
+    setPendingShape(null);
+    setPendingSizeId(null);
     setActiveDesignId(newId);
     setStep(2);
+  };
+
+  const handlePricingCardClick = (shape, sizeId) => {
+    setPendingShape(shape);
+    setPendingSizeId(sizeId);
+    setStep(1);
   };
 
   const handleFile = (e) => {
@@ -1188,10 +1205,17 @@ export default function EdiblePrintApp() {
                 mc3: cookieGrid ? `Up to ${cookieGrid.count} cookies per sheet` : 'Generous cookie size',
                 a4: 'Covers the full 8″×11″ sheet',
               };
+              const isHovered = hoveredCardId === sz.id;
               return (
-                <div key={sz.id} style={{ ...card, padding: '28px 20px', position: 'relative', textAlign: 'center',
-                  border: popular ? '2.5px solid ' + C.brand : '1px solid ' + C.border,
-                  boxShadow: popular ? '0 6px 24px rgba(27,107,74,0.15)' : card.boxShadow }}>
+                <div key={sz.id}
+                  onClick={() => handlePricingCardClick(pricingTab, sz.id)}
+                  onMouseEnter={() => setHoveredCardId(sz.id)}
+                  onMouseLeave={() => setHoveredCardId(null)}
+                  style={{ ...card, padding: '28px 20px', position: 'relative', textAlign: 'center',
+                    cursor: 'pointer', transition: 'all 0.18s',
+                    border: popular ? '2.5px solid ' + C.brand : '1px solid ' + (isHovered ? C.brand : C.border),
+                    boxShadow: isHovered ? '0 8px 28px rgba(27,107,74,0.22)' : (popular ? '0 6px 24px rgba(27,107,74,0.15)' : card.boxShadow),
+                    transform: isHovered ? 'translateY(-3px)' : 'none' }}>
                   {popular && (
                     <div style={{ position: 'absolute', top: -11, left: '50%', transform: 'translateX(-50%)',
                       background: C.brand, color: '#fff', fontSize: 11, fontWeight: 700,
@@ -1199,7 +1223,8 @@ export default function EdiblePrintApp() {
                   )}
                   <div style={{ fontSize: 32, fontWeight: 700, color: C.brand, marginBottom: 4 }}>{'$' + sz.price.toFixed(2)}</div>
                   <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 6 }}>{sz.label}</div>
-                  <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5 }}>{descriptions[sz.id] || ''}</div>
+                  <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5, marginBottom: 10 }}>{descriptions[sz.id] || ''}</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: isHovered ? C.brand : C.muted, opacity: isHovered ? 1 : 0.6 }}>Order this size →</div>
                 </div>
               );
             })}
@@ -1293,8 +1318,23 @@ export default function EdiblePrintApp() {
               <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, margin: '16px 0 8px', fontWeight: 700 }}>
                 {designs.length > 0 ? 'Add Another Design' : 'Upload Your Image'}
               </h2>
-              <p style={{ color: C.muted, marginBottom: 24 }}>JPG, PNG or PDF · High resolution for best results</p>
+              <p style={{ color: C.muted, marginBottom: pendingShape ? 12 : 24 }}>JPG, PNG or PDF · High resolution for best results</p>
             </div>
+            {pendingShape && pendingSizeId && (() => {
+              const pSizes = SIZES[pendingShape] || [];
+              const pSel = pSizes.find(s => s.id === pendingSizeId);
+              const shapeLabels = { circular: 'Round', heart: 'Heart', square: 'Square', multicircle: 'Cookie Sheet', fullsheet: 'Full Sheet' };
+              return (
+                <div style={{ background: C.brandLight, border: '1.5px solid ' + C.brand, borderRadius: 12,
+                  padding: '10px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <span style={{ fontSize: 13.5, fontWeight: 600, color: C.brand }}>
+                    Pre-selected: {shapeLabels[pendingShape] || pendingShape} — {pSel?.label || pendingSizeId}
+                  </span>
+                  <button onClick={() => { setPendingShape(null); setPendingSizeId(null); }}
+                    style={{ fontSize: 12, color: C.muted, background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>✕</button>
+                </div>
+              );
+            })()}
 
             {designs.length > 0 && (
               <div style={{ marginBottom: 20 }}>
