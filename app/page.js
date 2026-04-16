@@ -264,7 +264,8 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     /* ── Preview canvas ── */
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvasW, canvasH);
-    ctx.fillStyle = bgColor;
+    /* For multicircle, sheet background is always white; bgColor fills only inside each circle */
+    ctx.fillStyle = isMultiCircle ? '#FFFFFF' : bgColor;
     ctx.fillRect(0, 0, canvasW, canvasH);
 
     if (isMultiCircle) {
@@ -276,6 +277,9 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
           ctx.beginPath();
           ctx.arc(cx, cy, circlePx / 2, 0, Math.PI * 2);
           ctx.clip();
+          /* Fill bgColor inside the circle */
+          ctx.fillStyle = bgColor;
+          ctx.fill();
           layers.forEach(layer => {
             const img = imgRefs.current[layer.id];
             if (!img) return;
@@ -369,7 +373,8 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     hiResCanvas.height = hiResH;
     const hctx = hiResCanvas.getContext('2d');
     hctx.clearRect(0, 0, hiResW, hiResH);
-    hctx.fillStyle = bgColor;
+    /* For multicircle, sheet background is white; bgColor fills only inside each circle */
+    hctx.fillStyle = isMultiCircle ? '#FFFFFF' : bgColor;
     hctx.fillRect(0, 0, hiResW, hiResH);
 
     if (isMultiCircle) {
@@ -388,6 +393,9 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
           hctx.beginPath();
           hctx.arc(hcx, hcy, hrCirclePx / 2, 0, Math.PI * 2);
           hctx.clip();
+          /* Fill bgColor inside the circle */
+          hctx.fillStyle = bgColor;
+          hctx.fill();
           layers.forEach(layer => {
             const img = imgRefs.current[layer.id];
             if (!img) return;
@@ -764,6 +772,7 @@ export default function EdiblePrintApp() {
   const [designs, setDesigns] = useState([]);
   const [activeDesignId, setActiveDesignId] = useState(null);
   const [shipping, setShipping] = useState('standard');
+  const [pricingTab, setPricingTab] = useState('circular');
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     name: '', email: '', phone: '', address: '', unit: '', city: '', province: 'Ontario', postal: ''
@@ -906,6 +915,27 @@ export default function EdiblePrintApp() {
       setStep(2);
     };
     reader.readAsDataURL(file);
+  };
+
+  const addTextOnlyDesign = () => {
+    if (designs.length >= 5) { alert('Maximum 5 designs per order.'); return; }
+    const newId = String(Date.now());
+    setDesigns(ds => [...ds, {
+      id: newId,
+      layers: [],
+      shape: 'circular',
+      sizeId: 'c8',
+      customW: '',
+      customH: '',
+      qty: 1,
+      notes: '',
+      bgColor: '#FFFFFF',
+      textOverlay: { text: '', fontSize: 24, color: '#111111', position: { x: 50, y: 50 }, fontFamily: 'Arial', fontStyle: 'normal' },
+      cropPreview: null,
+      hiResCrop: null,
+    }]);
+    setActiveDesignId(newId);
+    setStep(2);
   };
 
   const handleFile = (e) => {
@@ -1117,25 +1147,56 @@ export default function EdiblePrintApp() {
           <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, marginBottom: 8, fontWeight: 700 }}>Simple, Transparent Pricing</h2>
           <p style={{ color: C.muted, marginBottom: 8, fontSize: 15 }}>Premium edible paper + food-safe inks included in every order.</p>
           <p style={{ fontSize: 22, fontWeight: 700, color: C.brand, marginBottom: 28 }}>Starting at <strong>$14.99</strong></p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
-            {[...SIZES.circular, ...SIZES.heart, ...SIZES.multicircle, ...SIZES.square, ...SIZES.fullsheet].map((sz) => {
+          {/* Category tabs */}
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 28 }}>
+            {[
+              { key: 'circular', label: 'Round' },
+              { key: 'heart', label: 'Heart' },
+              { key: 'square', label: 'Square' },
+              { key: 'multicircle', label: 'Cookie Sheets' },
+              { key: 'fullsheet', label: 'Full Sheet' },
+            ].map(tab => (
+              <button key={tab.key} onClick={() => setPricingTab(tab.key)} style={{
+                padding: '9px 20px', borderRadius: 24, fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                fontFamily: "'Outfit', sans-serif", border: 'none', transition: 'all 0.2s',
+                background: pricingTab === tab.key ? C.brand : C.white,
+                color: pricingTab === tab.key ? '#fff' : C.muted,
+                boxShadow: pricingTab === tab.key ? '0 2px 10px rgba(27,107,74,0.25)' : '0 1px 4px rgba(0,0,0,0.08)',
+              }}>{tab.label}</button>
+            ))}
+          </div>
+          {/* Size cards for selected tab */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16 }}>
+            {(SIZES[pricingTab] || []).map((sz) => {
               const popular = sz.id === 'c8';
+              const cookieGrid = sz.circleSize ? getCircleGrid(sz.w, sz.h, sz.circleSize) : null;
+              const descriptions = {
+                c5: 'Perfect for cupcakes', c6: 'Great for small cakes',
+                c7: 'Popular choice for cakes', c8: 'Most popular — birthday cakes',
+                h6: 'Romantic touch for cupcakes', h7: 'Perfect for occasion cakes', h8: 'Statement piece for celebrations',
+                s5: 'Great for brownies & cookies', s6: 'Ideal for square cakes',
+                s7: 'Perfect for layer cakes', s8: 'Large format prints',
+                mc2: cookieGrid ? `Up to ${cookieGrid.count} cookies per sheet` : 'Many cookies per sheet',
+                mc3: cookieGrid ? `Up to ${cookieGrid.count} cookies per sheet` : 'Generous cookie size',
+                a4: 'Covers the full 8″×11″ sheet',
+              };
               return (
-                <div key={sz.id} style={{ ...card, padding: '22px 16px', position: 'relative',
+                <div key={sz.id} style={{ ...card, padding: '28px 20px', position: 'relative', textAlign: 'center',
                   border: popular ? '2.5px solid ' + C.brand : '1px solid ' + C.border,
-                  boxShadow: popular ? '0 4px 20px rgba(27,107,74,0.15)' : card.boxShadow }}>
+                  boxShadow: popular ? '0 6px 24px rgba(27,107,74,0.15)' : card.boxShadow }}>
                   {popular && (
                     <div style={{ position: 'absolute', top: -11, left: '50%', transform: 'translateX(-50%)',
                       background: C.brand, color: '#fff', fontSize: 11, fontWeight: 700,
                       borderRadius: 20, padding: '3px 10px', whiteSpace: 'nowrap' }}>Most Popular</div>
                   )}
-                  <div style={{ fontSize: 26, fontWeight: 700, color: C.brand }}>{'$' + sz.price.toFixed(2)}</div>
-                  <div style={{ fontSize: 13, color: C.muted, marginTop: 4, fontWeight: 500 }}>{sz.label}</div>
+                  <div style={{ fontSize: 32, fontWeight: 700, color: C.brand, marginBottom: 4 }}>{'$' + sz.price.toFixed(2)}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 6 }}>{sz.label}</div>
+                  <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5 }}>{descriptions[sz.id] || ''}</div>
                 </div>
               );
             })}
           </div>
-          <p style={{ fontSize: 13, color: '#bbb', marginTop: 16 }}>Custom sizes available · Shipping from $6.99 · HST calculated at checkout</p>
+          <p style={{ fontSize: 13, color: '#bbb', marginTop: 20 }}>Custom sizes available · Shipping from $6.99 · HST calculated at checkout</p>
         </section>
         <section style={{ padding: '48px 24px', maxWidth: 860, margin: '0 auto' }}>
           <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, textAlign: 'center', marginBottom: 32, fontWeight: 700 }}>What Our Customers Say</h2>
@@ -1278,6 +1339,17 @@ export default function EdiblePrintApp() {
               </div>
             )}
             <input ref={fileRef} type="file" accept="image/*,.pdf" onChange={handleFile} style={{ display: 'none' }} />
+
+            {designs.length < 5 && (
+              <button onClick={addTextOnlyDesign} style={{
+                width: '100%', marginTop: 12, padding: '14px 24px', borderRadius: 14,
+                border: '1.5px dashed ' + C.border, background: C.white, cursor: 'pointer',
+                fontSize: 15, fontWeight: 600, color: C.muted, fontFamily: "'Outfit', sans-serif",
+                transition: 'all 0.2s',
+              }}>
+                ✏️ Create text-only design (no image)
+              </button>
+            )}
 
             {designs.length > 0 && (
               <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
@@ -1586,7 +1658,7 @@ export default function EdiblePrintApp() {
                 { key: 'local', label: localZone ? 'Same Day Delivery — ' + localZone.name : 'Same Day Delivery — London, ON', price: localZone?.price || 0, disabled: !localZone },
                 { key: 'standard', label: 'Standard Shipping — 3-5 business days', price: SHIPPING.standard, disabled: false },
                 { key: 'express', label: 'Express Shipping — 1-2 business days', price: SHIPPING.express, disabled: false },
-                { key: 'pickup', label: 'Pickup — South London, ON', price: 0, disabled: false, note: "South London (Glen Cairn / Westmount area). We'll confirm the exact time by email." },
+                { key: 'pickup', label: 'Free Pickup — South London, ON', price: 0, disabled: false, note: "South London (Glen Cairn / Westmount area). We'll confirm the exact time by email." },
               ].map((opt) => (
                 <label key={opt.key} style={{
                   display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 12,
