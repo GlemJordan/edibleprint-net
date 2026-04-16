@@ -99,11 +99,9 @@ const FONT_STYLE_MAP = {
   italic:       { style: 'italic',  weight: 'normal' },
   'bold italic':{ style: 'italic',  weight: 'bold'   },
 };
-const FONT_SIZE_PX = { small: 18, medium: 26, large: 38 };
-
 function drawText(ctx, textOverlay, w, h, sf = 1) {
   if (!textOverlay?.text) return;
-  const px   = (FONT_SIZE_PX[textOverlay.fontSize] || 26) * sf;
+  const px   = (Number(textOverlay.fontSize) || 24) * sf;
   const { style, weight } = FONT_STYLE_MAP[textOverlay.fontStyle] || FONT_STYLE_MAP.normal;
   ctx.font        = `${style} ${weight} ${px}px ${textOverlay.fontFamily || 'Arial'}, sans-serif`;
   ctx.textAlign   = 'center';
@@ -198,11 +196,11 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
 
     /* ── Draw hi-res canvas (what gets uploaded for printing) ── */
     hiResCanvas.width = hiResW;
-    hiResCanvas.height = hiResH + 60; /* +60px margin below for cut-guide label */
+    hiResCanvas.height = hiResH;
     const hctx = hiResCanvas.getContext('2d');
-    hctx.clearRect(0, 0, hiResW, hiResH + 60);
+    hctx.clearRect(0, 0, hiResW, hiResH);
     hctx.fillStyle = bgColor;
-    hctx.fillRect(0, 0, hiResW, hiResH + 60);
+    hctx.fillRect(0, 0, hiResW, hiResH);
 
     hctx.save();
     if (shape === 'circular') {
@@ -221,7 +219,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
     /* ── Text overlay (hi-res) ── */
     drawText(hctx, textOverlay, hiResW, hiResH, scaleFactor);
 
-    /* ── Cut guide: dotted line + label (hi-res only, not shown to user) ── */
+    /* ── Cut guide: dotted line only (hi-res only, not shown to user) ── */
     hctx.strokeStyle = '#CCCCCC';
     hctx.lineWidth = 3;
     hctx.setLineDash([20, 10]);
@@ -233,10 +231,6 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
       hctx.strokeRect(2, 2, hiResW - 4, hiResH - 4);
     }
     hctx.setLineDash([]);
-    hctx.fillStyle = '#CCCCCC';
-    hctx.font = '24px Arial';
-    hctx.textAlign = 'center';
-    hctx.fillText('\u2702 Cut along dotted line', hiResW / 2, hiResH + 36);
 
     if (onHiResCrop) onHiResCrop(hiResCanvas.toDataURL('image/jpeg', 0.95));
   }, [pos, scale, shape, hiResW, hiResH, scaleFactor, bgColor, textOverlay]);
@@ -253,7 +247,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
     if (textOverlay?.text && onTextPositionChange) {
       const tx = (textOverlay.position?.x ?? 50) / 100 * canvasW;
       const ty = (textOverlay.position?.y ?? 85) / 100 * canvasH;
-      const hitR = (FONT_SIZE_PX[textOverlay.fontSize] || 26) * 1.5;
+      const hitR = (Number(textOverlay.fontSize) || 24) * 1.5;
       if (Math.hypot(cx - tx, cy - ty) < hitR) {
         setTextDragging(true);
         textDragOffset.current = { dx: cx - tx, dy: cy - ty };
@@ -385,7 +379,7 @@ export default function EdiblePrintApp() {
   const [qty, setQty] = useState(1);
   const [notes, setNotes] = useState('');
   const [bgColor, setBgColor] = useState('#FFFFFF');
-  const [textOverlay, setTextOverlay] = useState({ text: '', fontSize: 'medium', color: '#FFFFFF', position: { x: 50, y: 85 }, fontFamily: 'Arial', fontStyle: 'normal' });
+  const [textOverlay, setTextOverlay] = useState({ text: '', fontSize: 24, color: '#FFFFFF', position: { x: 50, y: 85 }, fontFamily: 'Arial', fontStyle: 'normal' });
   const [cropPreview, setCropPreview] = useState(null);
   const [hiResCrop, setHiResCrop] = useState(null);
   const [shipping, setShipping] = useState('standard');
@@ -990,19 +984,16 @@ export default function EdiblePrintApp() {
                   />
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                     {/* Font size */}
-                    <div style={{ flex: 1, minWidth: 130 }}>
+                    <div style={{ flex: 1, minWidth: 100 }}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Size</div>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        {[{ key: 'small', label: 'S' }, { key: 'medium', label: 'M' }, { key: 'large', label: 'L' }].map(({ key, label }) => (
-                          <button key={key} onClick={() => setTextOverlay((p) => ({ ...p, fontSize: key }))} style={{
-                            flex: 1, padding: '8px 0', borderRadius: 8, fontWeight: 600, fontSize: 14, cursor: 'pointer',
-                            fontFamily: "'Outfit', sans-serif",
-                            border: textOverlay.fontSize === key ? '2.5px solid ' + C.brand : '1.5px solid ' + C.border,
-                            background: textOverlay.fontSize === key ? C.brandLight : C.white,
-                            color: textOverlay.fontSize === key ? C.brand : C.text,
-                          }}>{label}</button>
+                      <select value={textOverlay.fontSize} onChange={(e) => setTextOverlay((p) => ({ ...p, fontSize: Number(e.target.value) }))} style={{
+                        width: '100%', padding: '8px 6px', borderRadius: 8, border: '1.5px solid ' + C.border,
+                        fontSize: 14, cursor: 'pointer', background: C.white, color: C.text, fontFamily: "'Outfit', sans-serif",
+                      }}>
+                        {[8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48, 56, 72, 96].map((s) => (
+                          <option key={s} value={s}>{s}</option>
                         ))}
-                      </div>
+                      </select>
                     </div>
                     {/* Font style */}
                     <div style={{ flex: 1, minWidth: 130 }}>
