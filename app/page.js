@@ -16,6 +16,10 @@ const SIZES = {
     { id: 'h7', label: '7" Heart (18cm)', w: 7, h: 7, price: 19.99 },
     { id: 'h8', label: '8" Heart (20cm)', w: 8, h: 8, price: 19.99 },
   ],
+  multicircle: [
+    { id: 'mc2', label: '2” Circles on A4 Sheet', w: 8, h: 11, price: 24.99, circleSize: 2 },
+    { id: 'mc3', label: '3” Circles on A4 Sheet', w: 8, h: 11, price: 24.99, circleSize: 3 },
+  ],
   square: [
     { id: 's5', label: '5"×5" (13cm)', w: 5, h: 5, price: 14.99 },
     { id: 's6', label: '6"×6" (15cm)', w: 6, h: 6, price: 14.99 },
@@ -104,6 +108,13 @@ const FONT_STYLE_MAP = {
   italic:       { style: 'italic',  weight: 'normal' },
   'bold italic':{ style: 'italic',  weight: 'bold'   },
 };
+/* Calculate circle grid layout for multi-circle sheet */
+function getCircleGrid(sheetW, sheetH, circleSize) {
+  const cols = Math.floor(sheetW / circleSize);
+  const rows = Math.floor(sheetH / circleSize);
+  return { cols, rows, count: cols * rows };
+}
+
 /* Heart clip path centered at (cx, cy) fitting in size × size bounding box */
 function drawHeartPath(ctx, cx, cy, size) {
   const s = size / 2;
@@ -152,7 +163,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
   /* Preview canvas size */
   const canvasW = 300;
   const ratio = sizeObj.h && sizeObj.w ? sizeObj.h / sizeObj.w : 1;
-  const canvasH = shape === 'fullsheet' ? Math.round(canvasW * ratio) : canvasW;
+  const canvasH = (shape === 'fullsheet' || shape === 'multicircle') ? Math.round(canvasW * ratio) : canvasW;
 
   /* Hi-res output: 300 DPI based on the print size in inches */
   const DPI = 300;
@@ -162,22 +173,33 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
   const hiResH = printH * DPI; /* e.g. 8" = 2400px */
   const scaleFactor = hiResW / canvasW; /* ratio between hi-res and preview */
 
+  /* Multi-circle layout */
+  const isMultiCircle = shape === 'multicircle';
+  const circleSize = sizeObj.circleSize || 2;
+  const previewPPI = canvasW / (sizeObj.w || 8);
+  const circlePx = isMultiCircle ? Math.round(circleSize * previewPPI) : canvasW;
+  const { cols: mcCols, rows: mcRows } = isMultiCircle
+    ? getCircleGrid(sizeObj.w || 8, sizeObj.h || 11, circleSize)
+    : { cols: 1, rows: 1 };
+
   useEffect(() => {
     if (!image) return;
     const img = new Image();
     img.onload = () => {
       imgRef.current = img;
-      /* cover = fills canvas exactly; slider is centered at this value */
-      const coverSc = Math.max(canvasW / img.width, canvasH / img.height);
-      const minSc = coverSc * 0.6; /* slightly smaller than canvas */
-      const maxSc = coverSc * 1.4; /* zoomed in; coverSc = (minSc+maxSc)/2 exactly */
+      /* For multicircle, fit image to one circle; otherwise fill full canvas */
+      const effW = isMultiCircle ? circlePx : canvasW;
+      const effH = isMultiCircle ? circlePx : canvasH;
+      const coverSc = Math.max(effW / img.width, effH / img.height);
+      const minSc = coverSc * 0.6;
+      const maxSc = coverSc * 1.4;
       setMinScale(minSc);
       setMaxScale(maxSc);
       setScale(coverSc);
-      setPos({ x: (canvasW - img.width * coverSc) / 2, y: (canvasH - img.height * coverSc) / 2 });
+      setPos({ x: (effW - img.width * coverSc) / 2, y: (effH - img.height * coverSc) / 2 });
     };
     img.src = image;
-  }, [image, canvasW, canvasH]);
+  }, [image, canvasW, canvasH, isMultiCircle, circlePx]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -185,43 +207,70 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
     if (!canvas || !hiResCanvas || !imgRef.current) return;
     const img = imgRef.current;
 
-    /* ── Draw preview canvas (what the user sees) ── */
+    /* ── Draw preview canvas ── */
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvasW, canvasH);
     ctx.fillStyle = bgColor;
     ctx.fillRect(0, 0, canvasW, canvasH);
-    ctx.save();
-    if (shape === 'circular') {
-      ctx.beginPath();
-      ctx.arc(canvasW / 2, canvasH / 2, canvasW / 2, 0, Math.PI * 2);
-      ctx.clip();
-    } else if (shape === 'heart') {
-      drawHeartPath(ctx, canvasW / 2, canvasH / 2, canvasW);
-      ctx.clip();
-    }
-    ctx.drawImage(img, pos.x, pos.y, img.width * scale, img.height * scale);
-    ctx.restore();
-    ctx.strokeStyle = C.brand;
-    ctx.lineWidth = 2;
-    ctx.setLineDash([6, 4]);
-    if (shape === 'circular') {
-      ctx.beginPath();
-      ctx.arc(canvasW / 2, canvasH / 2, canvasW / 2 - 1, 0, Math.PI * 2);
-      ctx.stroke();
-    } else if (shape === 'heart') {
-      drawHeartPath(ctx, canvasW / 2, canvasH / 2, canvasW - 2);
-      ctx.stroke();
-    } else {
-      ctx.strokeRect(1, 1, canvasW - 2, canvasH - 2);
-    }
-    ctx.setLineDash([]);
 
-    /* ── Text overlay (preview) ── */
-    drawText(ctx, textOverlay, canvasW, canvasH);
+    if (isMultiCircle) {
+      /* Clip & draw image in each circle */
+      for (let row = 0; row < mcRows; row++) {
+        for (let col = 0; col < mcCols; col++) {
+          const cx = col * circlePx + circlePx / 2;
+          const cy = row * circlePx + circlePx / 2;
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(cx, cy, circlePx / 2, 0, Math.PI * 2);
+          ctx.clip();
+          ctx.drawImage(img, col * circlePx + pos.x, row * circlePx + pos.y, img.width * scale, img.height * scale);
+          ctx.restore();
+        }
+      }
+      /* Dotted circle outlines */
+      ctx.strokeStyle = C.brand;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 3]);
+      for (let row = 0; row < mcRows; row++) {
+        for (let col = 0; col < mcCols; col++) {
+          ctx.beginPath();
+          ctx.arc(col * circlePx + circlePx / 2, row * circlePx + circlePx / 2, circlePx / 2 - 1, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+      ctx.setLineDash([]);
+    } else {
+      ctx.save();
+      if (shape === 'circular') {
+        ctx.beginPath();
+        ctx.arc(canvasW / 2, canvasH / 2, canvasW / 2, 0, Math.PI * 2);
+        ctx.clip();
+      } else if (shape === 'heart') {
+        drawHeartPath(ctx, canvasW / 2, canvasH / 2, canvasW);
+        ctx.clip();
+      }
+      ctx.drawImage(img, pos.x, pos.y, img.width * scale, img.height * scale);
+      ctx.restore();
+      ctx.strokeStyle = C.brand;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      if (shape === 'circular') {
+        ctx.beginPath();
+        ctx.arc(canvasW / 2, canvasH / 2, canvasW / 2 - 1, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (shape === 'heart') {
+        drawHeartPath(ctx, canvasW / 2, canvasH / 2, canvasW - 2);
+        ctx.stroke();
+      } else {
+        ctx.strokeRect(1, 1, canvasW - 2, canvasH - 2);
+      }
+      ctx.setLineDash([]);
+      drawText(ctx, textOverlay, canvasW, canvasH);
+    }
 
     if (onCrop) onCrop(canvas.toDataURL());
 
-    /* ── Draw hi-res canvas (what gets uploaded for printing) ── */
+    /* ── Draw hi-res canvas ── */
     hiResCanvas.width = hiResW;
     hiResCanvas.height = hiResH;
     const hctx = hiResCanvas.getContext('2d');
@@ -229,44 +278,73 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
     hctx.fillStyle = bgColor;
     hctx.fillRect(0, 0, hiResW, hiResH);
 
-    hctx.save();
-    if (shape === 'circular') {
-      hctx.beginPath();
-      hctx.arc(hiResW / 2, hiResH / 2, hiResW / 2, 0, Math.PI * 2);
-      hctx.clip();
-    } else if (shape === 'heart') {
-      drawHeartPath(hctx, hiResW / 2, hiResH / 2, hiResW);
-      hctx.clip();
-    }
-    /* Scale position & size proportionally */
-    const hrX = pos.x * scaleFactor;
-    const hrY = pos.y * scaleFactor;
-    const hrImgW = img.width * scale * scaleFactor;
-    const hrImgH = img.height * scale * scaleFactor;
-    hctx.drawImage(img, hrX, hrY, hrImgW, hrImgH);
-    hctx.restore();
-
-    /* ── Text overlay (hi-res) ── */
-    drawText(hctx, textOverlay, hiResW, hiResH, scaleFactor);
-
-    /* ── Cut guide: dotted line only (hi-res only, not shown to user) ── */
-    hctx.strokeStyle = '#CCCCCC';
-    hctx.lineWidth = 3;
-    hctx.setLineDash([20, 10]);
-    if (shape === 'circular') {
-      hctx.beginPath();
-      hctx.arc(hiResW / 2, hiResH / 2, hiResW / 2 - 2, 0, Math.PI * 2);
-      hctx.stroke();
-    } else if (shape === 'heart') {
-      drawHeartPath(hctx, hiResW / 2, hiResH / 2, hiResW - 4);
-      hctx.stroke();
+    if (isMultiCircle) {
+      const hrCirclePx = circleSize * DPI;
+      for (let row = 0; row < mcRows; row++) {
+        for (let col = 0; col < mcCols; col++) {
+          const hcx = col * hrCirclePx + hrCirclePx / 2;
+          const hcy = row * hrCirclePx + hrCirclePx / 2;
+          hctx.save();
+          hctx.beginPath();
+          hctx.arc(hcx, hcy, hrCirclePx / 2, 0, Math.PI * 2);
+          hctx.clip();
+          hctx.drawImage(img,
+            col * hrCirclePx + pos.x * scaleFactor,
+            row * hrCirclePx + pos.y * scaleFactor,
+            img.width * scale * scaleFactor,
+            img.height * scale * scaleFactor
+          );
+          hctx.restore();
+        }
+      }
+      /* Cut guide: dotted circle per slot */
+      hctx.strokeStyle = '#CCCCCC';
+      hctx.lineWidth = 3;
+      hctx.setLineDash([20, 10]);
+      for (let row = 0; row < mcRows; row++) {
+        for (let col = 0; col < mcCols; col++) {
+          hctx.beginPath();
+          hctx.arc(col * hrCirclePx + hrCirclePx / 2, row * hrCirclePx + hrCirclePx / 2, hrCirclePx / 2 - 2, 0, Math.PI * 2);
+          hctx.stroke();
+        }
+      }
+      hctx.setLineDash([]);
     } else {
-      hctx.strokeRect(2, 2, hiResW - 4, hiResH - 4);
+      hctx.save();
+      if (shape === 'circular') {
+        hctx.beginPath();
+        hctx.arc(hiResW / 2, hiResH / 2, hiResW / 2, 0, Math.PI * 2);
+        hctx.clip();
+      } else if (shape === 'heart') {
+        drawHeartPath(hctx, hiResW / 2, hiResH / 2, hiResW);
+        hctx.clip();
+      }
+      const hrX = pos.x * scaleFactor;
+      const hrY = pos.y * scaleFactor;
+      const hrImgW = img.width * scale * scaleFactor;
+      const hrImgH = img.height * scale * scaleFactor;
+      hctx.drawImage(img, hrX, hrY, hrImgW, hrImgH);
+      hctx.restore();
+      drawText(hctx, textOverlay, hiResW, hiResH, scaleFactor);
+      /* Cut guide */
+      hctx.strokeStyle = '#CCCCCC';
+      hctx.lineWidth = 3;
+      hctx.setLineDash([20, 10]);
+      if (shape === 'circular') {
+        hctx.beginPath();
+        hctx.arc(hiResW / 2, hiResH / 2, hiResW / 2 - 2, 0, Math.PI * 2);
+        hctx.stroke();
+      } else if (shape === 'heart') {
+        drawHeartPath(hctx, hiResW / 2, hiResH / 2, hiResW - 4);
+        hctx.stroke();
+      } else {
+        hctx.strokeRect(2, 2, hiResW - 4, hiResH - 4);
+      }
+      hctx.setLineDash([]);
     }
-    hctx.setLineDash([]);
 
     if (onHiResCrop) onHiResCrop(hiResCanvas.toDataURL('image/jpeg', 0.95));
-  }, [pos, scale, shape, hiResW, hiResH, scaleFactor, bgColor, textOverlay]);
+  }, [pos, scale, shape, hiResW, hiResH, scaleFactor, bgColor, textOverlay, isMultiCircle, circlePx, mcCols, mcRows, circleSize]);
 
   const handlePointerDown = (e) => {
     const canvas = canvasRef.current;
@@ -317,7 +395,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
         onPointerDown={handlePointerDown} onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp} onPointerLeave={handlePointerUp}
         style={{ cursor: textDragging ? 'move' : dragging ? 'grabbing' : 'grab', touchAction: 'none',
-          borderRadius: shape === 'circular' ? '50%' : 12,
+          borderRadius: shape === 'circular' ? '50%' : (shape === 'heart' ? 12 : 4),
           boxShadow: '0 8px 32px rgba(27,107,74,0.10)', maxWidth: '100%' }}
       />
       {/* Hidden hi-res canvas for print-quality export */}
@@ -730,7 +808,7 @@ export default function EdiblePrintApp() {
           <p style={{ color: C.muted, marginBottom: 8, fontSize: 15 }}>Premium edible paper + food-safe inks included in every order.</p>
           <p style={{ fontSize: 22, fontWeight: 700, color: C.brand, marginBottom: 28 }}>Starting at <strong>$14.99</strong></p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
-            {[...SIZES.circular, ...SIZES.heart, ...SIZES.square, ...SIZES.fullsheet].map((sz) => {
+            {[...SIZES.circular, ...SIZES.heart, ...SIZES.multicircle, ...SIZES.square, ...SIZES.fullsheet].map((sz) => {
               const popular = sz.id === 'c8';
               return (
                 <div key={sz.id} style={{ ...card, padding: '22px 16px', position: 'relative',
@@ -944,6 +1022,7 @@ export default function EdiblePrintApp() {
                 <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Shape</label>
                 <div style={{ display: 'flex', gap: 8, marginBottom: 22, flexWrap: 'wrap' }}>
                   {[{ key: 'circular', icon: '⭕', label: 'Round' }, { key: 'heart', icon: '❤️', label: 'Heart' },
+                    { key: 'multicircle', icon: '🍪', label: 'Cookie Sheet' },
                     { key: 'square', icon: '⬜', label: 'Square' },
                     { key: 'fullsheet', icon: '▬', label: 'Full Sheet' }, { key: 'custom', icon: '✏️', label: 'Custom' }].map((sh) => (
                     <button key={sh.key} onClick={() => setShape(sh.key)} style={{
@@ -961,16 +1040,281 @@ export default function EdiblePrintApp() {
                   <>
                     <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Size</label>
                     <div style={{ display: 'flex', gap: 8, marginBottom: 22, flexWrap: 'wrap' }}>
-                      {sizes.map((sz) => (
-                        <button key={sz.id} onClick={() => setSizeId(sz.id)} style={{
-                          flex: 1, minWidth: 90, padding: '14px 10px', borderRadius: 12,
-                          border: sizeId === sz.id ? '2.5px solid ' + C.brand : '2px solid ' + C.border,
-                          background: sizeId === sz.id ? C.brandLight : C.white,
-                          cursor: 'pointer', textAlign: 'center', fontFamily: "'Outfit', sans-serif", transition: 'all 0.2s' }}>
-                          <div style={{ fontWeight: 700, fontSize: 17, color: C.brand }}>{'$' + sz.price.toFixed(2)}</div>
-                          <div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>{sz.label}</div>
-                        </button>
+                      {sizes.map((sz) => {
+                        const cookieGrid = sz.circleSize ? getCircleGrid(sz.w, sz.h, sz.circleSize) : null;
+                        return (
+                          <button key={sz.id} onClick={() => setSizeId(sz.id)} style={{
+                            flex: 1, minWidth: 90, padding: '14px 10px', borderRadius: 12,
+                            border: sizeId === sz.id ? '2.5px solid ' + C.brand : '2px solid ' + C.border,
+                            background: sizeId === sz.id ? C.brandLight : C.white,
+                            cursor: 'pointer', textAlign: 'center', fontFamily: "'Outfit', sans-serif", transition: 'all 0.2s' }}>
+                            <div style={{ fontWeight: 700, fontSize: 17, color: C.brand }}>{'
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', gap: 12, marginBottom: 22 }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>Width (inches)</label>
+                        <input type="number" value={customW} onChange={(e) => { const v = parseFloat(e.target.value); setCustomW(isNaN(v) ? '' : String(Math.min(8, v))); }} placeholder="e.g. 5" style={inputStyle} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>Height (inches)</label>
+                        <input type="number" value={customH} onChange={(e) => { const v = parseFloat(e.target.value); setCustomH(isNaN(v) ? '' : String(Math.min(11, v))); }} placeholder="e.g. 7" style={inputStyle} />
+                      </div>
+                    </div>
+                    <p style={{ fontSize: 12, color: C.muted, margin: '-14px 0 22px', textAlign: 'center' }}>Max size: 8″ × 11″ (A4 sheet)</p>
+                  </>
+                )}
+
+                {/* Quantity */}
+                <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Quantity</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 22 }}>
+                  <button onClick={() => setQty(Math.max(1, qty - 1))} style={{ width: 38, height: 38, borderRadius: 10, border: '1.5px solid ' + C.border, background: C.white, fontSize: 18, cursor: 'pointer', fontWeight: 600 }}>-</button>
+                  <span style={{ fontSize: 20, fontWeight: 700, minWidth: 32, textAlign: 'center' }}>{qty}</span>
+                  <button onClick={() => setQty(qty + 1)} style={{ width: 38, height: 38, borderRadius: 10, border: '1.5px solid ' + C.border, background: C.white, fontSize: 18, cursor: 'pointer', fontWeight: 600 }}>+</button>
+                </div>
+
+                {/* Background Color */}
+                <div style={{ marginBottom: 22 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                    <label style={{ fontWeight: 600, fontSize: 14, margin: 0 }}>Background Fill Color <span style={{ fontWeight: 400, color: C.muted }}>(outside your image)</span></label>
+                    <div style={{ width: 26, height: 26, borderRadius: 6, background: bgColor, flexShrink: 0,
+                      border: '2px solid ' + C.border, boxShadow: bgColor === '#FFFFFF' ? 'inset 0 0 0 1px #d1d5db' : 'none' }} />
+                  </div>
+                  <BgColorPicker value={bgColor} onChange={setBgColor} />
+                </div>
+
+                {/* Add Text to Image */}
+                <div style={{ ...card, padding: '18px 16px', marginBottom: 22 }}>
+                  <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 12 }}>Add Text to Image <span style={{ fontWeight: 400, color: C.muted, fontSize: 13 }}>(optional)</span></label>
+                  <input
+                    value={textOverlay.text}
+                    onChange={(e) => setTextOverlay((p) => ({ ...p, text: e.target.value }))}
+                    placeholder="Type your message..."
+                    style={{ ...inputStyle, marginBottom: 12 }}
+                  />
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    {/* Font size */}
+                    <div style={{ flex: 1, minWidth: 100 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Size</div>
+                      <select value={textOverlay.fontSize} onChange={(e) => setTextOverlay((p) => ({ ...p, fontSize: Number(e.target.value) }))} style={{
+                        width: '100%', padding: '8px 6px', borderRadius: 8, border: '1.5px solid ' + C.border,
+                        fontSize: 14, cursor: 'pointer', background: C.white, color: C.text, fontFamily: "'Outfit', sans-serif",
+                      }}>
+                        {[8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48, 56, 72, 96].map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {/* Font style */}
+                    <div style={{ flex: 1, minWidth: 130 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Style</div>
+                      <select value={textOverlay.fontStyle} onChange={(e) => setTextOverlay((p) => ({ ...p, fontStyle: e.target.value }))} style={{
+                        width: '100%', padding: '8px 6px', borderRadius: 8, border: '1.5px solid ' + C.border,
+                        fontSize: 13, cursor: 'pointer', background: C.white, color: C.text,
+                      }}>
+                        <option value="normal">Normal</option>
+                        <option value="bold">Bold</option>
+                        <option value="italic">Italic</option>
+                        <option value="bold italic">Bold Italic</option>
+                      </select>
+                    </div>
+                  </div>
+                  {/* Font family */}
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Font</div>
+                    <select value={textOverlay.fontFamily} onChange={(e) => setTextOverlay((p) => ({ ...p, fontFamily: e.target.value }))} style={{
+                      width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid ' + C.border,
+                      fontSize: 15, cursor: 'pointer', background: C.white, color: C.text,
+                      fontFamily: textOverlay.fontFamily,
+                    }}>
+                      {[
+                        { value: 'Arial', label: 'Arial' },
+                        { value: 'Georgia', label: 'Georgia' },
+                        { value: 'Impact', label: 'Impact' },
+                        { value: 'Comic Sans MS', label: 'Comic Sans MS' },
+                        { value: 'Courier New', label: 'Courier New' },
+                        { value: 'Brush Script MT', label: 'Brush Script MT' },
+                        { value: 'Lobster', label: 'Lobster — Festive Script' },
+                        { value: 'Pacifico', label: 'Pacifico — Birthday Style' },
+                        { value: 'Dancing Script', label: 'Dancing Script — Elegant Cursive' },
+                        { value: 'Great Vibes', label: 'Great Vibes — Wedding Style' },
+                        { value: 'Bangers', label: 'Bangers — Comic/Party' },
+                        { value: 'Permanent Marker', label: 'Permanent Marker — Handwritten' },
+                        { value: 'Fredoka One', label: 'Fredoka One — Round Bold' },
+                      ].map(({ value, label }) => (
+                        <option key={value} value={value} style={{ fontFamily: value }}>{label}</option>
                       ))}
+                    </select>
+                  </div>
+                  <p style={{ fontSize: 11, color: C.muted, margin: '8px 0 0', textAlign: 'center' }}>Drag text in preview to reposition</p>
+                  {/* Text color */}
+                  <div style={{ marginTop: 12 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Text Color</div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                      {[
+                        { color: '#FFFFFF', label: 'White' },
+                        { color: '#111111', label: 'Black' },
+                        { color: '#FF3333', label: 'Red' },
+                        { color: '#FFD700', label: 'Gold' },
+                        { color: '#4488FF', label: 'Blue' },
+                        { color: '#FF88CC', label: 'Pink' },
+                      ].map(({ color, label }) => (
+                        <button key={color} title={label} onClick={() => setTextOverlay((p) => ({ ...p, color }))} style={{
+                          width: 28, height: 28, borderRadius: 6, background: color, cursor: 'pointer',
+                          border: textOverlay.color === color ? '3px solid ' + C.brand : '2px solid ' + C.border,
+                          boxSizing: 'border-box',
+                          boxShadow: color === '#FFFFFF' ? 'inset 0 0 0 1px #d1d5db' : 'none',
+                        }} />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Special Instructions */}
+                <div>
+                  <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Special Instructions (optional)</label>
+                  <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Adjust colors, add border, special requests..." rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
+                </div>
+              </div>
+            </div>
+
+            {/* Order summary + navigation (full width) */}
+            <div style={{ ...card, marginTop: 24 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 600 }}>
+                <span>{qty + 'x ' + (shape === 'custom' ? customW + '"x' + customH + '"' : selectedSize?.label) + ' (' + shape + ')'}</span>
+                <span style={{ color: C.brand, fontSize: 18 }}>{'$' + subtotal.toFixed(2)}</span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 12, marginTop: 26 }}>
+              <button onClick={() => setStep(1)} style={{ ...btnSecondary, flex: 1 }}>← Back</button>
+              <button onClick={() => setStep(3)} style={{ ...btnPrimary, flex: 2 }}>Continue →</button>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 3: SHIPPING & PAYMENT */}
+        {step === 3 && (
+          <div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={stepBadge}>3</div>
+              <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, margin: '16px 0 8px', fontWeight: 700 }}>Shipping & Payment</h2>
+              <p style={{ color: C.muted, marginBottom: 24 }}>Where should we ship your edible prints?</p>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Full Name *</label>
+                <input value={form.name} onChange={(e) => updateForm('name', e.target.value)} style={inputStyle} placeholder="Jane Smith" />
+              </div>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Email *</label>
+                  <input type="email" value={form.email} onChange={(e) => updateForm('email', e.target.value)} style={inputStyle} placeholder="jane@email.com" />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Phone</label>
+                  <input type="tel" value={form.phone} onChange={(e) => updateForm('phone', e.target.value)} style={inputStyle} placeholder="(519) 555-1234" />
+                </div>
+              </div>
+              {shipping !== 'pickup' && (<>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Street Address *</label>
+                <input ref={addressRef} value={form.address} onChange={(e) => handleAddressChange(e.target.value)} style={inputStyle} placeholder="e.g. 123 Main Street" autoComplete="off" />
+              </div>
+              <div style={{ maxWidth: 220 }}>
+                <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Unit / Suite (optional)</label>
+                <input value={form.unit} onChange={(e) => updateForm('unit', e.target.value)} style={inputStyle} placeholder="e.g. 503, Apt 2B" />
+              </div>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>City *</label>
+                  <input value={form.city} onChange={(e) => updateForm('city', e.target.value)} style={inputStyle} placeholder="Toronto" />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Province *</label>
+                  <select value={form.province} onChange={(e) => updateForm('province', e.target.value)} style={inputStyle}>
+                    {PROVINCES.map((prov) => <option key={prov} value={prov}>{prov}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div style={{ maxWidth: 200 }}>
+                <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Postal Code *</label>
+                <input value={form.postal} onChange={(e) => updateForm('postal', e.target.value.toUpperCase())} style={inputStyle} placeholder="N6A 1B2" maxLength={7} />
+              </div>
+              </>)}
+            </div>
+            <div style={{ marginTop: 26 }}>
+              <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 10 }}>Shipping Method</label>
+              {[
+                { key: 'local', label: localZone ? 'Same Day Delivery — ' + localZone.name : 'Same Day Delivery — London, ON', price: localZone?.price || 0, disabled: !localZone },
+                { key: 'standard', label: 'Standard Shipping — 3-5 business days', price: SHIPPING.standard, disabled: false },
+                { key: 'express', label: 'Express Shipping — 1-2 business days', price: SHIPPING.express, disabled: false },
+                { key: 'pickup', label: 'Pickup — South London, ON', price: 0, disabled: false, note: 'South London (Glen Cairn / Westmount area). We\'ll confirm the exact time by email.' },
+              ].map((opt) => (
+                <label key={opt.key} style={{
+                  display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 12,
+                  border: shipping === opt.key ? '2.5px solid ' + C.brand : '2px solid ' + C.border,
+                  background: shipping === opt.key ? C.brandLight : opt.disabled ? '#f9fafb' : C.white, marginBottom: 8,
+                  cursor: opt.disabled ? 'not-allowed' : 'pointer', transition: 'all 0.2s', opacity: opt.disabled ? 0.5 : 1 }}>
+                  <input type="radio" name="shipping" checked={shipping === opt.key} onChange={() => { if (!opt.disabled) setShipping(opt.key); }} disabled={opt.disabled} style={{ accentColor: C.brand, width: 18, height: 18 }} />
+                  <div style={{ flex: 1 }}>
+                    <span style={{ fontSize: 14, fontWeight: 500 }}>{opt.label}</span>
+                    {opt.key === 'local' && !localZone && form.postal && (
+                      <div style={{ fontSize: 12, color: '#EF4444', marginTop: 2 }}>Not available for your postal code</div>
+                    )}
+                    {opt.key === 'local' && !form.postal && (
+                      <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>Enter your postal code above</div>
+                    )}
+                    {opt.note && (
+                      <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{opt.note}</div>
+                    )}
+                  </div>
+                  <span style={{ fontWeight: 700, fontSize: 14, color: opt.disabled ? C.muted : C.brand }}>{opt.key === 'local' && localZone ? '$' + localZone.price.toFixed(2) : opt.key === 'local' ? '—' : '$' + opt.price.toFixed(2)}</span>
+                </label>
+              ))}
+            </div>
+            <div style={{ ...card, marginTop: 26 }}>
+              <h3 style={{ margin: '0 0 14px', fontSize: 16, fontWeight: 700 }}>Order Summary</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>{qty + 'x ' + (shape === 'custom' ? customW + '"x' + customH + '"' : selectedSize?.label) + ' (' + shape + ')'}</span>
+                  <span style={{ fontWeight: 600 }}>{'$' + subtotal.toFixed(2)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Shipping</span><span style={{ fontWeight: 600 }}>{'$' + shippingCost.toFixed(2)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: C.muted }}>
+                  <span>HST (13%)</span><span>{'$' + tax.toFixed(2)}</span>
+                </div>
+                <div style={{ borderTop: '1.5px solid ' + C.border, paddingTop: 12, display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 20 }}>
+                  <span>Total</span>
+                  <span style={{ color: C.brand }}>{'$' + total.toFixed(2)} <span style={{ fontSize: 13, fontWeight: 400, color: C.muted }}>CAD</span></span>
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 12, marginTop: 26 }}>
+              <button onClick={() => setStep(2)} style={{ ...btnSecondary, flex: 1 }}>← Back</button>
+              <button onClick={handlePlaceOrder} disabled={loading}
+                style={{ ...btnPrimary, flex: 2, opacity: loading ? 0.7 : 1 }}>
+                {loading ? 'Redirecting to payment...' : 'Place Order →'}
+              </button>
+            </div>
+            <p style={{ fontSize: 12, color: '#bbb', textAlign: 'center', marginTop: 14 }}>
+              🔒 Payment processed securely via Stripe
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+ + sz.price.toFixed(2)}</div>
+                            <div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>{sz.label}</div>
+                            {cookieGrid && <div style={{ fontSize: 12, color: C.brand, fontWeight: 600, marginTop: 3 }}>{cookieGrid.count} cookies/sheet</div>}
+                          </button>
+                        );
+                      })}
                     </div>
                   </>
                 ) : (
