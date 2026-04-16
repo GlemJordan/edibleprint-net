@@ -1122,10 +1122,10 @@ export default function EdiblePrintApp() {
         <div style={{ background: C.white, borderTop: '1px solid ' + C.border, borderBottom: '1px solid ' + C.border, padding: '16px 24px' }}>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 0, flexWrap: 'wrap', maxWidth: 760, margin: '0 auto' }}>
             {[
-              { icon: '🍃', title: 'FDA-Approved', sub: 'Edible inks & sheets' },
-              { icon: '🇨🇦', title: 'Made in Canada', sub: 'London, Ontario' },
-              { icon: '⭐', title: '5-Star Rated', sub: '200+ orders' },
-              { icon: '🔒', title: 'Secure Checkout', sub: 'Powered by Stripe' },
+              { icon: '🖨️', title: '300 DPI Print Quality', sub: 'Crystal-clear results' },
+              { icon: '🍰', title: '100% Food-Safe', sub: 'FDA-approved inks & sheets' },
+              { icon: '🚚', title: 'Ships in 1–2 Days', sub: 'Same-day local delivery' },
+              { icon: '✅', title: '100% Satisfaction', sub: 'We make it right, guaranteed' },
             ].map((b, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 22px',
                 borderRight: i < 3 ? '1px solid ' + C.border : 'none', flexShrink: 0 }}>
@@ -1231,13 +1231,63 @@ export default function EdiblePrintApp() {
           </div>
           <p style={{ fontSize: 13, color: '#bbb', marginTop: 20 }}>Custom sizes available · Shipping from $6.99 · HST calculated at checkout</p>
         </section>
+
+        {/* ── QUALITY GUARANTEE SECTION ── */}
+        <section style={{ padding: '52px 24px', background: C.brandLight, borderTop: '1px solid #C6E6D6', borderBottom: '1px solid #C6E6D6' }}>
+          <div style={{ maxWidth: 760, margin: '0 auto', display: 'flex', flexWrap: 'wrap', gap: 40, alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ fontSize: 72, lineHeight: 1, flexShrink: 0 }}>🛡️</div>
+            <div style={{ flex: 1, minWidth: 260 }}>
+              <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 700, margin: '0 0 12px', color: C.brandDark }}>
+                Our Quality Guarantee
+              </h2>
+              <p style={{ fontSize: 15.5, lineHeight: 1.7, color: C.text, margin: '0 0 18px' }}>
+                Every edible print is produced with <strong>300 DPI resolution</strong>, <strong>FDA-approved food-safe inks</strong>, and <strong>premium icing sheets</strong> that lay flat and taste great.
+                If your order arrives damaged or the print quality doesn't meet your expectations, we'll reprint or refund — no questions asked.
+              </p>
+              <ul style={{ margin: '0 0 20px', padding: '0 0 0 20px', fontSize: 14.5, lineHeight: 1.85, color: C.text }}>
+                <li>We review every image before printing — we'll flag quality issues</li>
+                <li>Reprints sent within 24 hours for any production error</li>
+                <li>Arrives in protective packaging to prevent damage in transit</li>
+                <li>Every batch is taste-tested for colour accuracy</li>
+              </ul>
+              <button onClick={() => setStep(1)} style={{ ...btnPrimary, padding: '13px 30px', fontSize: 15, borderRadius: 12 }}>
+                Order with Confidence →
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* ── CUSTOMER GALLERY ── */}
+        <section style={{ padding: '52px 24px', maxWidth: 860, margin: '0 auto' }}>
+          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, textAlign: 'center', marginBottom: 8, fontWeight: 700 }}>Real Customer Prints</h2>
+          <p style={{ textAlign: 'center', color: C.muted, marginBottom: 32, fontSize: 15 }}>Fresh from our printer — loved by customers across Canada</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+            {[
+              { label: 'Birthday Cake Topper', emoji: '🎂' },
+              { label: 'Cookie Sheet Print', emoji: '🍪' },
+              { label: 'Heart-Shape Cake', emoji: '❤️' },
+              { label: 'Corporate Logo Print', emoji: '🏢' },
+              { label: 'Baby Shower Cupcakes', emoji: '👶' },
+              { label: 'Wedding Cake Topper', emoji: '💍' },
+            ].map((item, i) => (
+              <div key={i} style={{ aspectRatio: '1', background: 'linear-gradient(135deg, #E8F5EE 0%, #C6E6D6 100%)',
+                borderRadius: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                gap: 8, border: '1px solid #C6E6D6', cursor: 'default' }}>
+                <span style={{ fontSize: 40 }}>{item.emoji}</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, textAlign: 'center', padding: '0 12px' }}>{item.label}</span>
+              </div>
+            ))}
+          </div>
+          <p style={{ textAlign: 'center', fontSize: 13, color: '#bbb', marginTop: 16 }}>📸 Gallery photos coming soon — we're building our collection!</p>
+        </section>
+
         <section style={{ padding: '48px 24px', maxWidth: 860, margin: '0 auto' }}>
           <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, textAlign: 'center', marginBottom: 32, fontWeight: 700 }}>What Our Customers Say</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 20 }}>
             {[
-              { quote: "Perfect photo on my daughter's birthday cake! Amazing quality.", name: 'Sarah M.', location: 'London, ON' },
-              { quote: 'Used it for my bakery business. Clients love the custom prints!', name: 'Maria L.', location: 'Toronto' },
-              { quote: 'Super easy to order and fast shipping. Will order again!', name: 'James K.', location: 'Ottawa' },
+              { quote: "I ordered a round print for my daughter's birthday cake and it turned out absolutely stunning. The colours were vivid and it peeled perfectly. Will 100% order again!", name: 'Sarah M.', location: 'Toronto, ON' },
+              { quote: "I've tried a few edible printing services and EdiblePrint is by far the best quality. Fast turnaround, great packaging, and the image was crystal clear.", name: 'Michael R.', location: 'London, ON' },
+              { quote: "Ordered cookie sheets for a corporate event in Calgary. The logo came out perfectly and everyone was impressed. The ordering process was so simple.", name: 'Jessica L.', location: 'Calgary, AB' },
             ].map((r, i) => (
               <div key={i} style={{ ...card, padding: '24px 20px' }}>
                 <div style={{ color: '#FBBF24', fontSize: 18, marginBottom: 12, letterSpacing: 2 }}>★★★★★</div>
@@ -1248,22 +1298,26 @@ export default function EdiblePrintApp() {
             ))}
           </div>
         </section>
-        <section style={{ padding: '48px 24px', maxWidth: 680, margin: '0 auto' }}>
-          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, textAlign: 'center', marginBottom: 28, fontWeight: 700 }}>Frequently Asked Questions</h2>
+        <section id="faq" style={{ padding: '56px 24px', maxWidth: 720, margin: '0 auto' }}>
+          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, textAlign: 'center', marginBottom: 8, fontWeight: 700 }}>Frequently Asked Questions</h2>
+          <p style={{ textAlign: 'center', color: C.muted, marginBottom: 36, fontSize: 15 }}>Everything you need to know about edible printing</p>
           {[
-            ['What are edible prints made of?', 'We use FDA-approved edible icing sheets with food-safe inks. They are 100% safe to eat and designed to be placed directly on cakes, cookies, cupcakes, and other baked goods.'],
-            ['How do I use the edible print?', 'Simply peel the backing and place it on your frosted cake, cookies, or cupcakes. The print blends seamlessly with the icing.'],
-            ['How long does shipping take?', 'Same-day delivery is available in London, Ontario (from $6.99). Standard shipping takes 3–5 business days anywhere in Canada via Canada Post. Express shipping (1–2 business days) is also available.'],
-            ['What image quality do I need?', 'For best results, upload a high-resolution image (at least 1000×1000 pixels). We review every order before printing and will contact you if we notice any quality issues.'],
-            ['Do you ship to all provinces?', 'Yes — we ship to every province and territory in Canada.'],
-            ['Can I order multiple copies?', 'Absolutely. Adjust the quantity at checkout. Volume discounts are available for orders over 20 units — contact us for a quote.'],
-            ['Can I order multiple different designs?', 'Yes! Use the "Add Another Design" button during checkout to include up to 5 different designs in one order. Each design can have its own shape, size, and image.'],
+            ['What are edible prints made of?', 'Our prints use FDA-approved, food-safe edible icing sheets printed with vibrant, water-based edible inks. Every ingredient is certified safe for consumption and tasteless \u2014 so they won\u2019t affect the flavour of your baked goods.'],
+            ['How do I apply the edible print?', 'Peel the backing sheet gently and lay the print directly onto a freshly frosted or fondant-covered surface. Press lightly from the centre outward to remove air bubbles. For best results, apply within 30 minutes of frosting and keep refrigerated until serving.'],
+            ['How long does shipping take?', 'Same-day local delivery is available across London, Ontario (from $6.99). Standard Canada-wide shipping takes 3–5 business days. Express (1–2 business days) is also available at checkout.'],
+            ['What image resolution do I need for good quality?', 'We recommend a minimum of 1000×1000 pixels at 300 DPI. We review every order before printing — if we spot a quality issue with your file, we\'ll reach out before proceeding.'],
+            ['Do you ship to all Canadian provinces and territories?', 'Yes — we ship to all provinces and territories via Canada Post. Delivery times vary by location; remote areas may take an additional 1–2 business days.'],
+            ['Can I order multiple copies of the same design?', 'Yes — simply increase the quantity at checkout. For bulk orders (20+ units), contact us for a volume pricing quote.'],
+            ['Can I include multiple different designs in one order?', 'Absolutely. Use the "Add Another Design" button to include up to 5 different designs in a single order. Each design can have its own shape, size, image, and quantity.'],
+            ['How long do edible prints last?', 'Stored in the original sealed packaging in a cool, dry place, edible prints last up to 12 months. Once applied to a frosted cake, they are best consumed within 3–5 days.'],
+            ['Are your products allergen-free?', 'Our edible inks and sheets are free from the most common allergens. However, they are produced in a facility that may handle nuts and dairy. Please review our full allergen statement for details.'],
+            ['What if my order arrives damaged or the print quality is poor?', 'We stand behind every order. If your print arrives damaged or doesn\'t meet the quality you expected, contact us within 48 hours and we\'ll reprint it or issue a full refund — no questions asked.'],
           ].map(([q, a], i) => (
             <details key={i} style={{ borderBottom: '1px solid ' + C.border, paddingBottom: 16, marginBottom: 16 }}>
-              <summary style={{ fontWeight: 600, fontSize: 15, cursor: 'pointer', listStyle: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                {q} <span style={{ color: C.brand, fontSize: 20, fontWeight: 400 }}>+</span>
+              <summary style={{ fontWeight: 600, fontSize: 15, cursor: 'pointer', listStyle: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                <span>{q}</span><span style={{ color: C.brand, fontSize: 20, fontWeight: 400, flexShrink: 0 }}>+</span>
               </summary>
-              <p style={{ margin: '10px 0 0', fontSize: 14, color: C.muted, lineHeight: 1.65 }}>{a}</p>
+              <p style={{ margin: '10px 0 0', fontSize: 14, color: C.muted, lineHeight: 1.7 }}>{a}</p>
             </details>
           ))}
         </section>
@@ -1274,13 +1328,94 @@ export default function EdiblePrintApp() {
             Start Your Order →
           </button>
         </section>
-        <footer style={{ padding: '28px 24px', textAlign: 'center', borderTop: '1px solid ' + C.border, color: C.muted, fontSize: 13 }}>
-          <Logo size={22} />
-          <p style={{ margin: '12px 0 4px' }}>
-            <a href="mailto:hello@edibleprint.net" style={{ color: C.brand, textDecoration: 'none' }}>hello@edibleprint.net</a>
-            {' · London, Ontario, Canada'}
-          </p>
-          <p style={{ margin: 0, fontSize: 12, color: '#bbb' }}>© {new Date().getFullYear()} EdiblePrint.net · All rights reserved</p>
+        <footer style={{ background: '#1a1a1a', color: '#d1d5db', fontFamily: "'Outfit', sans-serif" }}>
+          <div style={{ maxWidth: 1000, margin: '0 auto', padding: '56px 24px 40px', display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 36 }}>
+            {/* Col 1: Brand */}
+            <div>
+              <Logo size={26} />
+              <p style={{ fontSize: 13.5, lineHeight: 1.7, marginTop: 14, color: '#9CA3AF', maxWidth: 220 }}>
+                Custom edible image printing on premium icing sheets. Made with love in London, Ontario.
+              </p>
+              <p style={{ fontSize: 13, marginTop: 12, color: '#9CA3AF' }}>
+                <a href="mailto:hello@edibleprint.net" style={{ color: '#6ee7b7', textDecoration: 'none' }}>hello@edibleprint.net</a>
+              </p>
+              <p style={{ fontSize: 13, marginTop: 4, color: '#9CA3AF' }}>London, Ontario, Canada 🇨🇦</p>
+            </div>
+            {/* Col 2: Shop */}
+            <div>
+              <h4 style={{ fontSize: 13, fontWeight: 700, color: '#fff', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16, marginTop: 0 }}>Shop</h4>
+              {[
+                ['Round Cake Toppers', () => handlePricingCardClick('circular', 'c8')],
+                ['Heart Cake Toppers', () => handlePricingCardClick('heart', 'h8')],
+                ['Square Prints', () => handlePricingCardClick('square', 's8')],
+                ['Cookie Sheets', () => handlePricingCardClick('multicircle', 'mc3')],
+                ['Full Sheet Prints', () => handlePricingCardClick('fullsheet', 'a4')],
+              ].map(([label, action]) => (
+                <div key={label} style={{ marginBottom: 10 }}>
+                  <button onClick={action} style={{ background: 'none', border: 'none', cursor: 'pointer',
+                    fontSize: 13.5, color: '#9CA3AF', padding: 0, fontFamily: "'Outfit', sans-serif",
+                    textAlign: 'left', transition: 'color 0.15s' }}
+                    onMouseEnter={e => e.currentTarget.style.color = '#6ee7b7'}
+                    onMouseLeave={e => e.currentTarget.style.color = '#9CA3AF'}>
+                    {label}
+                  </button>
+                </div>
+              ))}
+            </div>
+            {/* Col 3: Company */}
+            <div>
+              <h4 style={{ fontSize: 13, fontWeight: 700, color: '#fff', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16, marginTop: 0 }}>Company</h4>
+              {[
+                ['About Us', '/about'],
+                ['FAQ', '/#faq'],
+                ['Contact', 'mailto:hello@edibleprint.net'],
+              ].map(([label, href]) => (
+                <div key={label} style={{ marginBottom: 10 }}>
+                  <a href={href} style={{ fontSize: 13.5, color: '#9CA3AF', textDecoration: 'none', transition: 'color 0.15s' }}
+                    onMouseEnter={e => e.currentTarget.style.color = '#6ee7b7'}
+                    onMouseLeave={e => e.currentTarget.style.color = '#9CA3AF'}>
+                    {label}
+                  </a>
+                </div>
+              ))}
+            </div>
+            {/* Col 4: Legal */}
+            <div>
+              <h4 style={{ fontSize: 13, fontWeight: 700, color: '#fff', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16, marginTop: 0 }}>Legal</h4>
+              {[
+                ['Privacy Policy', '/privacy'],
+                ['Terms of Service', '/terms'],
+                ['Shipping Policy', '/shipping'],
+                ['Refund Policy', '/refund'],
+                ['Allergen Info', '/allergens'],
+              ].map(([label, href]) => (
+                <div key={label} style={{ marginBottom: 10 }}>
+                  <a href={href} style={{ fontSize: 13.5, color: '#9CA3AF', textDecoration: 'none', transition: 'color 0.15s' }}
+                    onMouseEnter={e => e.currentTarget.style.color = '#6ee7b7'}
+                    onMouseLeave={e => e.currentTarget.style.color = '#9CA3AF'}>
+                    {label}
+                  </a>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Bottom bar */}
+          <div style={{ borderTop: '1px solid #374151', padding: '20px 24px' }}>
+            <div style={{ maxWidth: 1000, margin: '0 auto', display: 'flex', flexWrap: 'wrap',
+              justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+              <p style={{ margin: 0, fontSize: 12.5, color: '#6B7280' }}>
+                © {new Date().getFullYear()} EdiblePrint.net · All rights reserved
+              </p>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                {['VISA', 'MC', 'AMEX', 'Apple Pay', 'Google Pay'].map(card => (
+                  <span key={card} style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF',
+                    background: '#374151', borderRadius: 4, padding: '3px 7px', letterSpacing: 0.5 }}>{card}</span>
+                ))}
+                <span style={{ fontSize: 12, color: '#6B7280', marginLeft: 4 }}>🔒 Powered by Stripe</span>
+              </div>
+            </div>
+          </div>
         </footer>
       </div>
     );

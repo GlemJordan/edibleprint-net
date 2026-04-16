@@ -1,3 +1,5 @@
+import WhatsAppButton from './WhatsAppButton';
+
 export const metadata = {
   title: 'EdiblePrint.net — Custom Edible Image Printing | London ON & Canada-Wide',
   description: 'Upload your photo, logo or design. We print it on premium edible icing sheets with food-safe inks. Same-day local delivery in London, Ontario. Shipped across Canada. Perfect for cakes, cookies, cupcakes and custom cake toppers.',
@@ -56,7 +58,7 @@ export default function RootLayout({ children }) {
           defer
         />
       </head>
-      <body>{children}</body>
+      <body>{children}<WhatsAppButton /></body>
     </html>
   );
 }
