@@ -5,7 +5,7 @@ export const metadata = {
   description: 'EdiblePrint.net refund and reprint policy for custom edible prints.',
 };
 
-const EMAIL = 'hello@edibleprint.net';
+const EMAIL = 'glenj.belmar@gmail.com';
 const C = { brand: '#1B6B4A', brandLight: '#E8F5EE', border: '#E5E7EB' };
 
 const h2 = { fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 700, margin: '40px 0 12px', color: '#1a1a1a' };

@@ -363,8 +363,6 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       } else if (shape === 'heart') {
         drawHeartPath(ctx, 1, 1, canvasW - 2, canvasH - 2);
         ctx.stroke();
-      } else {
-        ctx.strokeRect(1, 1, canvasW - 2, canvasH - 2);
       }
       ctx.setLineDash([]);
       drawText(ctx, textOverlay, canvasW, canvasH);
@@ -472,8 +470,6 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       } else if (shape === 'heart') {
         drawHeartPath(hctx, 2, 2, hiResW - 4, hiResH - 4);
         hctx.stroke();
-      } else {
-        hctx.strokeRect(2, 2, hiResW - 4, hiResH - 4);
       }
       hctx.setLineDash([]);
     }

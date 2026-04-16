@@ -5,7 +5,7 @@ export const metadata = {
   description: 'Shipping methods, transit times, and rates for EdiblePrint.net orders across Canada.',
 };
 
-const EMAIL = 'hello@edibleprint.net';
+const EMAIL = 'glenj.belmar@gmail.com';
 const C = { brand: '#1B6B4A', border: '#E5E7EB', brandLight: '#E8F5EE' };
 
 const h2 = { fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 700, margin: '40px 0 12px', color: '#1a1a1a' };

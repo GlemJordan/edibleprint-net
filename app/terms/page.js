@@ -5,8 +5,8 @@ export const metadata = {
   description: 'Terms governing your use of EdiblePrint.net and purchase of custom edible prints.',
 };
 
-const EMAIL = 'hello@edibleprint.net';
-const ADDRESS = 'London, Ontario, N5Z 3Y1, Canada';
+const EMAIL = 'glenj.belmar@gmail.com';
+const ADDRESS = 'London, Ontario, Canada';
 const C = { brand: '#1B6B4A' };
 
 const h2 = { fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 700, margin: '40px 0 12px', color: '#1a1a1a' };

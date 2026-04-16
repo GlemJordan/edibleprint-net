@@ -5,8 +5,8 @@ export const metadata = {
   description: 'How EdiblePrint.net collects, uses, and protects your personal information.',
 };
 
-const EMAIL = 'hello@edibleprint.net';
-const ADDRESS = 'London, Ontario, N5Z 3Y1, Canada';
+const EMAIL = 'glenj.belmar@gmail.com';
+const ADDRESS = 'London, Ontario, Canada';
 const C = { brand: '#1B6B4A', muted: '#6B7280', border: '#E5E7EB', brandLight: '#E8F5EE' };
 
 const h2 = { fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 700, margin: '40px 0 12px', color: '#1a1a1a' };
