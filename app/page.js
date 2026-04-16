@@ -792,8 +792,7 @@ export default function EdiblePrintApp() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: C.brand, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Contact</div>
-                <a href="mailto:hello@edibleprint.net" style={{ fontSize: 13, color: C.muted, textDecoration: 'none' }}>✉️ hello@edibleprint.net</a>
-                <a href="tel:+15196012345" style={{ fontSize: 13, color: C.muted, textDecoration: 'none' }}>📞 (519) 601-2345</a>
+                <a href="mailto:glenj.belmar@gmail.com" style={{ fontSize: 13, color: C.muted, textDecoration: 'none' }}>✉️ glenj.belmar@gmail.com</a>
                 <a href="https://instagram.com/edibleprint.net" target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: C.muted, textDecoration: 'none' }}>📸 @edibleprint.net</a>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1148,7 +1147,7 @@ export default function EdiblePrintApp() {
                 { key: 'local', label: localZone ? 'Same Day Delivery — ' + localZone.name : 'Same Day Delivery — London, ON', price: localZone?.price || 0, disabled: !localZone },
                 { key: 'standard', label: 'Standard Shipping — 3-5 business days', price: SHIPPING.standard, disabled: false },
                 { key: 'express', label: 'Express Shipping — 1-2 business days', price: SHIPPING.express, disabled: false },
-                { key: 'pickup', label: 'Pickup — South London, ON', price: 0, disabled: false, note: 'Glen Cairn area. We\'ll confirm the exact time by email.' },
+                { key: 'pickup', label: 'Pickup — South London, ON', price: 0, disabled: false, note: 'South London (Glen Cairn / Westmount area). We\'ll confirm the exact time by email.' },
               ].map((opt) => (
                 <label key={opt.key} style={{
                   display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 12,

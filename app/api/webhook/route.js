@@ -130,7 +130,7 @@ export async function POST(request) {
             + (isPickup
               ? '<div style="background:#FFF4EB;border-left:4px solid #E8873C;padding:14px 16px;border-radius:0 6px 6px 0;margin-bottom:20px;">'
               + '<p style="margin:0 0 6px;font-size:14px;font-weight:600;color:#374151;">Pickup Address</p>'
-              + '<p style="margin:0;font-size:14px;line-height:1.6;color:#374151;">Glen Cairn area, South London, ON.<br/>Please wait for our confirmation email with pickup time and exact address.</p>'
+              + '<p style="margin:0;font-size:14px;line-height:1.6;color:#374151;">3 Frontenac Road N5Z 3Y1 (apartments), South London, ON.<br/>Please wait for our confirmation email with pickup time and exact address.</p>'
               + '</div>'
               : '')
 
