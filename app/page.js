@@ -115,19 +115,19 @@ function getCircleGrid(sheetW, sheetH, circleSize) {
   return { cols, rows, count: cols * rows };
 }
 
-/* Heart clip path centered at (cx, cy) fitting in size × size bounding box */
+/* Heart clip path: cx = horizontal center, cy = top of bounding box, size = width & height */
 function drawHeartPath(ctx, cx, cy, size) {
-  const s = size / 2;
+  const w = size;
+  const h = size;
   ctx.beginPath();
-  ctx.moveTo(cx, cy + s * 0.95);
-  // Left side down to left lobe
-  ctx.bezierCurveTo(cx - s, cy + s * 0.3, cx - s, cy - s * 0.4, cx - s * 0.5, cy - s * 0.4);
-  // Left lobe over top to center notch
-  ctx.bezierCurveTo(cx - s * 0.15, cy - s * 0.95, cx - s * 0.05, cy - s * 0.55, cx, cy - s * 0.45);
-  // Center notch over top to right lobe
-  ctx.bezierCurveTo(cx + s * 0.05, cy - s * 0.55, cx + s * 0.15, cy - s * 0.95, cx + s * 0.5, cy - s * 0.4);
-  // Right side down to bottom tip
-  ctx.bezierCurveTo(cx + s, cy - s * 0.4, cx + s, cy + s * 0.3, cx, cy + s * 0.95);
+  const topCurveHeight = h * 0.3;
+  ctx.moveTo(cx, cy + topCurveHeight);
+  // Left side
+  ctx.bezierCurveTo(cx, cy, cx - w / 2, cy, cx - w / 2, cy + topCurveHeight);
+  ctx.bezierCurveTo(cx - w / 2, cy + (h + topCurveHeight) / 2, cx, cy + (h + topCurveHeight) / 2, cx, cy + h);
+  // Right side
+  ctx.bezierCurveTo(cx, cy + (h + topCurveHeight) / 2, cx + w / 2, cy + (h + topCurveHeight) / 2, cx + w / 2, cy + topCurveHeight);
+  ctx.bezierCurveTo(cx + w / 2, cy, cx, cy, cx, cy + topCurveHeight);
   ctx.closePath();
 }
 
@@ -159,6 +159,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
   const [textDragging, setTextDragging] = useState(false);
   const textDragOffset = useRef({ dx: 0, dy: 0 });
   const imgRef = useRef(null);
+  const [rotation, setRotation] = useState(0);
 
   /* Preview canvas size */
   const canvasW = 300;
@@ -197,6 +198,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
       setMaxScale(maxSc);
       setScale(coverSc);
       setPos({ x: (effW - img.width * coverSc) / 2, y: (effH - img.height * coverSc) / 2 });
+      setRotation(0);
     };
     img.src = image;
   }, [image, canvasW, canvasH, isMultiCircle, circlePx]);
@@ -223,6 +225,11 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
           ctx.beginPath();
           ctx.arc(cx, cy, circlePx / 2, 0, Math.PI * 2);
           ctx.clip();
+          if (rotation !== 0) {
+            ctx.translate(cx, cy);
+            ctx.rotate(rotation * Math.PI / 180);
+            ctx.translate(-cx, -cy);
+          }
           ctx.drawImage(img, col * circlePx + pos.x, row * circlePx + pos.y, img.width * scale, img.height * scale);
           ctx.restore();
         }
@@ -246,8 +253,13 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
         ctx.arc(canvasW / 2, canvasH / 2, canvasW / 2, 0, Math.PI * 2);
         ctx.clip();
       } else if (shape === 'heart') {
-        drawHeartPath(ctx, canvasW / 2, canvasH / 2, canvasW);
+        drawHeartPath(ctx, canvasW / 2, canvasH * 0.05, canvasW * 0.9);
         ctx.clip();
+      }
+      if (rotation !== 0) {
+        ctx.translate(canvasW / 2, canvasH / 2);
+        ctx.rotate(rotation * Math.PI / 180);
+        ctx.translate(-canvasW / 2, -canvasH / 2);
       }
       ctx.drawImage(img, pos.x, pos.y, img.width * scale, img.height * scale);
       ctx.restore();
@@ -259,7 +271,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
         ctx.arc(canvasW / 2, canvasH / 2, canvasW / 2 - 1, 0, Math.PI * 2);
         ctx.stroke();
       } else if (shape === 'heart') {
-        drawHeartPath(ctx, canvasW / 2, canvasH / 2, canvasW - 2);
+        drawHeartPath(ctx, canvasW / 2, canvasH * 0.05, canvasW * 0.9 - 2);
         ctx.stroke();
       } else {
         ctx.strokeRect(1, 1, canvasW - 2, canvasH - 2);
@@ -288,6 +300,11 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
           hctx.beginPath();
           hctx.arc(hcx, hcy, hrCirclePx / 2, 0, Math.PI * 2);
           hctx.clip();
+          if (rotation !== 0) {
+            hctx.translate(hcx, hcy);
+            hctx.rotate(rotation * Math.PI / 180);
+            hctx.translate(-hcx, -hcy);
+          }
           hctx.drawImage(img,
             col * hrCirclePx + pos.x * scaleFactor,
             row * hrCirclePx + pos.y * scaleFactor,
@@ -316,8 +333,13 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
         hctx.arc(hiResW / 2, hiResH / 2, hiResW / 2, 0, Math.PI * 2);
         hctx.clip();
       } else if (shape === 'heart') {
-        drawHeartPath(hctx, hiResW / 2, hiResH / 2, hiResW);
+        drawHeartPath(hctx, hiResW / 2, hiResH * 0.05, hiResW * 0.9);
         hctx.clip();
+      }
+      if (rotation !== 0) {
+        hctx.translate(hiResW / 2, hiResH / 2);
+        hctx.rotate(rotation * Math.PI / 180);
+        hctx.translate(-hiResW / 2, -hiResH / 2);
       }
       const hrX = pos.x * scaleFactor;
       const hrY = pos.y * scaleFactor;
@@ -335,7 +357,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
         hctx.arc(hiResW / 2, hiResH / 2, hiResW / 2 - 2, 0, Math.PI * 2);
         hctx.stroke();
       } else if (shape === 'heart') {
-        drawHeartPath(hctx, hiResW / 2, hiResH / 2, hiResW - 4);
+        drawHeartPath(hctx, hiResW / 2, hiResH * 0.05, hiResW * 0.9 - 4);
         hctx.stroke();
       } else {
         hctx.strokeRect(2, 2, hiResW - 4, hiResH - 4);
@@ -344,7 +366,7 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
     }
 
     if (onHiResCrop) onHiResCrop(hiResCanvas.toDataURL('image/jpeg', 0.95));
-  }, [pos, scale, shape, hiResW, hiResH, scaleFactor, bgColor, textOverlay, isMultiCircle, circlePx, mcCols, mcRows, circleSize]);
+  }, [pos, scale, shape, hiResW, hiResH, scaleFactor, bgColor, textOverlay, isMultiCircle, circlePx, mcCols, mcRows, circleSize, rotation]);
 
   const handlePointerDown = (e) => {
     const canvas = canvasRef.current;
@@ -408,6 +430,18 @@ function ImageEditor({ image, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#F
         <span style={{ fontSize: 18, color: C.muted, fontWeight: 700 }}>+</span>
       </div>
       <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>Drag to reposition · Slider to zoom</p>
+      {/* Rotation */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', maxWidth: 300 }}>
+        <button onClick={() => setRotation((r) => Math.max(-180, r - 90))} style={{ fontSize: 12, padding: '4px 8px', borderRadius: 7, border: '1.5px solid ' + C.border, background: C.white, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: "'Outfit', sans-serif" }}>↺ -90°</button>
+        <input type="range" min={-180} max={180} step={1} value={rotation}
+          onChange={(e) => setRotation(parseInt(e.target.value))}
+          style={{ flex: 1, accentColor: C.brand }} />
+        <button onClick={() => setRotation((r) => Math.min(180, r + 90))} style={{ fontSize: 12, padding: '4px 8px', borderRadius: 7, border: '1.5px solid ' + C.border, background: C.white, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: "'Outfit', sans-serif" }}>↻ +90°</button>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>Rotation: {rotation}°</p>
+        {rotation !== 0 && <button onClick={() => setRotation(0)} style={{ fontSize: 11, color: C.brand, background: 'none', border: '1px solid ' + C.brand, borderRadius: 6, padding: '2px 8px', cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>Reset</button>}
+      </div>
       <p style={{ fontSize: 11, color: '#bbb', margin: 0 }}>Print output: {hiResW}×{hiResH}px ({DPI} DPI)</p>
     </div>
   );
