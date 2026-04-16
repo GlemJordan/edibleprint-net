@@ -499,6 +499,14 @@ export default function EdiblePrintApp() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth <= 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
   const updateForm = (key, val) => setForm((prev) => ({ ...prev, [key]: val }));
 
   /* Auto-split unit/suite from address string (e.g. "123 Main St #503" or "123 Main apt 2B") */
@@ -885,154 +893,192 @@ export default function EdiblePrintApp() {
               <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, margin: '16px 0 8px', fontWeight: 700 }}>Customize Your Print</h2>
               <p style={{ color: C.muted, marginBottom: 24 }}>Choose shape, size, and adjust the crop area</p>
             </div>
-            <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Shape</label>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 22, flexWrap: 'wrap' }}>
-              {[{ key: 'circular', icon: '⭕', label: 'Round' }, { key: 'square', icon: '⬜', label: 'Square' },
-                { key: 'fullsheet', icon: '▬', label: 'Full Sheet' }, { key: 'custom', icon: '✏️', label: 'Custom' }].map((sh) => (
-                <button key={sh.key} onClick={() => setShape(sh.key)} style={{
-                  flex: 1, minWidth: 72, padding: '12px 8px', borderRadius: 12,
-                  border: shape === sh.key ? '2.5px solid ' + C.brand : '2px solid ' + C.border,
-                  background: shape === sh.key ? C.brandLight : C.white,
-                  cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: "'Outfit', sans-serif", transition: 'all 0.2s' }}>
-                  <div style={{ fontSize: 20, marginBottom: 2 }}>{sh.icon}</div>{sh.label}
-                </button>
-              ))}
-            </div>
-            {shape !== 'custom' ? (
-              <>
-                <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Size</label>
+
+            {/* Two-column layout */}
+            <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 24, alignItems: 'flex-start' }}>
+
+              {/* ── LEFT: canvas ── */}
+              <div style={{ flex: isMobile ? 'none' : '0 0 auto', width: isMobile ? '100%' : 'auto' }}>
+                <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Adjust Your Image</label>
+                <ImageEditor
+                  image={image}
+                  shape={shape}
+                  sizeObj={selectedSize || { w: parseFloat(customW) || 6, h: parseFloat(customH) || 6 }}
+                  onCrop={setCropPreview}
+                  onHiResCrop={setHiResCrop}
+                  bgColor={bgColor}
+                  textOverlay={textOverlay}
+                  onTextPositionChange={(pos) => setTextOverlay((p) => ({ ...p, position: pos }))}
+                />
+              </div>
+
+              {/* ── RIGHT: controls ── */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                {/* Shape */}
+                <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Shape</label>
                 <div style={{ display: 'flex', gap: 8, marginBottom: 22, flexWrap: 'wrap' }}>
-                  {sizes.map((sz) => (
-                    <button key={sz.id} onClick={() => setSizeId(sz.id)} style={{
-                      flex: 1, minWidth: 90, padding: '14px 10px', borderRadius: 12,
-                      border: sizeId === sz.id ? '2.5px solid ' + C.brand : '2px solid ' + C.border,
-                      background: sizeId === sz.id ? C.brandLight : C.white,
-                      cursor: 'pointer', textAlign: 'center', fontFamily: "'Outfit', sans-serif", transition: 'all 0.2s' }}>
-                      <div style={{ fontWeight: 700, fontSize: 17, color: C.brand }}>{'$' + sz.price.toFixed(2)}</div>
-                      <div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>{sz.label}</div>
+                  {[{ key: 'circular', icon: '⭕', label: 'Round' }, { key: 'square', icon: '⬜', label: 'Square' },
+                    { key: 'fullsheet', icon: '▬', label: 'Full Sheet' }, { key: 'custom', icon: '✏️', label: 'Custom' }].map((sh) => (
+                    <button key={sh.key} onClick={() => setShape(sh.key)} style={{
+                      flex: 1, minWidth: 72, padding: '12px 8px', borderRadius: 12,
+                      border: shape === sh.key ? '2.5px solid ' + C.brand : '2px solid ' + C.border,
+                      background: shape === sh.key ? C.brandLight : C.white,
+                      cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: "'Outfit', sans-serif", transition: 'all 0.2s' }}>
+                      <div style={{ fontSize: 20, marginBottom: 2 }}>{sh.icon}</div>{sh.label}
                     </button>
                   ))}
                 </div>
-              </>
-            ) : (
-              <div style={{ display: 'flex', gap: 12, marginBottom: 22 }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>Width (inches)</label>
-                  <input type="number" value={customW} onChange={(e) => { const v = parseFloat(e.target.value); setCustomW(isNaN(v) ? '' : String(Math.min(8, v))); }} placeholder="e.g. 5" style={inputStyle} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>Height (inches)</label>
-                  <input type="number" value={customH} onChange={(e) => { const v = parseFloat(e.target.value); setCustomH(isNaN(v) ? '' : String(Math.min(11, v))); }} placeholder="e.g. 7" style={inputStyle} />
-                </div>
-              </div>
-              <p style={{ fontSize: 12, color: C.muted, margin: '6px 0 0', textAlign: 'center' }}>Max size: 8″ × 11″ (A4 sheet)</p>
-            )}
-            <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Quantity</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 26 }}>
-              <button onClick={() => setQty(Math.max(1, qty - 1))} style={{ width: 38, height: 38, borderRadius: 10, border: '1.5px solid ' + C.border, background: C.white, fontSize: 18, cursor: 'pointer', fontWeight: 600 }}>-</button>
-              <span style={{ fontSize: 20, fontWeight: 700, minWidth: 32, textAlign: 'center' }}>{qty}</span>
-              <button onClick={() => setQty(qty + 1)} style={{ width: 38, height: 38, borderRadius: 10, border: '1.5px solid ' + C.border, background: C.white, fontSize: 18, cursor: 'pointer', fontWeight: 600 }}>+</button>
-            </div>
-            <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 10 }}>Adjust Your Image</label>
-            <ImageEditor
-              image={image}
-              shape={shape}
-              sizeObj={selectedSize || { w: parseFloat(customW) || 6, h: parseFloat(customH) || 6 }}
-              onCrop={setCropPreview}
-              onHiResCrop={setHiResCrop}
-              bgColor={bgColor}
-              textOverlay={textOverlay}
-              onTextPositionChange={(pos) => setTextOverlay((p) => ({ ...p, position: pos }))}
-            />
-            <div style={{ marginTop: 18 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                <label style={{ fontWeight: 600, fontSize: 14, margin: 0 }}>Background Fill Color <span style={{ fontWeight: 400, color: C.muted }}>(outside your image)</span></label>
-                <div style={{ width: 26, height: 26, borderRadius: 6, background: bgColor, flexShrink: 0,
-                  border: '2px solid ' + C.border, boxShadow: bgColor === '#FFFFFF' ? 'inset 0 0 0 1px #d1d5db' : 'none' }} />
-              </div>
-              <BgColorPicker value={bgColor} onChange={setBgColor} />
-            </div>
 
-            {/* ── Add Text to Image ── */}
-            <div style={{ ...card, marginTop: 18, padding: '18px 16px' }}>
-              <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 12 }}>Add Text to Image <span style={{ fontWeight: 400, color: C.muted, fontSize: 13 }}>(optional)</span></label>
-              <input
-                value={textOverlay.text}
-                onChange={(e) => setTextOverlay((p) => ({ ...p, text: e.target.value }))}
-                placeholder="Type your message..."
-                style={{ ...inputStyle, marginBottom: 12 }}
-              />
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                {/* Font size */}
-                <div style={{ flex: 1, minWidth: 130 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Size</div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {[{ key: 'small', label: 'S' }, { key: 'medium', label: 'M' }, { key: 'large', label: 'L' }].map(({ key, label }) => (
-                      <button key={key} onClick={() => setTextOverlay((p) => ({ ...p, fontSize: key }))} style={{
-                        flex: 1, padding: '8px 0', borderRadius: 8, fontWeight: 600, fontSize: 14, cursor: 'pointer',
-                        fontFamily: "'Outfit', sans-serif",
-                        border: textOverlay.fontSize === key ? '2.5px solid ' + C.brand : '1.5px solid ' + C.border,
-                        background: textOverlay.fontSize === key ? C.brandLight : C.white,
-                        color: textOverlay.fontSize === key ? C.brand : C.text,
-                      }}>{label}</button>
-                    ))}
+                {/* Size */}
+                {shape !== 'custom' ? (
+                  <>
+                    <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Size</label>
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 22, flexWrap: 'wrap' }}>
+                      {sizes.map((sz) => (
+                        <button key={sz.id} onClick={() => setSizeId(sz.id)} style={{
+                          flex: 1, minWidth: 90, padding: '14px 10px', borderRadius: 12,
+                          border: sizeId === sz.id ? '2.5px solid ' + C.brand : '2px solid ' + C.border,
+                          background: sizeId === sz.id ? C.brandLight : C.white,
+                          cursor: 'pointer', textAlign: 'center', fontFamily: "'Outfit', sans-serif", transition: 'all 0.2s' }}>
+                          <div style={{ fontWeight: 700, fontSize: 17, color: C.brand }}>{'$' + sz.price.toFixed(2)}</div>
+                          <div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>{sz.label}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', gap: 12, marginBottom: 22 }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>Width (inches)</label>
+                        <input type="number" value={customW} onChange={(e) => { const v = parseFloat(e.target.value); setCustomW(isNaN(v) ? '' : String(Math.min(8, v))); }} placeholder="e.g. 5" style={inputStyle} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>Height (inches)</label>
+                        <input type="number" value={customH} onChange={(e) => { const v = parseFloat(e.target.value); setCustomH(isNaN(v) ? '' : String(Math.min(11, v))); }} placeholder="e.g. 7" style={inputStyle} />
+                      </div>
+                    </div>
+                    <p style={{ fontSize: 12, color: C.muted, margin: '-14px 0 22px', textAlign: 'center' }}>Max size: 8″ × 11″ (A4 sheet)</p>
+                  </>
+                )}
+
+                {/* Quantity */}
+                <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Quantity</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 22 }}>
+                  <button onClick={() => setQty(Math.max(1, qty - 1))} style={{ width: 38, height: 38, borderRadius: 10, border: '1.5px solid ' + C.border, background: C.white, fontSize: 18, cursor: 'pointer', fontWeight: 600 }}>-</button>
+                  <span style={{ fontSize: 20, fontWeight: 700, minWidth: 32, textAlign: 'center' }}>{qty}</span>
+                  <button onClick={() => setQty(qty + 1)} style={{ width: 38, height: 38, borderRadius: 10, border: '1.5px solid ' + C.border, background: C.white, fontSize: 18, cursor: 'pointer', fontWeight: 600 }}>+</button>
+                </div>
+
+                {/* Background Color */}
+                <div style={{ marginBottom: 22 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                    <label style={{ fontWeight: 600, fontSize: 14, margin: 0 }}>Background Fill Color <span style={{ fontWeight: 400, color: C.muted }}>(outside your image)</span></label>
+                    <div style={{ width: 26, height: 26, borderRadius: 6, background: bgColor, flexShrink: 0,
+                      border: '2px solid ' + C.border, boxShadow: bgColor === '#FFFFFF' ? 'inset 0 0 0 1px #d1d5db' : 'none' }} />
+                  </div>
+                  <BgColorPicker value={bgColor} onChange={setBgColor} />
+                </div>
+
+                {/* Add Text to Image */}
+                <div style={{ ...card, padding: '18px 16px', marginBottom: 22 }}>
+                  <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 12 }}>Add Text to Image <span style={{ fontWeight: 400, color: C.muted, fontSize: 13 }}>(optional)</span></label>
+                  <input
+                    value={textOverlay.text}
+                    onChange={(e) => setTextOverlay((p) => ({ ...p, text: e.target.value }))}
+                    placeholder="Type your message..."
+                    style={{ ...inputStyle, marginBottom: 12 }}
+                  />
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    {/* Font size */}
+                    <div style={{ flex: 1, minWidth: 130 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Size</div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        {[{ key: 'small', label: 'S' }, { key: 'medium', label: 'M' }, { key: 'large', label: 'L' }].map(({ key, label }) => (
+                          <button key={key} onClick={() => setTextOverlay((p) => ({ ...p, fontSize: key }))} style={{
+                            flex: 1, padding: '8px 0', borderRadius: 8, fontWeight: 600, fontSize: 14, cursor: 'pointer',
+                            fontFamily: "'Outfit', sans-serif",
+                            border: textOverlay.fontSize === key ? '2.5px solid ' + C.brand : '1.5px solid ' + C.border,
+                            background: textOverlay.fontSize === key ? C.brandLight : C.white,
+                            color: textOverlay.fontSize === key ? C.brand : C.text,
+                          }}>{label}</button>
+                        ))}
+                      </div>
+                    </div>
+                    {/* Font style */}
+                    <div style={{ flex: 1, minWidth: 130 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Style</div>
+                      <select value={textOverlay.fontStyle} onChange={(e) => setTextOverlay((p) => ({ ...p, fontStyle: e.target.value }))} style={{
+                        width: '100%', padding: '8px 6px', borderRadius: 8, border: '1.5px solid ' + C.border,
+                        fontSize: 13, cursor: 'pointer', background: C.white, color: C.text,
+                      }}>
+                        <option value="normal">Normal</option>
+                        <option value="bold">Bold</option>
+                        <option value="italic">Italic</option>
+                        <option value="bold italic">Bold Italic</option>
+                      </select>
+                    </div>
+                  </div>
+                  {/* Font family */}
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Font</div>
+                    <select value={textOverlay.fontFamily} onChange={(e) => setTextOverlay((p) => ({ ...p, fontFamily: e.target.value }))} style={{
+                      width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid ' + C.border,
+                      fontSize: 15, cursor: 'pointer', background: C.white, color: C.text,
+                      fontFamily: textOverlay.fontFamily,
+                    }}>
+                      {[
+                        { value: 'Arial', label: 'Arial' },
+                        { value: 'Georgia', label: 'Georgia' },
+                        { value: 'Impact', label: 'Impact' },
+                        { value: 'Comic Sans MS', label: 'Comic Sans MS' },
+                        { value: 'Courier New', label: 'Courier New' },
+                        { value: 'Brush Script MT', label: 'Brush Script MT' },
+                        { value: 'Lobster', label: 'Lobster — Festive Script' },
+                        { value: 'Pacifico', label: 'Pacifico — Birthday Style' },
+                        { value: 'Dancing Script', label: 'Dancing Script — Elegant Cursive' },
+                        { value: 'Great Vibes', label: 'Great Vibes — Wedding Style' },
+                        { value: 'Bangers', label: 'Bangers — Comic/Party' },
+                        { value: 'Permanent Marker', label: 'Permanent Marker — Handwritten' },
+                        { value: 'Fredoka One', label: 'Fredoka One — Round Bold' },
+                      ].map(({ value, label }) => (
+                        <option key={value} value={value} style={{ fontFamily: value }}>{label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <p style={{ fontSize: 11, color: C.muted, margin: '8px 0 0', textAlign: 'center' }}>Drag text in preview to reposition</p>
+                  {/* Text color */}
+                  <div style={{ marginTop: 12 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Text Color</div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                      {[
+                        { color: '#FFFFFF', label: 'White' },
+                        { color: '#111111', label: 'Black' },
+                        { color: '#FF3333', label: 'Red' },
+                        { color: '#FFD700', label: 'Gold' },
+                        { color: '#4488FF', label: 'Blue' },
+                        { color: '#FF88CC', label: 'Pink' },
+                      ].map(({ color, label }) => (
+                        <button key={color} title={label} onClick={() => setTextOverlay((p) => ({ ...p, color }))} style={{
+                          width: 28, height: 28, borderRadius: 6, background: color, cursor: 'pointer',
+                          border: textOverlay.color === color ? '3px solid ' + C.brand : '2px solid ' + C.border,
+                          boxSizing: 'border-box',
+                          boxShadow: color === '#FFFFFF' ? 'inset 0 0 0 1px #d1d5db' : 'none',
+                        }} />
+                      ))}
+                    </div>
                   </div>
                 </div>
-                {/* Font style */}
-                <div style={{ flex: 1, minWidth: 130 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Style</div>
-                  <select value={textOverlay.fontStyle} onChange={(e) => setTextOverlay((p) => ({ ...p, fontStyle: e.target.value }))} style={{
-                    width: '100%', padding: '8px 6px', borderRadius: 8, border: '1.5px solid ' + C.border,
-                    fontSize: 13, cursor: 'pointer', background: C.white, color: C.text,
-                  }}>
-                    <option value="normal">Normal</option>
-                    <option value="bold">Bold</option>
-                    <option value="italic">Italic</option>
-                    <option value="bold italic">Bold Italic</option>
-                  </select>
-                </div>
-              </div>
-              {/* Font family */}
-              <div style={{ marginTop: 10 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Font</div>
-                <select value={textOverlay.fontFamily} onChange={(e) => setTextOverlay((p) => ({ ...p, fontFamily: e.target.value }))} style={{
-                  width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid ' + C.border,
-                  fontSize: 15, cursor: 'pointer', background: C.white, color: C.text,
-                  fontFamily: textOverlay.fontFamily,
-                }}>
-                  {['Arial', 'Georgia', 'Impact', 'Comic Sans MS', 'Courier New', 'Brush Script MT'].map((f) => (
-                    <option key={f} value={f} style={{ fontFamily: f }}>{f}</option>
-                  ))}
-                </select>
-              </div>
-              <p style={{ fontSize: 11, color: C.muted, margin: '8px 0 0', textAlign: 'center' }}>Drag text in preview to reposition</p>
-              {/* Text color */}
-              <div style={{ marginTop: 12 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Text Color</div>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                  {[
-                    { color: '#FFFFFF', label: 'White' },
-                    { color: '#111111', label: 'Black' },
-                    { color: '#FF3333', label: 'Red' },
-                    { color: '#FFD700', label: 'Gold' },
-                    { color: '#4488FF', label: 'Blue' },
-                    { color: '#FF88CC', label: 'Pink' },
-                  ].map(({ color, label }) => (
-                    <button key={color} title={label} onClick={() => setTextOverlay((p) => ({ ...p, color }))} style={{
-                      width: 28, height: 28, borderRadius: 6, background: color, cursor: 'pointer',
-                      border: textOverlay.color === color ? '3px solid ' + C.brand : '2px solid ' + C.border,
-                      boxSizing: 'border-box',
-                      boxShadow: color === '#FFFFFF' ? 'inset 0 0 0 1px #d1d5db' : 'none',
-                    }} />
-                  ))}
+
+                {/* Special Instructions */}
+                <div>
+                  <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Special Instructions (optional)</label>
+                  <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Adjust colors, add border, special requests..." rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
                 </div>
               </div>
             </div>
 
-            <div style={{ marginTop: 22 }}>
-              <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Special Instructions (optional)</label>
-              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Adjust colors, add border, special requests..." rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
-            </div>
+            {/* Order summary + navigation (full width) */}
             <div style={{ ...card, marginTop: 24 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 600 }}>
                 <span>{qty + 'x ' + (shape === 'custom' ? customW + '"x' + customH + '"' : selectedSize?.label) + ' (' + shape + ')'}</span>
