@@ -917,6 +917,7 @@ export default function EdiblePrintApp() {
   const addDesignFromFile = (file) => {
     if (!file) return;
     if (designs.length >= 5) { alert('Maximum 5 designs per order.'); return; }
+    trackGA('add_to_design', { method: 'file_upload', design_count: designs.length + 1 });
     const reader = new FileReader();
     reader.onload = (ev) => {
       const newId = String(Date.now());
@@ -1004,6 +1005,7 @@ export default function EdiblePrintApp() {
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (step === 2) trackMeta('ViewContent', { content_category: 'customize', content_type: 'product' });
   }, [step]);
 
   const [isMobile, setIsMobile] = useState(false);
@@ -1364,7 +1366,7 @@ export default function EdiblePrintApp() {
 
         <section style={{ padding: '56px 24px', maxWidth: 920, margin: '0 auto' }}>
           <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, textAlign: 'center', marginBottom: 8, fontWeight: 700 }}>What Our Customers Say</h2>
-          <p style={{ textAlign: 'center', color: C.muted, marginBottom: 16, fontSize: 15 }}>11 verified reviews on Facebook Marketplace</p>
+          <p style={{ textAlign: 'center', color: C.muted, marginBottom: 16, fontSize: 15 }}>11 five-star reviews on Facebook Marketplace — verified by real buyers</p>
           {/* Trust metrics */}
           <div style={{ textAlign: 'center', marginBottom: 32 }}>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 16, background: C.white,
@@ -1383,7 +1385,7 @@ export default function EdiblePrintApp() {
             <div style={{ ...card, padding: '24px 22px' }}>
               <div style={{ color: '#FBBF24', fontSize: 18, marginBottom: 10, letterSpacing: 2 }}>★★★★★</div>
               <p style={{ margin: '0 0 16px', fontSize: 14.5, lineHeight: 1.7, color: C.text }}>
-                "Absolutely loved my order! The print quality was stunning and it arrived super fast. Will definitely be ordering again — perfect for my daughter's birthday cake!"
+                "Answered all my questions and helped me figure out what would suit my item best. The result was better than I expected!"
               </p>
               <div style={{ fontSize: 13, fontWeight: 700, color: C.brand }}>Holly</div>
               <div style={{ fontSize: 12, color: C.muted }}>February 2026 · Facebook Marketplace</div>
@@ -1392,16 +1394,16 @@ export default function EdiblePrintApp() {
             <div style={{ ...card, padding: '24px 22px' }}>
               <div style={{ color: '#FBBF24', fontSize: 18, marginBottom: 10, letterSpacing: 2 }}>★★★★★</div>
               <p style={{ margin: '0 0 16px', fontSize: 14.5, lineHeight: 1.7, color: C.text }}>
-                "Great communication throughout the whole process. The edible print looked exactly like the photo I sent — colours were vibrant and crisp. Very happy with the result!"
+                "Made a wafer paper photo print and it turned out super cute! Awesome turnaround too."
               </p>
               <div style={{ fontSize: 13, fontWeight: 700, color: C.brand }}>Valéria</div>
               <div style={{ fontSize: 12, color: C.muted }}>September 2025 · Facebook Marketplace</div>
             </div>
             {/* Card 3: Summary badges */}
             <div style={{ ...card, padding: '24px 22px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-              <div style={{ fontSize: 13.5, fontWeight: 700, color: C.text, marginBottom: 16 }}>Customers consistently praise:</div>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: C.text, marginBottom: 16 }}>What Buyers Notice Most</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                {['⏱ Punctuality', '💬 Communication', '💰 Pricing', '🖼 Item Description'].map(badge => (
+                {['✓ Punctuality', '✓ Communication', '✓ Pricing', '✓ Item Description'].map(badge => (
                   <span key={badge} style={{
                     background: C.brandLight, color: C.brandDark, border: '1px solid #C6E6D6',
                     borderRadius: 20, padding: '6px 14px', fontSize: 13, fontWeight: 600
@@ -1409,7 +1411,7 @@ export default function EdiblePrintApp() {
                 ))}
               </div>
               <div style={{ marginTop: 20, fontSize: 13, color: C.muted, lineHeight: 1.6 }}>
-                All 11 reviews carry a 5-star rating — verified buyers on Facebook Marketplace.
+                Consistently rated across our 11 reviews
               </div>
             </div>
           </div>
@@ -1754,7 +1756,7 @@ export default function EdiblePrintApp() {
                       {sizes.map((sz) => {
                         const cookieGrid = sz.circleSize ? getCircleGrid(sz.w, sz.h, sz.circleSize) : null;
                         return (
-                          <button key={sz.id} onClick={() => setSizeId(sz.id)} style={{
+                          <button key={sz.id} onClick={() => { setSizeId(sz.id); trackGA('select_size', { shape, size_id: sz.id, price: sz.price }); }} style={{
                             flex: 1, minWidth: 90, padding: '14px 10px', borderRadius: 12,
                             border: sizeId === sz.id ? '2.5px solid ' + C.brand : '2px solid ' + C.border,
                             background: sizeId === sz.id ? C.brandLight : C.white,

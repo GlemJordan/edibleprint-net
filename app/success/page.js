@@ -1,7 +1,41 @@
 'use client';
-import { Suspense } from 'react';
+import { Suspense, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 
 function SuccessContent() {
+  const searchParams = useSearchParams();
+  const sessionId = searchParams.get('session_id');
+
+  useEffect(() => {
+    if (!sessionId) return;
+    const key = 'ep_purchase_fired_' + sessionId;
+    if (sessionStorage.getItem(key)) return;
+
+    fetch('/api/get-order-summary?session_id=' + sessionId)
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) return;
+        sessionStorage.setItem(key, '1');
+        if (typeof window !== 'undefined') {
+          if (window.gtag) {
+            window.gtag('event', 'purchase', {
+              transaction_id: data.transaction_id,
+              value: data.value,
+              currency: data.currency,
+              items: data.items,
+            });
+          }
+          if (window.fbq) {
+            window.fbq('track', 'Purchase', {
+              value: data.value,
+              currency: data.currency,
+            });
+          }
+        }
+      })
+      .catch(() => {});
+  }, [sessionId]);
+
   return (
     <div style={{
       fontFamily: "'Outfit', sans-serif", textAlign: 'center', padding: '80px 24px',
@@ -31,7 +65,7 @@ function SuccessContent() {
         padding: '14px 32px', fontSize: 16, fontWeight: 600, textDecoration: 'none' }}>
         Back to Home
       </a>
-      <p style={{ marginTop: 20, fontSize: 12, color: '#bbb' }}>Questions? Email hello@edibleprint.net</p>
+      <p style={{ marginTop: 20, fontSize: 12, color: '#bbb' }}>Questions? Email glenj.belmar@gmail.com</p>
     </div>
   );
 }
