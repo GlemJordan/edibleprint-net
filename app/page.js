@@ -188,7 +188,7 @@ function drawText(ctx, textOverlay, w, h, sf = 1) {
   ctx.fillText(textOverlay.text, tx, ty);
 }
 
-function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF', textOverlay = null, onTextPositionChange }) {
+function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF', textOverlay = null, onTextPositionChange, previewSize = 300 }) {
   const canvasRef = useRef(null);
   const hiResCanvasRef = useRef(null);
   const imgRefs = useRef({});
@@ -205,7 +205,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
   const [redrawTick, setRedrawTick] = useState(0);
 
   /* Preview canvas size */
-  const canvasW = 300;
+  const canvasW = previewSize;
   const ratio = sizeObj.h && sizeObj.w ? sizeObj.h / sizeObj.w : 1;
   const canvasH = (shape === 'fullsheet' || shape === 'multicircle') ? Math.round(canvasW * ratio) : canvasW;
 
@@ -619,7 +619,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
       {/* Add image + delete selected */}
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', width: '100%', maxWidth: 300 }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', width: '100%', maxWidth: canvasW }}>
         <button onClick={() => addLayerFileRef.current?.click()}
           style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1.5px dashed ' + C.brand,
             background: C.brandLight, color: C.brand, cursor: 'pointer', fontSize: 13, fontWeight: 600,
@@ -647,7 +647,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       <canvas ref={hiResCanvasRef} style={{ display: 'none' }} />
 
       {/* Zoom */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', maxWidth: 300 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', maxWidth: canvasW }}>
         <span style={{ fontSize: 18, color: C.muted, fontWeight: 700 }}>-</span>
         <input type="range" min={minScale} max={maxScale} step={0.001} value={currentScale}
           onChange={(e) => updateSelectedLayer({ scale: parseFloat(e.target.value) })}
@@ -660,7 +660,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       </p>
 
       {/* Rotation */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', maxWidth: 300 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', maxWidth: canvasW }}>
         <button onClick={() => updateSelectedLayer({ rotation: Math.max(-180, currentRotation - 90) })}
           disabled={!effectiveSelectedId}
           style={{ fontSize: 12, padding: '4px 8px', borderRadius: 7, border: '1.5px solid ' + C.border, background: C.white, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: "'Outfit', sans-serif" }}>↺ -90°</button>
@@ -682,7 +682,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
 
       {/* Layer list */}
       {layers.length > 0 && (
-        <div style={{ width: '100%', maxWidth: 300 }}>
+        <div style={{ width: '100%', maxWidth: canvasW }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>
             Layers ({layers.length}) — top to bottom
           </div>
@@ -1013,6 +1013,26 @@ export default function EdiblePrintApp() {
     window.addEventListener('resize', check);
     return () => window.removeEventListener('resize', check);
   }, []);
+
+  /* ── Accordion state for Step 2 ── */
+  const [accordionBg, setAccordionBg] = useState(true);
+  const [accordionText, setAccordionText] = useState(true);
+  const [accordionNotes, setAccordionNotes] = useState(true);
+  const accordionInited = useRef(false);
+  useEffect(() => {
+    if (isMobile && !accordionInited.current) {
+      accordionInited.current = true;
+      setAccordionBg(false);
+      setAccordionText(false);
+      setAccordionNotes(false);
+    }
+  }, [isMobile]);
+  const toggleAccordion = (name) => {
+    const nb = name === 'bg' ? !accordionBg : (isMobile ? false : accordionBg);
+    const nt = name === 'text' ? !accordionText : (isMobile ? false : accordionText);
+    const nn = name === 'notes' ? !accordionNotes : (isMobile ? false : accordionNotes);
+    setAccordionBg(nb); setAccordionText(nt); setAccordionNotes(nn);
+  };
 
   const [cutoffMsg, setCutoffMsg] = useState(null);
   useEffect(() => {
@@ -1549,7 +1569,7 @@ export default function EdiblePrintApp() {
         </div>
       </nav>
 
-      <div style={{ maxWidth: 600, margin: '0 auto', padding: '32px 20px' }}>
+      <div style={{ maxWidth: 960, margin: '0 auto', padding: '32px 20px' }}>
 
         {/* STEP 1: UPLOAD */}
         {step === 1 && (
@@ -1685,9 +1705,16 @@ export default function EdiblePrintApp() {
               )}
             </div>
 
-            <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 24, alignItems: 'flex-start' }}>
-              <div style={{ flex: isMobile ? 'none' : '0 0 auto', width: isMobile ? '100%' : 'auto' }}>
-                <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Adjust Your Image</label>
+            <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 28, alignItems: 'flex-start' }}>
+              {/* ── LEFT: 60% preview ── */}
+              <div style={{
+                flex: isMobile ? 'none' : '0 0 58%',
+                width: isMobile ? '100%' : undefined,
+                display: 'flex', flexDirection: 'column', alignItems: 'center',
+                padding: isMobile ? 0 : '12px 20px 12px 0',
+                position: isMobile ? undefined : 'sticky', top: isMobile ? undefined : 80,
+              }}>
+                <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 10, alignSelf: 'flex-start' }}>Adjust Your Image</label>
                 <ImageEditor
                   layers={layers}
                   onLayersChange={setLayers}
@@ -1698,10 +1725,12 @@ export default function EdiblePrintApp() {
                   bgColor={bgColor}
                   textOverlay={textOverlay}
                   onTextPositionChange={(pos) => setTextOverlay((p) => ({ ...p, position: pos }))}
+                  previewSize={isMobile ? 300 : 360}
                 />
               </div>
 
-              <div style={{ flex: 1, minWidth: 0 }}>
+              {/* ── RIGHT: 40% controls ── */}
+              <div style={{ flex: isMobile ? 1 : '0 0 42%', minWidth: 0, width: isMobile ? '100%' : undefined }}>
                 <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Shape</label>
                 <div style={{ display: 'flex', gap: 8, marginBottom: 22, flexWrap: 'wrap' }}>
                   {[{ key: 'circular', icon: '⭕', label: 'Round' }, { key: 'heart', icon: '❤️', label: 'Heart' },
@@ -1761,100 +1790,139 @@ export default function EdiblePrintApp() {
                   <button onClick={() => setQty(qty + 1)} style={{ width: 38, height: 38, borderRadius: 10, border: '1.5px solid ' + C.border, background: C.white, fontSize: 18, cursor: 'pointer', fontWeight: 600 }}>+</button>
                 </div>
 
-                <div style={{ marginBottom: 22 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                    <label style={{ fontWeight: 600, fontSize: 14, margin: 0 }}>Background Fill Color <span style={{ fontWeight: 400, color: C.muted }}>(outside your image)</span></label>
-                    <div style={{ width: 26, height: 26, borderRadius: 6, background: bgColor, flexShrink: 0,
-                      border: '2px solid ' + C.border, boxShadow: bgColor === '#FFFFFF' ? 'inset 0 0 0 1px #d1d5db' : 'none' }} />
-                  </div>
-                  <BgColorPicker value={bgColor} onChange={setBgColor} />
+                {/* ── ACCORDION: Background Fill Color ── */}
+                <div style={{ borderTop: '1px solid ' + C.border, marginBottom: 4 }}>
+                  <button
+                    onClick={() => toggleAccordion('bg')}
+                    aria-expanded={accordionBg}
+                    style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      background: 'none', border: 'none', cursor: 'pointer', padding: '12px 0',
+                      fontWeight: 600, fontSize: 14, fontFamily: "'Outfit', sans-serif", color: C.text }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      🎨 Background Fill Color
+                      <span style={{ width: 20, height: 20, borderRadius: 4, background: bgColor, flexShrink: 0,
+                        border: '2px solid ' + C.border, boxShadow: bgColor === '#FFFFFF' ? 'inset 0 0 0 1px #d1d5db' : 'none', display: 'inline-block' }} />
+                    </span>
+                    <span style={{ transition: 'transform 0.2s', transform: accordionBg ? 'rotate(180deg)' : 'none', fontSize: 12, color: C.muted }}>▼</span>
+                  </button>
+                  {accordionBg && (
+                    <div style={{ paddingBottom: 16 }}>
+                      <BgColorPicker value={bgColor} onChange={setBgColor} />
+                    </div>
+                  )}
                 </div>
 
-                <div style={{ ...card, padding: '18px 16px', marginBottom: 22 }}>
-                  <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 12 }}>Add Text to Image <span style={{ fontWeight: 400, color: C.muted, fontSize: 13 }}>(optional)</span></label>
-                  <input
-                    value={textOverlay.text}
-                    onChange={(e) => setTextOverlay((p) => ({ ...p, text: e.target.value }))}
-                    placeholder="Type your message..."
-                    style={{ ...inputStyle, marginBottom: 12 }}
-                  />
-                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    <div style={{ flex: 1, minWidth: 100 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Size</div>
-                      <select value={textOverlay.fontSize} onChange={(e) => setTextOverlay((p) => ({ ...p, fontSize: Number(e.target.value) }))} style={{
-                        width: '100%', padding: '8px 6px', borderRadius: 8, border: '1.5px solid ' + C.border,
-                        fontSize: 14, cursor: 'pointer', background: C.white, color: C.text, fontFamily: "'Outfit', sans-serif",
-                      }}>
-                        {[8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48, 56, 72, 96].map((s) => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                      </select>
+                {/* ── ACCORDION: Add Text ── */}
+                <div style={{ borderTop: '1px solid ' + C.border, marginBottom: 4 }}>
+                  <button
+                    onClick={() => toggleAccordion('text')}
+                    aria-expanded={accordionText}
+                    style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      background: 'none', border: 'none', cursor: 'pointer', padding: '12px 0',
+                      fontWeight: 600, fontSize: 14, fontFamily: "'Outfit', sans-serif", color: C.text }}>
+                    ✏️ Add Text <span style={{ fontWeight: 400, color: C.muted, fontSize: 13 }}>(optional)</span>
+                    <span style={{ transition: 'transform 0.2s', transform: accordionText ? 'rotate(180deg)' : 'none', fontSize: 12, color: C.muted }}>▼</span>
+                  </button>
+                  {accordionText && (
+                    <div style={{ paddingBottom: 16 }}>
+                      <input
+                        value={textOverlay.text}
+                        onChange={(e) => setTextOverlay((p) => ({ ...p, text: e.target.value }))}
+                        placeholder="Type your message..."
+                        style={{ ...inputStyle, marginBottom: 12 }}
+                      />
+                      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+                        <div style={{ flex: 1, minWidth: 100 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Size</div>
+                          <select value={textOverlay.fontSize} onChange={(e) => setTextOverlay((p) => ({ ...p, fontSize: Number(e.target.value) }))} style={{
+                            width: '100%', padding: '8px 6px', borderRadius: 8, border: '1.5px solid ' + C.border,
+                            fontSize: 14, cursor: 'pointer', background: C.white, color: C.text, fontFamily: "'Outfit', sans-serif",
+                          }}>
+                            {[8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48, 56, 72, 96].map((s) => (
+                              <option key={s} value={s}>{s}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 130 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Style</div>
+                          <select value={textOverlay.fontStyle} onChange={(e) => setTextOverlay((p) => ({ ...p, fontStyle: e.target.value }))} style={{
+                            width: '100%', padding: '8px 6px', borderRadius: 8, border: '1.5px solid ' + C.border,
+                            fontSize: 13, cursor: 'pointer', background: C.white, color: C.text,
+                          }}>
+                            <option value="normal">Normal</option>
+                            <option value="bold">Bold</option>
+                            <option value="italic">Italic</option>
+                            <option value="bold italic">Bold Italic</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div style={{ marginBottom: 10 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Font</div>
+                        <select value={textOverlay.fontFamily} onChange={(e) => setTextOverlay((p) => ({ ...p, fontFamily: e.target.value }))} style={{
+                          width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid ' + C.border,
+                          fontSize: 15, cursor: 'pointer', background: C.white, color: C.text,
+                          fontFamily: textOverlay.fontFamily,
+                        }}>
+                          {[
+                            { value: 'Arial', label: 'Arial' },
+                            { value: 'Georgia', label: 'Georgia' },
+                            { value: 'Impact', label: 'Impact' },
+                            { value: 'Comic Sans MS', label: 'Comic Sans MS' },
+                            { value: 'Courier New', label: 'Courier New' },
+                            { value: 'Brush Script MT', label: 'Brush Script MT' },
+                            { value: 'Lobster', label: 'Lobster — Festive Script' },
+                            { value: 'Pacifico', label: 'Pacifico — Birthday Style' },
+                            { value: 'Dancing Script', label: 'Dancing Script — Elegant Cursive' },
+                            { value: 'Great Vibes', label: 'Great Vibes — Wedding Style' },
+                            { value: 'Bangers', label: 'Bangers — Comic/Party' },
+                            { value: 'Permanent Marker', label: 'Permanent Marker — Handwritten' },
+                            { value: 'Fredoka One', label: 'Fredoka One — Round Bold' },
+                          ].map(({ value, label }) => (
+                            <option key={value} value={value} style={{ fontFamily: value }}>{label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <p style={{ fontSize: 11, color: C.muted, margin: '0 0 10px', textAlign: 'center' }}>Drag text in preview to reposition</p>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Text Color</div>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                          {[
+                            { color: '#FFFFFF', label: 'White' },
+                            { color: '#111111', label: 'Black' },
+                            { color: '#FF3333', label: 'Red' },
+                            { color: '#FFD700', label: 'Gold' },
+                            { color: '#4488FF', label: 'Blue' },
+                            { color: '#FF88CC', label: 'Pink' },
+                          ].map(({ color, label }) => (
+                            <button key={color} title={label} onClick={() => setTextOverlay((p) => ({ ...p, color }))} style={{
+                              width: 28, height: 28, borderRadius: 6, background: color, cursor: 'pointer',
+                              border: textOverlay.color === color ? '3px solid ' + C.brand : '2px solid ' + C.border,
+                              boxSizing: 'border-box',
+                              boxShadow: color === '#FFFFFF' ? 'inset 0 0 0 1px #d1d5db' : 'none',
+                            }} />
+                          ))}
+                        </div>
+                      </div>
                     </div>
-                    <div style={{ flex: 1, minWidth: 130 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Style</div>
-                      <select value={textOverlay.fontStyle} onChange={(e) => setTextOverlay((p) => ({ ...p, fontStyle: e.target.value }))} style={{
-                        width: '100%', padding: '8px 6px', borderRadius: 8, border: '1.5px solid ' + C.border,
-                        fontSize: 13, cursor: 'pointer', background: C.white, color: C.text,
-                      }}>
-                        <option value="normal">Normal</option>
-                        <option value="bold">Bold</option>
-                        <option value="italic">Italic</option>
-                        <option value="bold italic">Bold Italic</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div style={{ marginTop: 10 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Font</div>
-                    <select value={textOverlay.fontFamily} onChange={(e) => setTextOverlay((p) => ({ ...p, fontFamily: e.target.value }))} style={{
-                      width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid ' + C.border,
-                      fontSize: 15, cursor: 'pointer', background: C.white, color: C.text,
-                      fontFamily: textOverlay.fontFamily,
-                    }}>
-                      {[
-                        { value: 'Arial', label: 'Arial' },
-                        { value: 'Georgia', label: 'Georgia' },
-                        { value: 'Impact', label: 'Impact' },
-                        { value: 'Comic Sans MS', label: 'Comic Sans MS' },
-                        { value: 'Courier New', label: 'Courier New' },
-                        { value: 'Brush Script MT', label: 'Brush Script MT' },
-                        { value: 'Lobster', label: 'Lobster — Festive Script' },
-                        { value: 'Pacifico', label: 'Pacifico — Birthday Style' },
-                        { value: 'Dancing Script', label: 'Dancing Script — Elegant Cursive' },
-                        { value: 'Great Vibes', label: 'Great Vibes — Wedding Style' },
-                        { value: 'Bangers', label: 'Bangers — Comic/Party' },
-                        { value: 'Permanent Marker', label: 'Permanent Marker — Handwritten' },
-                        { value: 'Fredoka One', label: 'Fredoka One — Round Bold' },
-                      ].map(({ value, label }) => (
-                        <option key={value} value={value} style={{ fontFamily: value }}>{label}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <p style={{ fontSize: 11, color: C.muted, margin: '8px 0 0', textAlign: 'center' }}>Drag text in preview to reposition</p>
-                  <div style={{ marginTop: 12 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Text Color</div>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                      {[
-                        { color: '#FFFFFF', label: 'White' },
-                        { color: '#111111', label: 'Black' },
-                        { color: '#FF3333', label: 'Red' },
-                        { color: '#FFD700', label: 'Gold' },
-                        { color: '#4488FF', label: 'Blue' },
-                        { color: '#FF88CC', label: 'Pink' },
-                      ].map(({ color, label }) => (
-                        <button key={color} title={label} onClick={() => setTextOverlay((p) => ({ ...p, color }))} style={{
-                          width: 28, height: 28, borderRadius: 6, background: color, cursor: 'pointer',
-                          border: textOverlay.color === color ? '3px solid ' + C.brand : '2px solid ' + C.border,
-                          boxSizing: 'border-box',
-                          boxShadow: color === '#FFFFFF' ? 'inset 0 0 0 1px #d1d5db' : 'none',
-                        }} />
-                      ))}
-                    </div>
-                  </div>
+                  )}
                 </div>
 
-                <div>
-                  <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Special Instructions (optional)</label>
-                  <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Adjust colors, add border, special requests..." rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
+                {/* ── ACCORDION: Special Instructions ── */}
+                <div style={{ borderTop: '1px solid ' + C.border, borderBottom: '1px solid ' + C.border, marginBottom: 22 }}>
+                  <button
+                    onClick={() => toggleAccordion('notes')}
+                    aria-expanded={accordionNotes}
+                    style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      background: 'none', border: 'none', cursor: 'pointer', padding: '12px 0',
+                      fontWeight: 600, fontSize: 14, fontFamily: "'Outfit', sans-serif", color: C.text }}>
+                    📝 Special Instructions <span style={{ fontWeight: 400, color: C.muted, fontSize: 13 }}>(optional)</span>
+                    <span style={{ transition: 'transform 0.2s', transform: accordionNotes ? 'rotate(180deg)' : 'none', fontSize: 12, color: C.muted }}>▼</span>
+                  </button>
+                  {accordionNotes && (
+                    <div style={{ paddingBottom: 16 }}>
+                      <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Adjust colors, add border, special requests..." rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
