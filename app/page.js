@@ -51,6 +51,23 @@ function getLocalZone(postalCode) {
   return null;
 }
 
+function getDeliveryEstimate(province, postal) {
+  if (postal && getLocalZone(postal)) return 'Same-day or next-day delivery (London, ON)';
+  if (province === 'Ontario') return '2–3 business days';
+  if (province === 'Quebec' || province === 'Manitoba') return '3–4 business days';
+  if (province === 'Alberta' || province === 'Saskatchewan' || province === 'British Columbia') return '4–6 business days';
+  if (province === 'New Brunswick' || province === 'Nova Scotia' || province === 'Prince Edward Island' || province === 'Newfoundland and Labrador') return '4–7 business days';
+  if (province === 'Yukon' || province === 'Northwest Territories' || province === 'Nunavut') return '6–11 business days';
+  return 'Typically 2–5 business days across Canada';
+}
+
+function trackGA(event, params) {
+  if (typeof window !== 'undefined' && window.gtag) window.gtag('event', event, params || {});
+}
+function trackMeta(event, params) {
+  if (typeof window !== 'undefined' && window.fbq) window.fbq('track', event, params || {});
+}
+
 const TAX_RATE = 0.13;
 
 const PROVINCES = [
@@ -954,6 +971,7 @@ export default function EdiblePrintApp() {
   };
 
   const handlePricingCardClick = (shape, sizeId) => {
+    trackGA('select_size', { shape, size_id: sizeId });
     setPendingShape(shape);
     setPendingSizeId(sizeId);
     setStep(1);
@@ -996,6 +1014,30 @@ export default function EdiblePrintApp() {
     return () => window.removeEventListener('resize', check);
   }, []);
 
+  const [cutoffMsg, setCutoffMsg] = useState(null);
+  useEffect(() => {
+    function computeCutoff() {
+      const torontoStr = new Date().toLocaleString('en-US', { timeZone: 'America/Toronto' });
+      const t = new Date(torontoStr);
+      const dow = t.getDay();
+      const isWeekend = dow === 0 || dow === 6;
+      if (isWeekend) {
+        setCutoffMsg({ green: false, text: 'Order now — production starts Monday' });
+        return;
+      }
+      const minsLeft = 14 * 60 - (t.getHours() * 60 + t.getMinutes());
+      if (minsLeft > 0) {
+        const h = Math.floor(minsLeft / 60), m = minsLeft % 60;
+        setCutoffMsg({ green: true, text: `Order in the next ${h}h ${m}min for same-day production!` });
+      } else {
+        setCutoffMsg({ green: false, text: 'Order now — production starts next business day' });
+      }
+    }
+    computeCutoff();
+    const iv = setInterval(computeCutoff, 60000);
+    return () => clearInterval(iv);
+  }, []);
+
   const updateForm = (key, val) => setForm((prev) => ({ ...prev, [key]: val }));
 
   const handleAddressChange = (raw) => {
@@ -1014,6 +1056,8 @@ export default function EdiblePrintApp() {
       alert('Please fill in all required fields.');
       return;
     }
+    trackGA('begin_checkout', { currency: 'CAD', value: designsSubtotal });
+    trackMeta('InitiateCheckout', { currency: 'CAD', value: designsSubtotal });
     setLoading(true);
     try {
       const uploadedDesigns = await Promise.all(designs.map(async (d) => {
@@ -1075,7 +1119,6 @@ export default function EdiblePrintApp() {
 
   /* HOME PAGE */
   if (step === 0) {
-    const deliveryDay = new Date(Date.now() + 2 * 86400000).toLocaleDateString('en-US', { weekday: 'long' });
     const stepColors = ['#E8F5EE', '#FFF4EB', '#EEF2FF', '#FFF9E6'];
     return (
       <div style={{ fontFamily: "'Outfit', sans-serif", background: C.bg, minHeight: '100vh', color: C.text }}>
@@ -1113,10 +1156,17 @@ export default function EdiblePrintApp() {
               Upload Your Photo Now →
             </button>
           </div>
-          <div style={{ display: 'inline-block', background: '#FFF4EB', border: '1px solid #FDDBB6',
-            borderRadius: 10, padding: '8px 20px', marginTop: 14, fontSize: 13.5, fontWeight: 600, color: '#B45309' }}>
-            🔥 Order today, delivered by <strong>{deliveryDay}</strong>
-          </div>
+          {cutoffMsg && (
+            <div style={{
+              display: 'inline-block', borderRadius: 10, padding: '8px 20px', marginTop: 14,
+              fontSize: 13.5, fontWeight: 600,
+              background: cutoffMsg.green ? '#ECFDF5' : '#FFF4EB',
+              border: '1px solid ' + (cutoffMsg.green ? '#6EE7B7' : '#FDDBB6'),
+              color: cutoffMsg.green ? '#065F46' : '#B45309',
+            }}>
+              {cutoffMsg.green ? '🟢' : '🟡'} {cutoffMsg.text}
+            </div>
+          )}
           <p style={{ fontSize: 13, color: '#bbb', marginTop: 12 }}>No account needed · Takes under 2 minutes</p>
         </section>
         <div style={{ background: C.white, borderTop: '1px solid ' + C.border, borderBottom: '1px solid ' + C.border, padding: '16px 24px' }}>
@@ -1136,6 +1186,16 @@ export default function EdiblePrintApp() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+        {/* ── DELIVERY TIMES BAR ── */}
+        <div style={{ background: C.brandLight, borderBottom: '1px solid #C6E6D6', padding: '12px 24px', textAlign: 'center' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '8px 32px', fontSize: 13.5, fontWeight: 600, color: C.brandDark }}>
+            <span>📦 Production: 1–2 business days</span>
+            <span style={{ color: '#C6E6D6' }}>|</span>
+            <span>🚚 Canada-wide shipping: 2–5 days</span>
+            <span style={{ color: '#C6E6D6' }}>|</span>
+            <span>🎯 Order before 2 PM EST for same-day production</span>
           </div>
         </div>
         <section style={{ padding: '56px 24px', maxWidth: 860, margin: '0 auto' }}>
@@ -1223,7 +1283,8 @@ export default function EdiblePrintApp() {
                   )}
                   <div style={{ fontSize: 32, fontWeight: 700, color: C.brand, marginBottom: 4 }}>{'$' + sz.price.toFixed(2)}</div>
                   <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 6 }}>{sz.label}</div>
-                  <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5, marginBottom: 10 }}>{descriptions[sz.id] || ''}</div>
+                  <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5, marginBottom: 6 }}>{descriptions[sz.id] || ''}</div>
+                  <div style={{ fontSize: 12, color: '#059669', fontWeight: 600, marginBottom: 10 }}>🚀 Ships in 1–2 business days</div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: isHovered ? C.brand : C.muted, opacity: isHovered ? 1 : 0.6 }}>Order this size →</div>
                 </div>
               );
@@ -1281,21 +1342,66 @@ export default function EdiblePrintApp() {
           <p style={{ textAlign: 'center', fontSize: 13, color: '#bbb', marginTop: 16 }}>📸 Gallery photos coming soon — we're building our collection!</p>
         </section>
 
-        <section style={{ padding: '48px 24px', maxWidth: 860, margin: '0 auto' }}>
-          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, textAlign: 'center', marginBottom: 32, fontWeight: 700 }}>What Our Customers Say</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 20 }}>
-            {[
-              { quote: "I ordered a round print for my daughter's birthday cake and it turned out absolutely stunning. The colours were vivid and it peeled perfectly. Will 100% order again!", name: 'Sarah M.', location: 'Toronto, ON' },
-              { quote: "I've tried a few edible printing services and EdiblePrint is by far the best quality. Fast turnaround, great packaging, and the image was crystal clear.", name: 'Michael R.', location: 'London, ON' },
-              { quote: "Ordered cookie sheets for a corporate event in Calgary. The logo came out perfectly and everyone was impressed. The ordering process was so simple.", name: 'Jessica L.', location: 'Calgary, AB' },
-            ].map((r, i) => (
-              <div key={i} style={{ ...card, padding: '24px 20px' }}>
-                <div style={{ color: '#FBBF24', fontSize: 18, marginBottom: 12, letterSpacing: 2 }}>★★★★★</div>
-                <p style={{ margin: '0 0 16px', fontSize: 14.5, lineHeight: 1.65, color: C.text }}>"{r.quote}"</p>
-                <div style={{ fontSize: 13, fontWeight: 600, color: C.brand }}>{r.name}</div>
-                <div style={{ fontSize: 12, color: C.muted }}>{r.location}</div>
+        <section style={{ padding: '56px 24px', maxWidth: 920, margin: '0 auto' }}>
+          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, textAlign: 'center', marginBottom: 8, fontWeight: 700 }}>What Our Customers Say</h2>
+          <p style={{ textAlign: 'center', color: C.muted, marginBottom: 16, fontSize: 15 }}>11 verified reviews on Facebook Marketplace</p>
+          {/* Trust metrics */}
+          <div style={{ textAlign: 'center', marginBottom: 32 }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 16, background: C.white,
+              border: '1px solid ' + C.border, borderRadius: 40, padding: '10px 28px',
+              boxShadow: '0 2px 10px rgba(0,0,0,0.05)', fontSize: 14, fontWeight: 700 }}>
+              <span style={{ color: '#FBBF24', fontSize: 18, letterSpacing: 2 }}>★</span>
+              <span style={{ color: C.text }}>5.0</span>
+              <span style={{ color: C.border }}>·</span>
+              <span style={{ color: C.muted }}>11 Reviews</span>
+              <span style={{ color: C.border }}>·</span>
+              <span style={{ color: '#059669' }}>100% 5-Star</span>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 20, marginBottom: 28 }}>
+            {/* Card 1: Holly */}
+            <div style={{ ...card, padding: '24px 22px' }}>
+              <div style={{ color: '#FBBF24', fontSize: 18, marginBottom: 10, letterSpacing: 2 }}>★★★★★</div>
+              <p style={{ margin: '0 0 16px', fontSize: 14.5, lineHeight: 1.7, color: C.text }}>
+                "Absolutely loved my order! The print quality was stunning and it arrived super fast. Will definitely be ordering again — perfect for my daughter's birthday cake!"
+              </p>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.brand }}>Holly</div>
+              <div style={{ fontSize: 12, color: C.muted }}>February 2026 · Facebook Marketplace</div>
+            </div>
+            {/* Card 2: Valéria */}
+            <div style={{ ...card, padding: '24px 22px' }}>
+              <div style={{ color: '#FBBF24', fontSize: 18, marginBottom: 10, letterSpacing: 2 }}>★★★★★</div>
+              <p style={{ margin: '0 0 16px', fontSize: 14.5, lineHeight: 1.7, color: C.text }}>
+                "Great communication throughout the whole process. The edible print looked exactly like the photo I sent — colours were vibrant and crisp. Very happy with the result!"
+              </p>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.brand }}>Valéria</div>
+              <div style={{ fontSize: 12, color: C.muted }}>September 2025 · Facebook Marketplace</div>
+            </div>
+            {/* Card 3: Summary badges */}
+            <div style={{ ...card, padding: '24px 22px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: C.text, marginBottom: 16 }}>Customers consistently praise:</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                {['⏱ Punctuality', '💬 Communication', '💰 Pricing', '🖼 Item Description'].map(badge => (
+                  <span key={badge} style={{
+                    background: C.brandLight, color: C.brandDark, border: '1px solid #C6E6D6',
+                    borderRadius: 20, padding: '6px 14px', fontSize: 13, fontWeight: 600
+                  }}>{badge}</span>
+                ))}
               </div>
-            ))}
+              <div style={{ marginTop: 20, fontSize: 13, color: C.muted, lineHeight: 1.6 }}>
+                All 11 reviews carry a 5-star rating — verified buyers on Facebook Marketplace.
+              </div>
+            </div>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <a href="https://www.facebook.com/marketplace/profile/61556264345219/"
+              target="_blank" rel="noopener noreferrer"
+              style={{ display: 'inline-block', background: '#1877F2', color: '#fff',
+                fontWeight: 700, fontSize: 14, borderRadius: 10, padding: '12px 28px',
+                textDecoration: 'none', fontFamily: "'Outfit', sans-serif",
+                boxShadow: '0 4px 14px rgba(24,119,242,0.3)' }}>
+              See all 11 reviews on Facebook →
+            </a>
           </div>
         </section>
         <section id="faq" style={{ padding: '56px 24px', maxWidth: 720, margin: '0 auto' }}>
@@ -1833,6 +1939,13 @@ export default function EdiblePrintApp() {
                 <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Postal Code *</label>
                 <input value={form.postal} onChange={(e) => updateForm('postal', e.target.value.toUpperCase())} style={inputStyle} placeholder="N6A 1B2" maxLength={7} />
               </div>
+              {(form.province || form.postal) && (
+                <div style={{ background: C.brandLight, border: '1px solid #C6E6D6', borderRadius: 10,
+                  padding: '10px 16px', fontSize: 13.5, color: C.brandDark, fontWeight: 600 }}>
+                  📦 Estimated delivery: <strong>{getDeliveryEstimate(form.province, form.postal)}</strong>
+                  <span style={{ fontSize: 12, fontWeight: 400, color: C.muted, marginLeft: 8 }}>after production (1–2 days)</span>
+                </div>
+              )}
               </>)}
             </div>
             <div style={{ marginTop: 26 }}>

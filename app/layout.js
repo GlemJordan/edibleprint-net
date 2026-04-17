@@ -1,4 +1,6 @@
 import WhatsAppButton from './WhatsAppButton';
+import GoogleAnalytics from './_components/analytics/GoogleAnalytics';
+import MetaPixel from './_components/analytics/MetaPixel';
 
 export const metadata = {
   title: 'EdiblePrint.net — Custom Edible Image Printing | London ON & Canada-Wide',
@@ -58,7 +60,12 @@ export default function RootLayout({ children }) {
           defer
         />
       </head>
-      <body>{children}<WhatsAppButton /></body>
+      <body>
+        <GoogleAnalytics />
+        <MetaPixel />
+        {children}
+        <WhatsAppButton />
+      </body>
     </html>
   );
 }
