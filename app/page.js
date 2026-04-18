@@ -188,6 +188,36 @@ function drawText(ctx, textOverlay, w, h, sf = 1) {
   ctx.fillText(textOverlay.text, tx, ty);
 }
 
+function drawImageInCircle(ctx, img, originX, originY, diameter, layer) {
+  if (!img) return;
+  const radius = diameter / 2;
+  const cx = originX + radius;
+  const cy = originY + radius;
+  const baseSc = Math.max(diameter / img.width, diameter / img.height);
+  const relZoom = baseSc > 0 ? Math.max(0.1, layer.scale / baseSc) : 1;
+  const baseW = img.width * baseSc;
+  const baseH = img.height * baseSc;
+  const drawW = baseW * relZoom;
+  const drawH = baseH * relZoom;
+  const autoFitX = (diameter - baseW) / 2;
+  const autoFitY = (diameter - baseH) / 2;
+  const panX = layer.x - autoFitX;
+  const panY = layer.y - autoFitY;
+  const drawX = cx - radius + autoFitX + panX * relZoom - (drawW - baseW) / 2;
+  const drawY = cy - radius + autoFitY + panY * relZoom - (drawH - baseH) / 2;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.clip();
+  if (layer.rotation !== 0) {
+    ctx.translate(drawX + drawW / 2, drawY + drawH / 2);
+    ctx.rotate(layer.rotation * Math.PI / 180);
+    ctx.translate(-(drawX + drawW / 2), -(drawY + drawH / 2));
+  }
+  ctx.drawImage(img, drawX, drawY, drawW, drawH);
+  ctx.restore();
+}
+
 function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF', textOverlay = null, onTextPositionChange }) {
   const canvasRef = useRef(null);
   const hiResCanvasRef = useRef(null);
@@ -303,32 +333,21 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     if (isMultiCircle) {
       for (let row = 0; row < mcRows; row++) {
         for (let col = 0; col < mcCols; col++) {
-          const cx = mcOffsetX + col * mcStepPx + circlePx / 2;
-          const cy = mcOffsetY + row * mcStepPx + circlePx / 2;
+          const ox = mcOffsetX + col * mcStepPx;
+          const oy = mcOffsetY + row * mcStepPx;
+          const cx = ox + circlePx / 2;
+          const cy = oy + circlePx / 2;
+          /* Fill bgColor inside the circle */
           ctx.save();
           ctx.beginPath();
           ctx.arc(cx, cy, circlePx / 2, 0, Math.PI * 2);
-          ctx.clip();
-          /* Fill bgColor inside the circle */
           ctx.fillStyle = bgColor;
           ctx.fill();
-          layers.forEach(layer => {
-            const img = imgRefs.current[layer.id];
-            if (!img) return;
-            ctx.save();
-            const lx = mcOffsetX + col * mcStepPx + layer.x;
-            const ly = mcOffsetY + row * mcStepPx + layer.y;
-            const imgW = img.width * layer.scale;
-            const imgH = img.height * layer.scale;
-            if (layer.rotation !== 0) {
-              ctx.translate(lx + imgW / 2, ly + imgH / 2);
-              ctx.rotate(layer.rotation * Math.PI / 180);
-              ctx.translate(-(lx + imgW / 2), -(ly + imgH / 2));
-            }
-            ctx.drawImage(img, lx, ly, imgW, imgH);
-            ctx.restore();
-          });
           ctx.restore();
+          /* Draw each layer cover-fitted and centered in this circle */
+          layers.forEach(layer => {
+            drawImageInCircle(ctx, imgRefs.current[layer.id], ox, oy, circlePx, layer);
+          });
         }
       }
       ctx.strokeStyle = C.brand;
@@ -421,32 +440,22 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       const hrOffsetY  = (hiResH - hrTotalH) / 2;
       for (let row = 0; row < mcRows; row++) {
         for (let col = 0; col < mcCols; col++) {
-          const hcx = hrOffsetX + col * hrStepPx + hrCirclePx / 2;
-          const hcy = hrOffsetY + row * hrStepPx + hrCirclePx / 2;
+          const hrOx = hrOffsetX + col * hrStepPx;
+          const hrOy = hrOffsetY + row * hrStepPx;
+          const hcx = hrOx + hrCirclePx / 2;
+          const hcy = hrOy + hrCirclePx / 2;
+          /* Fill bgColor inside the circle */
           hctx.save();
           hctx.beginPath();
           hctx.arc(hcx, hcy, hrCirclePx / 2, 0, Math.PI * 2);
-          hctx.clip();
-          /* Fill bgColor inside the circle */
           hctx.fillStyle = bgColor;
           hctx.fill();
-          layers.forEach(layer => {
-            const img = imgRefs.current[layer.id];
-            if (!img) return;
-            hctx.save();
-            const hrX = hrOffsetX + col * hrStepPx + layer.x * scaleFactor;
-            const hrY = hrOffsetY + row * hrStepPx + layer.y * scaleFactor;
-            const hrW = img.width * layer.scale * scaleFactor;
-            const hrH = img.height * layer.scale * scaleFactor;
-            if (layer.rotation !== 0) {
-              hctx.translate(hrX + hrW / 2, hrY + hrH / 2);
-              hctx.rotate(layer.rotation * Math.PI / 180);
-              hctx.translate(-(hrX + hrW / 2), -(hrY + hrH / 2));
-            }
-            hctx.drawImage(img, hrX, hrY, hrW, hrH);
-            hctx.restore();
-          });
           hctx.restore();
+          /* Draw each layer cover-fitted in this circle, coordinates scaled to hi-res */
+          layers.forEach(layer => {
+            const hrLayer = { ...layer, x: layer.x * scaleFactor, y: layer.y * scaleFactor, scale: layer.scale * scaleFactor };
+            drawImageInCircle(hctx, imgRefs.current[layer.id], hrOx, hrOy, hrCirclePx, hrLayer);
+          });
         }
       }
       hctx.strokeStyle = '#CCCCCC';
@@ -818,37 +827,46 @@ function ColorPickerDropdown({ value, onChange, colors, label, allowCustom }) {
     <div>
       <button
         onClick={() => setIsOpen(v => !v)}
-        style={{ height: 40, padding: '8px 12px', border: '1px solid ' + C.border,
-          borderRadius: 8, display: 'flex', alignItems: 'center', gap: 10,
+        style={{ height: 36, padding: '6px 10px', border: '1px solid ' + C.border,
+          borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8,
           width: '100%', cursor: 'pointer', background: C.white,
           fontFamily: "'Outfit', sans-serif", boxSizing: 'border-box' }}>
-        <span style={{ width: 24, height: 24, borderRadius: 6, background: value, flexShrink: 0,
+        <span style={{ width: 18, height: 18, borderRadius: 4, background: value, flexShrink: 0,
           border: '1px solid #ddd',
           boxShadow: lightColors.has(value) ? 'inset 0 0 0 1px #ccc' : 'none',
           display: 'inline-block' }} />
         <span style={{ fontSize: 13, color: C.text, textAlign: 'left' }}>{label}: <strong>{displayName}</strong></span>
-        <span style={{ marginLeft: 'auto', fontSize: 11, color: C.muted, flexShrink: 0 }}>{isOpen ? '▲' : '▼'}</span>
+        <span style={{ marginLeft: 'auto', fontSize: 10, color: C.muted, flexShrink: 0 }}>{isOpen ? '▲' : '▼'}</span>
       </button>
       {isOpen && (
-        <div style={{ marginTop: 8, padding: 14, background: '#FAFBF9',
+        <div style={{ marginTop: 6, padding: 10, background: C.white,
           borderRadius: 8, border: '1px solid ' + C.border }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 4 }}>
             {colors.map(({ color, label: lbl }) => (
-              <button key={color} title={lbl} onClick={() => onChange(color)} style={{
-                aspectRatio: '1', borderRadius: 6, background: color, cursor: 'pointer',
-                border: value === color ? '2.5px solid ' + C.brand : '1px solid #ddd',
-                boxSizing: 'border-box', padding: 0,
-                boxShadow: lightColors.has(color) ? 'inset 0 0 0 1px #ccc' : 'none',
-                minHeight: 32,
-              }} />
+              <button key={color} title={lbl} onClick={() => onChange(color)}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
+                style={{
+                  width: 22, height: 22, borderRadius: 4, background: color, cursor: 'pointer',
+                  border: value === color ? '2px solid ' + C.brand : '1px solid rgba(0,0,0,0.08)',
+                  boxShadow: value === color
+                    ? 'inset 0 0 0 2px white'
+                    : (lightColors.has(color) ? 'inset 0 0 0 1px #ccc' : 'none'),
+                  boxSizing: 'border-box', padding: 0,
+                  transition: 'transform 0.15s ease',
+                }} />
             ))}
             {allowCustom && (
-              <button title="Custom color" onClick={() => customInputRef.current?.click()} style={{
-                aspectRatio: '1', borderRadius: 6, cursor: 'pointer', minHeight: 32,
-                border: '1.5px dashed ' + C.border, background: C.white,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 18, color: C.muted, fontWeight: 700, padding: 0,
-              }}>+</button>
+              <button title="Custom color" onClick={() => customInputRef.current?.click()}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
+                style={{
+                  width: 22, height: 22, borderRadius: 4, cursor: 'pointer',
+                  border: '1px dashed ' + C.border, background: C.white,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 14, color: C.muted, fontWeight: 700, padding: 0,
+                  transition: 'transform 0.15s ease',
+                }}>+</button>
             )}
           </div>
           {allowCustom && (
