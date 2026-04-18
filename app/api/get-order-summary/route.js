@@ -33,6 +33,8 @@ export async function GET(request) {
       value: session.amount_total / 100,
       currency: 'CAD',
       items,
+      payment_status: session.payment_status,
+      session_status: session.status,
     });
   } catch (err) {
     console.error('get-order-summary error:', err);

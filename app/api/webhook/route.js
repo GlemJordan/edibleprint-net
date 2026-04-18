@@ -278,6 +278,13 @@ async function processOrder(session, orderId) {
   console.log('Order pipeline complete:', orderId, '| PDF:', pdfUrl);
 }
 
+// Stripe sends GET/HEAD to verify the endpoint is reachable before delivering events.
+// Next.js App Router returns 405 for unlisted methods, which causes Stripe to mark
+// the endpoint as failing. This handler makes the verification succeed.
+export async function GET() {
+  return NextResponse.json({ ok: true });
+}
+
 export async function POST(request) {
   const body      = await request.text();
   const signature = request.headers.get('stripe-signature');
