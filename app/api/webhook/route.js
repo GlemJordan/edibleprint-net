@@ -19,6 +19,7 @@ const stripe = new Stripe(stripeKey);
 const SHAPE_LABELS = {
   circular: 'Round', square: 'Square', rectangular: 'Rectangle',
   fullsheet: 'Full Sheet', multicircle: 'Cookie Sheet', heart: 'Heart', custom: 'Custom',
+  bwsheet: 'B&W Sheet (GRAYSCALE)',
 };
 
 async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -158,6 +159,7 @@ async function processOrder(session, orderId) {
       + '<p><a href="' + d.imageUrl + '" style="background:#1B6B4A;color:white;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;font-size:13px;">Download Image' + (designs.length > 1 ? ' ' + (i + 1) : '') + '</a></p>'
       + '<img src="' + d.imageUrl + '" style="max-width:240px;border-radius:8px;border:1px solid #e5e7eb;" />'
       + (d.notes && d.notes !== 'None' ? '<p style="margin:8px 0 0;font-size:13px;color:#6b7280;"><em>Note: ' + d.notes + '</em></p>' : '')
+      + (d.shape === 'bwsheet' ? '<p style="margin:8px 0 0;font-size:13px;font-weight:bold;color:#B45309;background:#FEF3C7;padding:6px 10px;border-radius:4px;">⚠️ Product: B&W Half Sheet (GRAYSCALE — print in black and white)</p>' : '')
       + '</div>';
   };
 

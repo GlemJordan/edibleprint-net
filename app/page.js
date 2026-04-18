@@ -17,9 +17,9 @@ const SIZES = {
     { id: 'h8', label: '8" Heart (20cm)', w: 8, h: 8, price: 19.99 },
   ],
   multicircle: [
-    { id: 'mc125', label: '1.25” Circles', sublabel: '40 mini cookies/sheet', w: 8, h: 11, price: 19.99, circleSize: 1.25, cols: 5, rows: 8,  gap: 0.10 },
-    { id: 'mc2',   label: '2” Circles',   sublabel: '15 cookies/sheet',      w: 8, h: 11, price: 19.99, circleSize: 2,    cols: 3, rows: 5,  gap: 0.15 },
-    { id: 'mc3',   label: '3” Circles',   sublabel: '6 cookies/sheet',       w: 8, h: 11, price: 19.99, circleSize: 3,    cols: 2, rows: 3,  gap: 0.20 },
+    { id: 'mc125', label: '1.25” Circles on A4 Sheet', sublabel: '40 mini cookies/sheet', w: 8, h: 11, price: 19.99, circleSize: 1.25, cols: 5, rows: 8,  gap: 0.10 },
+    { id: 'mc2',   label: '2” Circles on A4 Sheet',   sublabel: '15 cookies/sheet',      w: 8, h: 11, price: 19.99, circleSize: 2,    cols: 3, rows: 5,  gap: 0.15 },
+    { id: 'mc3',   label: '3” Circles on A4 Sheet',   sublabel: '6 cookies/sheet',       w: 8, h: 11, price: 19.99, circleSize: 3,    cols: 2, rows: 3,  gap: 0.20 },
   ],
   square: [
     { id: 's5', label: '5"×5" (13cm)', w: 5, h: 5, price: 14.99 },
@@ -29,6 +29,9 @@ const SIZES = {
   ],
   fullsheet: [
     { id: 'a4', label: 'A4 Full Sheet (8"×11" / 20×28cm)', w: 8, h: 11, price: 19.99 },
+  ],
+  bwsheet: [
+    { id: 'bw1', label: '6.5"×6.5" B&W Square', sublabel: 'Centered on A4 sheet', w: 8, h: 11, printW: 6.5, printH: 6.5, price: 9.99, grayscale: true },
   ],
   custom: [{ id: 'custom', label: 'Custom Size', w: 0, h: 0, price: 0 }],
 };
@@ -253,7 +256,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
 
   /* Preview canvas size */
   const ratio = sizeObj.h && sizeObj.w ? sizeObj.h / sizeObj.w : 1;
-  const canvasH = (shape === 'fullsheet' || shape === 'multicircle') ? Math.round(canvasW * ratio) : canvasW;
+  const canvasH = (shape === 'fullsheet' || shape === 'multicircle' || shape === 'bwsheet') ? Math.round(canvasW * ratio) : canvasW;
 
   /* Hi-res output: 300 DPI */
   const DPI = 300;
@@ -265,6 +268,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
 
   /* Multi-circle layout */
   const isMultiCircle = shape === 'multicircle';
+  const isBWSheet = shape === 'bwsheet';
   const circleSize = sizeObj.circleSize || 2;
   const mcGapInches = isMultiCircle ? (sizeObj.gap ?? MC_GAP) : 0;
   const previewPPI = canvasW / (sizeObj.w || 8);
@@ -308,6 +312,19 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       return { ...l, x: (effW - img.width * sc) / 2, y: (effH - img.height * sc) / 2, scale: sc };
     }));
   }, [shape, sizeObj.id, sizeObj.w, sizeObj.h, sizeObj.circleSize]);
+
+  /* Re-auto-fit when canvas container resizes */
+  useEffect(() => {
+    const { isMultiCircle: mc, circlePx: cp, canvasW: cw, canvasH: ch } = layoutRef.current;
+    const effW = mc ? cp : cw;
+    const effH = mc ? cp : ch;
+    onLayersChangeRef.current(prev => prev.map(l => {
+      const img = imgRefs.current[l.id];
+      if (!img) return l;
+      const sc = Math.max(effW / img.width, effH / img.height);
+      return { ...l, x: (effW - img.width * sc) / 2, y: (effH - img.height * sc) / 2, scale: sc };
+    }));
+  }, [canvasW, canvasH]);
 
   /* Load images for layers; auto-fit new ones */
   useEffect(() => {
@@ -353,11 +370,52 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     /* ── Preview canvas ── */
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvasW, canvasH);
-    /* Circular/heart/multicircle: white outside, bgColor only inside the shape */
-    ctx.fillStyle = (isMultiCircle || shape === 'circular' || shape === 'heart') ? '#FFFFFF' : bgColor;
+    /* Circular/heart/multicircle/bwsheet: white outside, bgColor only inside the shape */
+    ctx.fillStyle = (isMultiCircle || isBWSheet || shape === 'circular' || shape === 'heart') ? '#FFFFFF' : bgColor;
     ctx.fillRect(0, 0, canvasW, canvasH);
 
-    if (isMultiCircle) {
+    if (isBWSheet) {
+      const squareSize = canvasW * (6.5 / 8);
+      const sqX = (canvasW - squareSize) / 2;
+      const sqY = (canvasH - squareSize) / 2;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(sqX, sqY, squareSize, squareSize);
+      ctx.clip();
+      if (bgColor && bgColor !== 'transparent') {
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(sqX, sqY, squareSize, squareSize);
+      }
+      layers.forEach(layer => {
+        const img = imgRefs.current[layer.id];
+        if (!img) return;
+        ctx.save();
+        ctx.filter = 'grayscale(100%)';
+        const imgW = img.width * layer.scale;
+        const imgH = img.height * layer.scale;
+        if (layer.rotation !== 0) {
+          ctx.translate(layer.x + imgW / 2, layer.y + imgH / 2);
+          ctx.rotate(layer.rotation * Math.PI / 180);
+          ctx.translate(-(layer.x + imgW / 2), -(layer.y + imgH / 2));
+        }
+        ctx.drawImage(img, layer.x, layer.y, imgW, imgH);
+        ctx.filter = 'none';
+        ctx.restore();
+      });
+      if (textOverlay?.text) {
+        ctx.filter = 'grayscale(100%)';
+        drawText(ctx, textOverlay, canvasW, canvasH);
+        ctx.filter = 'none';
+      }
+      ctx.restore();
+      ctx.beginPath();
+      ctx.rect(sqX, sqY, squareSize, squareSize);
+      ctx.strokeStyle = '#999';
+      ctx.setLineDash([5, 4]);
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.setLineDash([]);
+    } else if (isMultiCircle) {
       /* Build a single source-crop canvas (what the user sees) then tile it */
       const sc = document.createElement('canvas');
       sc.width = circlePx; sc.height = circlePx;
@@ -470,11 +528,54 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     hiResCanvas.height = hiResH;
     const hctx = hiResCanvas.getContext('2d');
     hctx.clearRect(0, 0, hiResW, hiResH);
-    /* Circular/heart/multicircle: white outside, bgColor only inside the shape */
-    hctx.fillStyle = (isMultiCircle || shape === 'circular' || shape === 'heart') ? '#FFFFFF' : bgColor;
+    /* Circular/heart/multicircle/bwsheet: white outside, bgColor only inside the shape */
+    hctx.fillStyle = (isMultiCircle || isBWSheet || shape === 'circular' || shape === 'heart') ? '#FFFFFF' : bgColor;
     hctx.fillRect(0, 0, hiResW, hiResH);
 
-    if (isMultiCircle) {
+    if (isBWSheet) {
+      const hrSquarePx = Math.round(6.5 * DPI);
+      const hrSqX = (hiResW - hrSquarePx) / 2;
+      const hrSqY = (hiResH - hrSquarePx) / 2;
+      hctx.save();
+      hctx.beginPath();
+      hctx.rect(hrSqX, hrSqY, hrSquarePx, hrSquarePx);
+      hctx.clip();
+      if (bgColor && bgColor !== 'transparent') {
+        hctx.fillStyle = bgColor;
+        hctx.fillRect(hrSqX, hrSqY, hrSquarePx, hrSquarePx);
+      }
+      layers.forEach(layer => {
+        const img = imgRefs.current[layer.id];
+        if (!img) return;
+        hctx.save();
+        hctx.filter = 'grayscale(100%)';
+        const hrX = layer.x * scaleFactor;
+        const hrY = layer.y * scaleFactor;
+        const hrW = img.width * layer.scale * scaleFactor;
+        const hrH = img.height * layer.scale * scaleFactor;
+        if (layer.rotation !== 0) {
+          hctx.translate(hrX + hrW / 2, hrY + hrH / 2);
+          hctx.rotate(layer.rotation * Math.PI / 180);
+          hctx.translate(-(hrX + hrW / 2), -(hrY + hrH / 2));
+        }
+        hctx.drawImage(img, hrX, hrY, hrW, hrH);
+        hctx.filter = 'none';
+        hctx.restore();
+      });
+      if (textOverlay?.text) {
+        hctx.filter = 'grayscale(100%)';
+        drawText(hctx, textOverlay, hiResW, hiResH, scaleFactor);
+        hctx.filter = 'none';
+      }
+      hctx.restore();
+      hctx.beginPath();
+      hctx.rect(hrSqX, hrSqY, hrSquarePx, hrSquarePx);
+      hctx.strokeStyle = '#CCCCCC';
+      hctx.setLineDash([20, 10]);
+      hctx.lineWidth = 3;
+      hctx.stroke();
+      hctx.setLineDash([]);
+    } else if (isMultiCircle) {
       const hrCirclePx = circleSize * DPI;
       const hrSf       = hrCirclePx / circlePx; /* preview→hi-res scale for this circle */
       const hrGapPx    = mcGapInches * DPI;
@@ -576,7 +677,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     }
 
     if (onHiResCrop) onHiResCrop(hiResCanvas.toDataURL('image/jpeg', 0.95));
-  }, [layers, redrawTick, effectiveSelectedId, shape, hiResW, hiResH, scaleFactor, bgColor, textOverlay, isMultiCircle, circlePx, mcCols, mcRows, mcOffsetX, mcOffsetY, mcStepPx, circleSize, canvasW, canvasH]);
+  }, [layers, redrawTick, effectiveSelectedId, shape, hiResW, hiResH, scaleFactor, bgColor, textOverlay, isMultiCircle, isBWSheet, circlePx, mcCols, mcRows, mcOffsetX, mcOffsetY, mcStepPx, circleSize, canvasW, canvasH]);
 
   const handlePointerDown = (e) => {
     const canvas = canvasRef.current;
@@ -777,6 +878,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
         onPointerUp={handlePointerUp} onPointerLeave={handlePointerUp}
         style={{ cursor: textDragging ? 'move' : dragging ? 'grabbing' : 'grab', touchAction: 'none',
           borderRadius: shape === 'circular' ? '50%' : (shape === 'heart' ? 12 : 4),
+          border: isBWSheet ? '1px solid ' + C.border : 'none',
           boxShadow: '0 8px 32px rgba(27,107,74,0.10)', maxWidth: '100%' }}
       />
       {/* Hidden hi-res canvas */}
@@ -887,6 +989,13 @@ const PALETTE = [
   { color: '#001F3F', label: 'Navy' },         { color: '#808000', label: 'Olive' },
   { color: '#800020', label: 'Burgundy' },     { color: '#40E0D0', label: 'Turquoise' },
 ];
+const BW_PALETTE = [
+  { color: '#FFFFFF', label: 'White' },
+  { color: '#D9D9D9', label: 'Light Gray' },
+  { color: '#888888', label: 'Gray' },
+  { color: '#000000', label: 'Black' },
+];
+
 function ColorPickerDropdown({ value, onChange, colors, label, allowCustom }) {
   const [isOpen, setIsOpen] = useState(false);
   const customInputRef = useRef(null);
@@ -1427,6 +1536,7 @@ export default function EdiblePrintApp() {
               { key: 'square', label: 'Square' },
               { key: 'multicircle', label: 'Cookie Sheets' },
               { key: 'fullsheet', label: 'Full Sheet' },
+              { key: 'bwsheet', label: 'B&W Sheet' },
             ].map(tab => (
               <button key={tab.key} onClick={() => setPricingTab(tab.key)} style={{
                 padding: '9px 20px', borderRadius: 24, fontSize: 14, fontWeight: 600, cursor: 'pointer',
@@ -1452,7 +1562,9 @@ export default function EdiblePrintApp() {
                 mc2: '15 cookies per sheet',
                 mc3: '6 large cookies per sheet',
                 a4: 'Covers the full 8″×11″ sheet',
+                bw1: 'Economy grayscale — text, logos & portraits',
               };
+              const isBestValue = sz.id === 'bw1';
               const isHovered = hoveredCardId === sz.id;
               return (
                 <div key={sz.id}
@@ -1468,6 +1580,11 @@ export default function EdiblePrintApp() {
                     <div style={{ position: 'absolute', top: -11, left: '50%', transform: 'translateX(-50%)',
                       background: C.brand, color: '#fff', fontSize: 11, fontWeight: 700,
                       borderRadius: 20, padding: '3px 10px', whiteSpace: 'nowrap' }}>Most Popular</div>
+                  )}
+                  {isBestValue && (
+                    <div style={{ position: 'absolute', top: -11, left: '50%', transform: 'translateX(-50%)',
+                      background: C.accent, color: '#fff', fontSize: 11, fontWeight: 700,
+                      borderRadius: 20, padding: '3px 10px', whiteSpace: 'nowrap' }}>BEST VALUE</div>
                   )}
                   <div style={{ fontSize: 32, fontWeight: 700, color: C.brand, marginBottom: 4 }}>{'$' + sz.price.toFixed(2)}</div>
                   <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 6 }}>{sz.label}</div>
@@ -1565,7 +1682,22 @@ export default function EdiblePrintApp() {
               <div style={{ fontSize: 13, fontWeight: 700, color: C.brand }}>Valéria</div>
               <div style={{ fontSize: 12, color: C.muted }}>September 2025 · Facebook Marketplace</div>
             </div>
-            {/* Card 3: Summary badges */}
+            {/* Card 3: Caro */}
+            <div style={{ ...card, padding: '24px 22px' }}>
+              <div style={{ color: '#FBBF24', fontSize: 18, marginBottom: 10, letterSpacing: 2 }}>★★★★★</div>
+              <p style={{ margin: '0 0 12px', fontSize: 14.5, lineHeight: 1.7, color: C.text }}>
+                "I'm very happy with both the quality of the work and the customer service. The seller was kind and responsive at all times, answering all of my questions. I've ordered before, and the seller has always met all of my expectations. The prices are very reasonable considering the detailed design and the excellent final result. If you're looking for a professional outcome, I totally recommend this seller's work. Thank you so much!"
+              </p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                {['Punctuality', 'Communication', 'Pricing', 'Item Description'].map(tag => (
+                  <span key={tag} style={{ fontSize: 10, padding: '3px 8px', background: C.brandLight,
+                    color: C.brandDark, borderRadius: 4 }}>{tag}</span>
+                ))}
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.brand }}>Caro</div>
+              <div style={{ fontSize: 12, color: C.muted }}>August 2, 2025 · Facebook Marketplace</div>
+            </div>
+            {/* Card 4: Summary badges */}
             <div style={{ ...card, padding: '24px 22px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
               <div style={{ fontSize: 13.5, fontWeight: 700, color: C.text, marginBottom: 16 }}>What Buyers Notice Most</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
@@ -1752,7 +1884,7 @@ export default function EdiblePrintApp() {
             {pendingShape && pendingSizeId && (() => {
               const pSizes = SIZES[pendingShape] || [];
               const pSel = pSizes.find(s => s.id === pendingSizeId);
-              const shapeLabels = { circular: 'Round', heart: 'Heart', square: 'Square', multicircle: 'Cookie Sheet', fullsheet: 'Full Sheet' };
+              const shapeLabels = { circular: 'Round', heart: 'Heart', square: 'Square', multicircle: 'Cookie Sheet', fullsheet: 'Full Sheet', bwsheet: 'B&W Sheet' };
               return (
                 <div style={{ background: C.brandLight, border: '1.5px solid ' + C.brand, borderRadius: 12,
                   padding: '10px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
@@ -1882,6 +2014,15 @@ export default function EdiblePrintApp() {
                 padding: isMobile ? 0 : '12px 20px 12px 0',
                 position: isMobile ? undefined : 'sticky', top: isMobile ? undefined : 80,
               }}>
+                {shape === 'bwsheet' && (
+                  <div style={{
+                    background: '#F5F5F5', borderLeft: '3px solid ' + C.accent,
+                    padding: '10px 14px', borderRadius: 6, fontSize: 13,
+                    marginBottom: 16, color: C.text, alignSelf: 'stretch',
+                  }}>
+                    ℹ️ B&W Sheet prints in grayscale for $9.99 — perfect for text, logos, and portraits.
+                  </div>
+                )}
                 <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 10, alignSelf: 'flex-start' }}>Adjust Your Image</label>
                 <ImageEditor
                   layers={layers}
@@ -1903,7 +2044,9 @@ export default function EdiblePrintApp() {
                   {[{ key: 'circular', icon: '⭕', label: 'Round' }, { key: 'heart', icon: '❤️', label: 'Heart' },
                     { key: 'multicircle', icon: '🍪', label: 'Cookie Sheet' },
                     { key: 'square', icon: '⬜', label: 'Square' },
-                    { key: 'fullsheet', icon: '▬', label: 'Full Sheet' }, { key: 'custom', icon: '✏️', label: 'Custom' }].map((sh) => (
+                    { key: 'fullsheet', icon: '▬', label: 'Full Sheet' },
+                    { key: 'bwsheet', icon: '⬛', label: 'B&W Sheet' },
+                    { key: 'custom', icon: '✏️', label: 'Custom' }].map((sh) => (
                     <button key={sh.key} onClick={() => {
                       setShape(sh.key);
                       const newSizes = SIZES[sh.key] || [];
@@ -1913,7 +2056,16 @@ export default function EdiblePrintApp() {
                       border: shape === sh.key ? '2.5px solid ' + C.brand : '2px solid ' + C.border,
                       background: shape === sh.key ? C.brandLight : C.white,
                       cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: "'Outfit', sans-serif", transition: 'all 0.2s' }}>
-                      <div style={{ fontSize: 20, marginBottom: 2 }}>{sh.icon}</div>{sh.label}
+                      <div style={{ position: 'relative', display: 'inline-block' }}>
+                        <div style={{ fontSize: 20, marginBottom: 2 }}>{sh.icon}</div>
+                        {sh.key === 'bwsheet' && (
+                          <span style={{ position: 'absolute', top: -6, right: -22, background: C.accent,
+                            color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 6px',
+                            borderRadius: 4, lineHeight: 1 }}>$9.99</span>
+                        )}
+                      </div>
+                      {sh.label}
+                      {sh.key === 'bwsheet' && <div style={{ fontSize: 10, color: C.muted, fontWeight: 400, marginTop: 1 }}>Economy</div>}
                     </button>
                   ))}
                 </div>
@@ -1978,7 +2130,7 @@ export default function EdiblePrintApp() {
                   </button>
                   {accordionBg && (
                     <div style={{ paddingBottom: 16 }}>
-                      <ColorPickerDropdown value={bgColor} onChange={setBgColor} colors={PALETTE} label="Fill" allowCustom />
+                      <ColorPickerDropdown value={bgColor} onChange={setBgColor} colors={shape === 'bwsheet' ? BW_PALETTE : PALETTE} label="Fill" allowCustom={shape !== 'bwsheet'} />
                     </div>
                   )}
                 </div>
@@ -2059,9 +2211,9 @@ export default function EdiblePrintApp() {
                         <ColorPickerDropdown
                           value={textOverlay.color}
                           onChange={(color) => setTextOverlay((p) => ({ ...p, color }))}
-                          colors={PALETTE}
+                          colors={shape === 'bwsheet' ? BW_PALETTE : PALETTE}
                           label="Text color"
-                          allowCustom
+                          allowCustom={shape !== 'bwsheet'}
                         />
                       </div>
                     </div>
