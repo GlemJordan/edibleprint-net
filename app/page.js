@@ -222,6 +222,31 @@ function drawImageInCircle(ctx, img, originX, originY, diameter, layer) {
   ctx.restore();
 }
 
+function computeCanvasSize(containerWidth, shape, sizeObj) {
+  let aspectRatio;
+  if (shape === 'circular' || shape === 'heart' || shape === 'square') {
+    aspectRatio = 1;
+  } else if (shape === 'multicircle' || shape === 'fullsheet' || shape === 'bwsheet') {
+    const w = (sizeObj && sizeObj.w) || 8;
+    const h = (sizeObj && sizeObj.h) || 11;
+    aspectRatio = w / h;
+  } else if (shape === 'custom') {
+    const w = (sizeObj && sizeObj.w) || 8;
+    const h = (sizeObj && sizeObj.h) || 11;
+    aspectRatio = w / h;
+  } else {
+    aspectRatio = 1;
+  }
+  const MAX_HEIGHT = 560;
+  let w = Math.min(Math.max(containerWidth - 24, 280), 440);
+  let h = w / aspectRatio;
+  if (h > MAX_HEIGHT) {
+    h = MAX_HEIGHT;
+    w = Math.floor(h * aspectRatio);
+  }
+  return { canvasW: Math.floor(w), canvasH: Math.floor(h) };
+}
+
 function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF', textOverlay = null, onTextPositionChange }) {
   const canvasRef = useRef(null);
   const hiResCanvasRef = useRef(null);
@@ -241,12 +266,21 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
   const pinchStateRef = useRef(null);
   const [redrawTick, setRedrawTick] = useState(0);
   const [canvasW, setCanvasW] = useState(360);
+  const [canvasH, setCanvasH] = useState(360);
+
+  /* Keep shape/sizeObj accessible inside ResizeObserver without re-creating it */
+  const shapeRef = useRef(shape);
+  const sizeObjRef = useRef(sizeObj);
+  shapeRef.current = shape;
+  sizeObjRef.current = sizeObj;
 
   useEffect(() => {
     if (!containerRef.current) return;
     const updateSize = () => {
-      const w = containerRef.current.offsetWidth;
-      setCanvasW(Math.min(Math.max(w - 24, 280), 440));
+      const containerW = containerRef.current.offsetWidth;
+      const { canvasW: w, canvasH: h } = computeCanvasSize(containerW, shapeRef.current, sizeObjRef.current);
+      setCanvasW(w);
+      setCanvasH(h);
     };
     updateSize();
     const ro = new ResizeObserver(updateSize);
@@ -254,9 +288,14 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     return () => ro.disconnect();
   }, []);
 
-  /* Preview canvas size */
-  const ratio = sizeObj.h && sizeObj.w ? sizeObj.h / sizeObj.w : 1;
-  const canvasH = (shape === 'fullsheet' || shape === 'multicircle' || shape === 'bwsheet') ? Math.round(canvasW * ratio) : canvasW;
+  /* Recalculate canvas size when shape or size changes */
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const containerW = containerRef.current.offsetWidth;
+    const { canvasW: w, canvasH: h } = computeCanvasSize(containerW, shape, sizeObj);
+    setCanvasW(w);
+    setCanvasH(h);
+  }, [shape, sizeObj.id, sizeObj.w, sizeObj.h]);
 
   /* Hi-res output: 300 DPI */
   const DPI = 300;
@@ -2012,7 +2051,11 @@ export default function EdiblePrintApp() {
                 width: isMobile ? '100%' : undefined,
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
                 padding: isMobile ? 0 : '12px 20px 12px 0',
-                position: isMobile ? undefined : 'sticky', top: isMobile ? undefined : 80,
+                position: isMobile ? 'static' : 'sticky',
+                top: isMobile ? undefined : 16,
+                alignSelf: isMobile ? undefined : 'flex-start',
+                maxHeight: isMobile ? undefined : 'calc(100vh - 32px)',
+                overflowY: isMobile ? undefined : 'auto',
               }}>
                 {shape === 'bwsheet' && (
                   <div style={{
