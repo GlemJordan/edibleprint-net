@@ -2280,37 +2280,37 @@ export default function EdiblePrintApp() {
                     </div>
                   )}
                 </div>
-              </div>
-            </div>
 
-            {/* Order summary */}
-            <div style={{ ...card, marginTop: 24 }}>
-              {designs.map((d, i) => {
-                const dSizes = SIZES[d.shape] || [];
-                const dSel = dSizes.find(sz => sz.id === d.sizeId) || dSizes[0];
-                const dPrice = d.shape === 'custom'
-                  ? (parseFloat(d.customW || 0) * parseFloat(d.customH || 0) <= 36 ? 14.99 : 19.99)
-                  : dSel?.price || 0;
-                return (
-                  <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: d.id === activeDesignId ? 700 : 500,
-                    marginBottom: i < designs.length - 1 ? 8 : 0, paddingBottom: i < designs.length - 1 ? 8 : 0,
-                    borderBottom: i < designs.length - 1 ? '1px solid ' + C.border : 'none',
-                    color: d.id === activeDesignId ? C.text : C.muted }}>
-                    <span>Design {i + 1}: {d.qty}x {d.shape === 'custom' ? (d.customW + '"x' + d.customH + '"') : (dSel?.label || d.shape)}</span>
-                    <span style={{ color: C.brand }}>{'$' + (dPrice * d.qty).toFixed(2)}</span>
-                  </div>
-                );
-              })}
-              {designs.length > 1 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 700, marginTop: 10, paddingTop: 10, borderTop: '1.5px solid ' + C.border }}>
-                  <span>Subtotal</span>
-                  <span style={{ color: C.brand }}>{'$' + designsSubtotal.toFixed(2)}</span>
+                {/* Order summary — inside right column so sticky persists to the end */}
+                <div style={{ ...card, marginTop: 4 }}>
+                  {designs.map((d, i) => {
+                    const dSizes = SIZES[d.shape] || [];
+                    const dSel = dSizes.find(sz => sz.id === d.sizeId) || dSizes[0];
+                    const dPrice = d.shape === 'custom'
+                      ? (parseFloat(d.customW || 0) * parseFloat(d.customH || 0) <= 36 ? 14.99 : 19.99)
+                      : dSel?.price || 0;
+                    return (
+                      <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: d.id === activeDesignId ? 700 : 500,
+                        marginBottom: i < designs.length - 1 ? 8 : 0, paddingBottom: i < designs.length - 1 ? 8 : 0,
+                        borderBottom: i < designs.length - 1 ? '1px solid ' + C.border : 'none',
+                        color: d.id === activeDesignId ? C.text : C.muted }}>
+                        <span>Design {i + 1}: {d.qty}x {d.shape === 'custom' ? (d.customW + '"x' + d.customH + '"') : (dSel?.label || d.shape)}</span>
+                        <span style={{ color: C.brand }}>{'$' + (dPrice * d.qty).toFixed(2)}</span>
+                      </div>
+                    );
+                  })}
+                  {designs.length > 1 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 700, marginTop: 10, paddingTop: 10, borderTop: '1.5px solid ' + C.border }}>
+                      <span>Subtotal</span>
+                      <span style={{ color: C.brand }}>{'$' + designsSubtotal.toFixed(2)}</span>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-            <div style={{ display: 'flex', gap: 12, marginTop: 26 }}>
-              <button onClick={() => setStep(1)} style={{ ...btnSecondary, flex: 1 }}>← Back</button>
-              <button onClick={() => setStep(3)} style={{ ...btnPrimary, flex: 2 }}>Continue →</button>
+                <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
+                  <button onClick={() => setStep(1)} style={{ ...btnSecondary, flex: 1 }}>← Back</button>
+                  <button onClick={() => setStep(3)} style={{ ...btnPrimary, flex: 2 }}>Continue →</button>
+                </div>
+              </div>
             </div>
           </div>
         )}
