@@ -188,9 +188,10 @@ function drawText(ctx, textOverlay, w, h, sf = 1) {
   ctx.fillText(textOverlay.text, tx, ty);
 }
 
-function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF', textOverlay = null, onTextPositionChange, previewSize = 300 }) {
+function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF', textOverlay = null, onTextPositionChange }) {
   const canvasRef = useRef(null);
   const hiResCanvasRef = useRef(null);
+  const containerRef = useRef(null);
   const imgRefs = useRef({});
   const addLayerFileRef = useRef(null);
   const onLayersChangeRef = useRef(onLayersChange);
@@ -205,9 +206,21 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
   const activePointers = useRef(new Map());
   const pinchStateRef = useRef(null);
   const [redrawTick, setRedrawTick] = useState(0);
+  const [canvasW, setCanvasW] = useState(360);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const updateSize = () => {
+      const w = containerRef.current.offsetWidth;
+      setCanvasW(Math.min(Math.max(w - 24, 280), 440));
+    };
+    updateSize();
+    const ro = new ResizeObserver(updateSize);
+    ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, []);
 
   /* Preview canvas size */
-  const canvasW = previewSize;
   const ratio = sizeObj.h && sizeObj.w ? sizeObj.h / sizeObj.w : 1;
   const canvasH = (shape === 'fullsheet' || shape === 'multicircle') ? Math.round(canvasW * ratio) : canvasW;
 
@@ -671,7 +684,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+    <div ref={containerRef} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, width: '100%' }}>
       {/* Add image + delete selected */}
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', width: '100%', maxWidth: canvasW }}>
         <button onClick={() => addLayerFileRef.current?.click()}
@@ -776,19 +789,8 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
   );
 }
 
-/* ═══ BACKGROUND COLOR PICKER ═══ */
-const BG_QUICK = [
-  { color: '#FFFFFF', label: 'White' },
-  { color: '#FFD700', label: 'Yellow' },
-  { color: '#FF4444', label: 'Red' },
-  { color: '#4488FF', label: 'Blue' },
-  { color: '#FF88CC', label: 'Pink' },
-  { color: '#44BB44', label: 'Green' },
-  { color: '#222222', label: 'Black' },
-  { color: '#FF8C00', label: 'Orange' },
-  { color: '#8B4513', label: 'Brown' },
-];
-const BG_EXTENDED = [
+/* ═══ COLOR PICKER DROPDOWN ═══ */
+const PALETTE = [
   { color: '#FFFFFF', label: 'White' },       { color: '#F5F5F5', label: 'Light Grey' },
   { color: '#9E9E9E', label: 'Grey' },         { color: '#222222', label: 'Black' },
   { color: '#FF4444', label: 'Red' },          { color: '#8B0000', label: 'Dark Red' },
@@ -805,34 +807,54 @@ const BG_EXTENDED = [
   { color: '#001F3F', label: 'Navy' },         { color: '#808000', label: 'Olive' },
   { color: '#800020', label: 'Burgundy' },     { color: '#40E0D0', label: 'Turquoise' },
 ];
-function BgColorPicker({ value, onChange }) {
-  const [expanded, setExpanded] = useState(false);
-
-  const dot = (color, label, size = 30) => (
-    <button key={color} title={label} onClick={() => { onChange(color); setExpanded(false); }} style={{
-      width: size, height: size, borderRadius: '50%', background: color, cursor: 'pointer', flexShrink: 0,
-      border: value === color ? '3px solid ' + C.brand : '2px solid #D1D5DB',
-      boxSizing: 'border-box', padding: 0,
-      boxShadow: color === '#FFFFFF' || color === '#F5F5F5' || color === '#FFFDD0' ? 'inset 0 0 0 1px #d1d5db' : 'none',
-    }} />
-  );
+function ColorPickerDropdown({ value, onChange, colors, label, allowCustom }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const customInputRef = useRef(null);
+  const lightColors = new Set(['#FFFFFF', '#F5F5F5', '#FFFDD0', '#FFC200', '#FFD700']);
+  const current = colors.find(c => c.color.toLowerCase() === (value || '').toLowerCase());
+  const displayName = current?.label || value;
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', alignItems: 'center' }}>
-        {BG_QUICK.map(({ color, label }) => dot(color, label))}
-        <button title="More colors" onClick={() => setExpanded((v) => !v)} style={{
-          width: 30, height: 30, borderRadius: '50%', cursor: 'pointer', flexShrink: 0,
-          border: '2px solid ' + C.border, background: C.white, boxSizing: 'border-box',
-          fontSize: 18, lineHeight: '26px', color: C.muted, fontWeight: 700, padding: 0,
-        }}>+</button>
-      </div>
-      {expanded && (
-        <div style={{ marginTop: 10, padding: '12px', background: C.white, borderRadius: 12,
-          border: '1px solid ' + C.border, boxShadow: '0 4px 16px rgba(0,0,0,0.08)' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 28px)', gap: 8, justifyContent: 'start' }}>
-            {BG_EXTENDED.map(({ color, label }) => dot(color, label, 28))}
+      <button
+        onClick={() => setIsOpen(v => !v)}
+        style={{ height: 40, padding: '8px 12px', border: '1px solid ' + C.border,
+          borderRadius: 8, display: 'flex', alignItems: 'center', gap: 10,
+          width: '100%', cursor: 'pointer', background: C.white,
+          fontFamily: "'Outfit', sans-serif", boxSizing: 'border-box' }}>
+        <span style={{ width: 24, height: 24, borderRadius: 6, background: value, flexShrink: 0,
+          border: '1px solid #ddd',
+          boxShadow: lightColors.has(value) ? 'inset 0 0 0 1px #ccc' : 'none',
+          display: 'inline-block' }} />
+        <span style={{ fontSize: 13, color: C.text, textAlign: 'left' }}>{label}: <strong>{displayName}</strong></span>
+        <span style={{ marginLeft: 'auto', fontSize: 11, color: C.muted, flexShrink: 0 }}>{isOpen ? '▲' : '▼'}</span>
+      </button>
+      {isOpen && (
+        <div style={{ marginTop: 8, padding: 14, background: '#FAFBF9',
+          borderRadius: 8, border: '1px solid ' + C.border }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>
+            {colors.map(({ color, label: lbl }) => (
+              <button key={color} title={lbl} onClick={() => onChange(color)} style={{
+                aspectRatio: '1', borderRadius: 6, background: color, cursor: 'pointer',
+                border: value === color ? '2.5px solid ' + C.brand : '1px solid #ddd',
+                boxSizing: 'border-box', padding: 0,
+                boxShadow: lightColors.has(color) ? 'inset 0 0 0 1px #ccc' : 'none',
+                minHeight: 32,
+              }} />
+            ))}
+            {allowCustom && (
+              <button title="Custom color" onClick={() => customInputRef.current?.click()} style={{
+                aspectRatio: '1', borderRadius: 6, cursor: 'pointer', minHeight: 32,
+                border: '1.5px dashed ' + C.border, background: C.white,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 18, color: C.muted, fontWeight: 700, padding: 0,
+              }}>+</button>
+            )}
           </div>
+          {allowCustom && (
+            <input ref={customInputRef} type="color" value={value} onChange={(e) => onChange(e.target.value)}
+              style={{ display: 'none' }} />
+          )}
         </div>
       )}
     </div>
@@ -1781,7 +1803,6 @@ export default function EdiblePrintApp() {
                   bgColor={bgColor}
                   textOverlay={textOverlay}
                   onTextPositionChange={(pos) => setTextOverlay((p) => ({ ...p, position: pos }))}
-                  previewSize={isMobile ? 300 : 360}
                 />
               </div>
 
@@ -1863,7 +1884,7 @@ export default function EdiblePrintApp() {
                   </button>
                   {accordionBg && (
                     <div style={{ paddingBottom: 16 }}>
-                      <BgColorPicker value={bgColor} onChange={setBgColor} />
+                      <ColorPickerDropdown value={bgColor} onChange={setBgColor} colors={PALETTE} label="Fill" allowCustom />
                     </div>
                   )}
                 </div>
@@ -1941,23 +1962,13 @@ export default function EdiblePrintApp() {
                       <p style={{ fontSize: 11, color: C.muted, margin: '0 0 10px', textAlign: 'center' }}>Drag text in preview to reposition</p>
                       <div>
                         <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Text Color</div>
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                          {[
-                            { color: '#FFFFFF', label: 'White' },
-                            { color: '#111111', label: 'Black' },
-                            { color: '#FF3333', label: 'Red' },
-                            { color: '#FFD700', label: 'Gold' },
-                            { color: '#4488FF', label: 'Blue' },
-                            { color: '#FF88CC', label: 'Pink' },
-                          ].map(({ color, label }) => (
-                            <button key={color} title={label} onClick={() => setTextOverlay((p) => ({ ...p, color }))} style={{
-                              width: 28, height: 28, borderRadius: 6, background: color, cursor: 'pointer',
-                              border: textOverlay.color === color ? '3px solid ' + C.brand : '2px solid ' + C.border,
-                              boxSizing: 'border-box',
-                              boxShadow: color === '#FFFFFF' ? 'inset 0 0 0 1px #d1d5db' : 'none',
-                            }} />
-                          ))}
-                        </div>
+                        <ColorPickerDropdown
+                          value={textOverlay.color}
+                          onChange={(color) => setTextOverlay((p) => ({ ...p, color }))}
+                          colors={PALETTE}
+                          label="Text color"
+                          allowCustom
+                        />
                       </div>
                     </div>
                   )}
