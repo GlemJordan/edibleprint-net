@@ -17,8 +17,9 @@ const SIZES = {
     { id: 'h8', label: '8" Heart (20cm)', w: 8, h: 8, price: 19.99 },
   ],
   multicircle: [
-    { id: 'mc2', label: '2” Circles on A4 Sheet', w: 8.27, h: 11.69, price: 24.99, circleSize: 2 },
-    { id: 'mc3', label: '3” Circles on A4 Sheet', w: 8.27, h: 11.69, price: 24.99, circleSize: 3 },
+    { id: 'mc125', label: '1.25” Circles', sublabel: '40 mini cookies/sheet', w: 8, h: 11, price: 19.99, circleSize: 1.25, cols: 5, rows: 8,  gap: 0.10 },
+    { id: 'mc2',   label: '2” Circles',   sublabel: '15 cookies/sheet',      w: 8, h: 11, price: 19.99, circleSize: 2,    cols: 3, rows: 5,  gap: 0.15 },
+    { id: 'mc3',   label: '3” Circles',   sublabel: '6 cookies/sheet',       w: 8, h: 11, price: 19.99, circleSize: 3,    cols: 2, rows: 3,  gap: 0.20 },
   ],
   square: [
     { id: 's5', label: '5"×5" (13cm)', w: 5, h: 5, price: 14.99 },
@@ -265,13 +266,16 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
   /* Multi-circle layout */
   const isMultiCircle = shape === 'multicircle';
   const circleSize = sizeObj.circleSize || 2;
+  const mcGapInches = isMultiCircle ? (sizeObj.gap ?? MC_GAP) : 0;
   const previewPPI = canvasW / (sizeObj.w || 8);
   const circlePx = isMultiCircle ? Math.round(circleSize * previewPPI) : canvasW;
   const { cols: mcCols, rows: mcRows } = isMultiCircle
-    ? getCircleGrid(sizeObj.w || 8.27, sizeObj.h || 11.69, circleSize)
+    ? (sizeObj.cols && sizeObj.rows
+        ? { cols: sizeObj.cols, rows: sizeObj.rows }
+        : getCircleGrid(sizeObj.w || 8, sizeObj.h || 11, circleSize))
     : { cols: 1, rows: 1 };
-  const mcGapPx   = isMultiCircle ? MC_GAP * previewPPI : 0;
-  const mcStepPx  = circlePx + mcGapPx;
+  const mcGapPx  = isMultiCircle ? mcGapInches * previewPPI : 0;
+  const mcStepPx = circlePx + mcGapPx;
   const mcTotalW  = isMultiCircle ? mcCols * circlePx + Math.max(0, mcCols - 1) * mcGapPx : 0;
   const mcTotalH  = isMultiCircle ? mcRows * circlePx + Math.max(0, mcRows - 1) * mcGapPx : 0;
   const mcOffsetX = isMultiCircle ? (canvasW - mcTotalW) / 2 : 0;
@@ -281,6 +285,29 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
   const effectiveSelectedId = layers.find(l => l.id === selectedLayerId)?.id
     ?? layers[layers.length - 1]?.id ?? null;
   const selectedLayer = layers.find(l => l.id === effectiveSelectedId) ?? null;
+
+  /* Refs to detect shape/size changes for re-auto-fit */
+  const autoFitShapeRef = useRef(shape);
+  const autoFitSizeRef  = useRef('');
+  const layoutRef = useRef({ isMultiCircle, circlePx, canvasW, canvasH });
+  layoutRef.current = { isMultiCircle, circlePx, canvasW, canvasH };
+
+  /* Re-auto-fit all layers when shape or size changes */
+  useEffect(() => {
+    const sizeKey = (sizeObj.id || '') + '|' + sizeObj.w + '|' + sizeObj.h + '|' + (sizeObj.circleSize || '');
+    if (autoFitShapeRef.current === shape && autoFitSizeRef.current === sizeKey) return;
+    autoFitShapeRef.current = shape;
+    autoFitSizeRef.current  = sizeKey;
+    const { isMultiCircle: mc, circlePx: cp, canvasW: cw, canvasH: ch } = layoutRef.current;
+    const effW = mc ? cp : cw;
+    const effH = mc ? cp : ch;
+    onLayersChangeRef.current(prev => prev.map(l => {
+      const img = imgRefs.current[l.id];
+      if (!img) return l;
+      const sc = Math.max(effW / img.width, effH / img.height);
+      return { ...l, x: (effW - img.width * sc) / 2, y: (effH - img.height * sc) / 2, scale: sc };
+    }));
+  }, [shape, sizeObj.id, sizeObj.w, sizeObj.h, sizeObj.circleSize]);
 
   /* Load images for layers; auto-fit new ones */
   useEffect(() => {
@@ -331,23 +358,40 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     ctx.fillRect(0, 0, canvasW, canvasH);
 
     if (isMultiCircle) {
+      /* Build a single source-crop canvas (what the user sees) then tile it */
+      const sc = document.createElement('canvas');
+      sc.width = circlePx; sc.height = circlePx;
+      const sctx = sc.getContext('2d');
+      sctx.beginPath();
+      sctx.arc(circlePx / 2, circlePx / 2, circlePx / 2, 0, Math.PI * 2);
+      sctx.fillStyle = bgColor;
+      sctx.fill();
+      sctx.save();
+      sctx.beginPath();
+      sctx.arc(circlePx / 2, circlePx / 2, circlePx / 2, 0, Math.PI * 2);
+      sctx.clip();
+      layers.forEach(layer => {
+        const img = imgRefs.current[layer.id];
+        if (!img) return;
+        sctx.save();
+        const iw = img.width * layer.scale;
+        const ih = img.height * layer.scale;
+        if (layer.rotation !== 0) {
+          sctx.translate(layer.x + iw / 2, layer.y + ih / 2);
+          sctx.rotate(layer.rotation * Math.PI / 180);
+          sctx.translate(-(layer.x + iw / 2), -(layer.y + ih / 2));
+        }
+        sctx.drawImage(img, layer.x, layer.y, iw, ih);
+        sctx.restore();
+      });
+      sctx.restore();
+      drawText(sctx, textOverlay, circlePx, circlePx);
+      /* Tile source crop into the grid */
       for (let row = 0; row < mcRows; row++) {
         for (let col = 0; col < mcCols; col++) {
           const ox = mcOffsetX + col * mcStepPx;
           const oy = mcOffsetY + row * mcStepPx;
-          const cx = ox + circlePx / 2;
-          const cy = oy + circlePx / 2;
-          /* Fill bgColor inside the circle */
-          ctx.save();
-          ctx.beginPath();
-          ctx.arc(cx, cy, circlePx / 2, 0, Math.PI * 2);
-          ctx.fillStyle = bgColor;
-          ctx.fill();
-          ctx.restore();
-          /* Draw each layer cover-fitted and centered in this circle */
-          layers.forEach(layer => {
-            drawImageInCircle(ctx, imgRefs.current[layer.id], ox, oy, circlePx, layer);
-          });
+          ctx.drawImage(sc, ox, oy, circlePx, circlePx);
         }
       }
       ctx.strokeStyle = C.brand;
@@ -432,30 +476,46 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
 
     if (isMultiCircle) {
       const hrCirclePx = circleSize * DPI;
-      const hrGapPx    = MC_GAP * DPI;
+      const hrSf       = hrCirclePx / circlePx; /* preview→hi-res scale for this circle */
+      const hrGapPx    = mcGapInches * DPI;
       const hrStepPx   = hrCirclePx + hrGapPx;
       const hrTotalW   = mcCols * hrCirclePx + Math.max(0, mcCols - 1) * hrGapPx;
       const hrTotalH   = mcRows * hrCirclePx + Math.max(0, mcRows - 1) * hrGapPx;
       const hrOffsetX  = (hiResW - hrTotalW) / 2;
       const hrOffsetY  = (hiResH - hrTotalH) / 2;
+      /* Build hi-res source crop canvas then tile it */
+      const hsc = document.createElement('canvas');
+      hsc.width = hrCirclePx; hsc.height = hrCirclePx;
+      const hsctx = hsc.getContext('2d');
+      hsctx.beginPath();
+      hsctx.arc(hrCirclePx / 2, hrCirclePx / 2, hrCirclePx / 2, 0, Math.PI * 2);
+      hsctx.fillStyle = bgColor;
+      hsctx.fill();
+      hsctx.save();
+      hsctx.beginPath();
+      hsctx.arc(hrCirclePx / 2, hrCirclePx / 2, hrCirclePx / 2, 0, Math.PI * 2);
+      hsctx.clip();
+      layers.forEach(layer => {
+        const img = imgRefs.current[layer.id];
+        if (!img) return;
+        hsctx.save();
+        const hrX = layer.x * hrSf;
+        const hrY = layer.y * hrSf;
+        const hrW = img.width  * layer.scale * hrSf;
+        const hrH = img.height * layer.scale * hrSf;
+        if (layer.rotation !== 0) {
+          hsctx.translate(hrX + hrW / 2, hrY + hrH / 2);
+          hsctx.rotate(layer.rotation * Math.PI / 180);
+          hsctx.translate(-(hrX + hrW / 2), -(hrY + hrH / 2));
+        }
+        hsctx.drawImage(img, hrX, hrY, hrW, hrH);
+        hsctx.restore();
+      });
+      hsctx.restore();
+      drawText(hsctx, textOverlay, hrCirclePx, hrCirclePx, hrSf);
       for (let row = 0; row < mcRows; row++) {
         for (let col = 0; col < mcCols; col++) {
-          const hrOx = hrOffsetX + col * hrStepPx;
-          const hrOy = hrOffsetY + row * hrStepPx;
-          const hcx = hrOx + hrCirclePx / 2;
-          const hcy = hrOy + hrCirclePx / 2;
-          /* Fill bgColor inside the circle */
-          hctx.save();
-          hctx.beginPath();
-          hctx.arc(hcx, hcy, hrCirclePx / 2, 0, Math.PI * 2);
-          hctx.fillStyle = bgColor;
-          hctx.fill();
-          hctx.restore();
-          /* Draw each layer cover-fitted in this circle, coordinates scaled to hi-res */
-          layers.forEach(layer => {
-            const hrLayer = { ...layer, x: layer.x * scaleFactor, y: layer.y * scaleFactor, scale: layer.scale * scaleFactor };
-            drawImageInCircle(hctx, imgRefs.current[layer.id], hrOx, hrOy, hrCirclePx, hrLayer);
-          });
+          hctx.drawImage(hsc, hrOffsetX + col * hrStepPx, hrOffsetY + row * hrStepPx, hrCirclePx, hrCirclePx);
         }
       }
       hctx.strokeStyle = '#CCCCCC';
@@ -726,7 +786,18 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', maxWidth: canvasW }}>
         <span style={{ fontSize: 18, color: C.muted, fontWeight: 700 }}>-</span>
         <input type="range" min={minScale} max={maxScale} step={0.001} value={currentScale}
-          onChange={(e) => updateSelectedLayer({ scale: parseFloat(e.target.value) })}
+          onChange={(e) => {
+            const newScale = parseFloat(e.target.value);
+            if (!effectiveSelectedId || !selectedLayer) return;
+            const ratio = newScale / (selectedLayer.scale || newScale);
+            const cx = canvasW / 2;
+            const cy = canvasH / 2;
+            updateSelectedLayer({
+              scale: newScale,
+              x: cx - ratio * (cx - selectedLayer.x),
+              y: cy - ratio * (cy - selectedLayer.y),
+            });
+          }}
           disabled={!effectiveSelectedId}
           style={{ flex: 1, accentColor: C.brand }} />
         <span style={{ fontSize: 18, color: C.muted, fontWeight: 700 }}>+</span>
@@ -1377,8 +1448,9 @@ export default function EdiblePrintApp() {
                 h6: 'Romantic touch for cupcakes', h7: 'Perfect for occasion cakes', h8: 'Statement piece for celebrations',
                 s5: 'Great for brownies & cookies', s6: 'Ideal for square cakes',
                 s7: 'Perfect for layer cakes', s8: 'Large format prints',
-                mc2: cookieGrid ? `Up to ${cookieGrid.count} cookies per sheet` : 'Many cookies per sheet',
-                mc3: cookieGrid ? `Up to ${cookieGrid.count} cookies per sheet` : 'Generous cookie size',
+                mc125: '40 mini cookies per sheet',
+                mc2: '15 cookies per sheet',
+                mc3: '6 large cookies per sheet',
                 a4: 'Covers the full 8″×11″ sheet',
               };
               const isHovered = hoveredCardId === sz.id;
@@ -1832,7 +1904,11 @@ export default function EdiblePrintApp() {
                     { key: 'multicircle', icon: '🍪', label: 'Cookie Sheet' },
                     { key: 'square', icon: '⬜', label: 'Square' },
                     { key: 'fullsheet', icon: '▬', label: 'Full Sheet' }, { key: 'custom', icon: '✏️', label: 'Custom' }].map((sh) => (
-                    <button key={sh.key} onClick={() => setShape(sh.key)} style={{
+                    <button key={sh.key} onClick={() => {
+                      setShape(sh.key);
+                      const newSizes = SIZES[sh.key] || [];
+                      if (newSizes.length > 0 && !newSizes.find(sz => sz.id === sizeId)) setSizeId(newSizes[0].id);
+                    }} style={{
                       flex: 1, minWidth: 72, padding: '12px 8px', borderRadius: 12,
                       border: shape === sh.key ? '2.5px solid ' + C.brand : '2px solid ' + C.border,
                       background: shape === sh.key ? C.brandLight : C.white,
@@ -1856,7 +1932,7 @@ export default function EdiblePrintApp() {
                             cursor: 'pointer', textAlign: 'center', fontFamily: "'Outfit', sans-serif", transition: 'all 0.2s' }}>
                             <div style={{ fontWeight: 700, fontSize: 17, color: C.brand }}>{'$' + sz.price.toFixed(2)}</div>
                             <div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>{sz.label}</div>
-                            {cookieGrid && <div style={{ fontSize: 12, color: C.brand, fontWeight: 600, marginTop: 3 }}>{cookieGrid.count} cookies/sheet</div>}
+                            {(sz.sublabel || cookieGrid) && <div style={{ fontSize: 12, color: C.brand, fontWeight: 600, marginTop: 3 }}>{sz.sublabel || (cookieGrid.count + ' cookies/sheet')}</div>}
                           </button>
                         );
                       })}
