@@ -202,6 +202,8 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
   const [dragStart, setDragStart] = useState({ clientX: 0, clientY: 0, layerX: 0, layerY: 0 });
   const [textDragging, setTextDragging] = useState(false);
   const textDragOffset = useRef({ dx: 0, dy: 0 });
+  const activePointers = useRef(new Map());
+  const pinchStateRef = useRef(null);
   const [redrawTick, setRedrawTick] = useState(0);
 
   /* Preview canvas size */
@@ -497,6 +499,25 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
   const handlePointerDown = (e) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+
+    activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    /* Pinch-to-zoom: 2 simultaneous pointers */
+    if (activePointers.current.size >= 2) {
+      const pts = Array.from(activePointers.current.values());
+      const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+      const selLayer = layers.find(l => l.id === effectiveSelectedId);
+      pinchStateRef.current = {
+        initialDist: dist,
+        initialScale: selLayer?.scale ?? 1,
+        layerId: effectiveSelectedId,
+      };
+      setDragging(false);
+      setDragLayerId(null);
+      setTextDragging(false);
+      return;
+    }
+
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvasW / rect.width;
     const scaleY = canvasH / rect.height;
@@ -543,6 +564,27 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
   };
 
   const handlePointerMove = (e) => {
+    if (activePointers.current.has(e.pointerId)) {
+      activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    }
+
+    /* Pinch-to-zoom */
+    if (activePointers.current.size >= 2 && pinchStateRef.current) {
+      const pts = Array.from(activePointers.current.values());
+      const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+      const { initialDist, initialScale, layerId } = pinchStateRef.current;
+      const selImg = layerId ? imgRefs.current[layerId] : null;
+      const mn = selImg ? Math.max(20 / selImg.width, 20 / selImg.height) : 0.05;
+      const mx = selImg ? Math.max(canvasW * 4 / selImg.width, canvasH * 4 / selImg.height) : 8;
+      const newScale = Math.min(mx, Math.max(mn, initialScale * (dist / initialDist)));
+      if (layerId) {
+        onLayersChangeRef.current(prev => prev.map(l =>
+          l.id === layerId ? { ...l, scale: newScale } : l
+        ));
+      }
+      return;
+    }
+
     if (textDragging) {
       const canvas = canvasRef.current;
       if (!canvas) return;
@@ -567,7 +609,19 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     ));
   };
 
-  const handlePointerUp = () => { setDragging(false); setDragLayerId(null); setTextDragging(false); };
+  const handlePointerUp = (e) => {
+    if (e?.pointerId !== undefined) {
+      activePointers.current.delete(e.pointerId);
+    } else {
+      activePointers.current.clear();
+    }
+    if (activePointers.current.size < 2) {
+      pinchStateRef.current = null;
+    }
+    setDragging(false);
+    setDragLayerId(null);
+    setTextDragging(false);
+  };
 
   const moveLayerUp = (id) => {
     const idx = layers.findIndex(l => l.id === id);
@@ -656,7 +710,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
         <span style={{ fontSize: 18, color: C.muted, fontWeight: 700 }}>+</span>
       </div>
       <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>
-        {layers.length > 1 ? 'Click layer to select · Drag to reposition · Slider to zoom' : 'Drag to reposition · Slider to zoom'}
+        {layers.length > 1 ? 'Click layer to select · Drag to reposition · Pinch or slider to zoom' : 'Drag to reposition · Pinch or slider to zoom'}
       </p>
 
       {/* Rotation */}

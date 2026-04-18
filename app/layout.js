@@ -1,4 +1,3 @@
-import WhatsAppButton from './WhatsAppButton';
 import GoogleAnalytics from './_components/analytics/GoogleAnalytics';
 import MetaPixel from './_components/analytics/MetaPixel';
 
@@ -64,7 +63,6 @@ export default function RootLayout({ children }) {
         <GoogleAnalytics />
         <MetaPixel />
         {children}
-        <WhatsAppButton />
       </body>
     </html>
   );
