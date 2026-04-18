@@ -2,9 +2,17 @@ import Stripe from 'stripe';
 import { NextResponse } from 'next/server';
 
 const isTest = process.env.STRIPE_MODE === 'test';
+// NOTE: STRIPE_SECRET_KEY_LIVE must be sk_live_... (a full Secret Key).
+// If it starts with rk_live_... it is a Restricted Key and cannot create Checkout Sessions.
 const stripeKey = isTest
-  ? process.env.STRIPE_SECRET_KEY_TEST
+  ? (process.env.STRIPE_SECRET_KEY_TEST || process.env.STRIPE_SECRET_KEY)
   : (process.env.STRIPE_SECRET_KEY_LIVE || process.env.STRIPE_SECRET_KEY);
+
+// Publishable key follows the same test/live split so frontend and backend stay in sync.
+// Deprecated NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY kept as final fallback.
+export const stripePublishableKey = isTest
+  ? (process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY_TEST  || process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
+  : (process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY_LIVE  || process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
 
 const stripe = new Stripe(stripeKey);
 
