@@ -2054,8 +2054,6 @@ export default function EdiblePrintApp() {
                 position: isMobile ? 'static' : 'sticky',
                 top: isMobile ? undefined : 16,
                 alignSelf: isMobile ? undefined : 'flex-start',
-                maxHeight: isMobile ? undefined : 'calc(100vh - 32px)',
-                overflowY: isMobile ? undefined : 'auto',
               }}>
                 {shape === 'bwsheet' && (
                   <div style={{
