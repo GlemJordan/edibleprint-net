@@ -247,6 +247,29 @@ function computeCanvasSize(containerWidth, shape, sizeObj) {
   return { canvasW: Math.floor(w), canvasH: Math.floor(h) };
 }
 
+function drawShapeShadow(ctx, shape, canvasW, canvasH, isMobile) {
+  ctx.save();
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.12)';
+  ctx.shadowBlur = isMobile ? 10 : 16;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = isMobile ? 4 : 6;
+  ctx.fillStyle = '#FFFFFF';
+  if (shape === 'circular') {
+    ctx.beginPath();
+    ctx.arc(canvasW / 2, canvasH / 2, canvasW / 2, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (shape === 'heart') {
+    drawHeartPath(ctx, 0, 0, canvasW, canvasH);
+    ctx.fill();
+  } else if (shape === 'bwsheet') {
+    const sq = canvasW * (6.5 / 8);
+    ctx.fillRect((canvasW - sq) / 2, (canvasH - sq) / 2, sq, sq);
+  } else {
+    ctx.fillRect(0, 0, canvasW, canvasH);
+  }
+  ctx.restore();
+}
+
 async function removeWhiteBackground(img, tolerance = 30) {
   const off = document.createElement('canvas');
   off.width = img.width;
@@ -311,7 +334,7 @@ async function removeWhiteBackground(img, tolerance = 30) {
   });
 }
 
-function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF', textOverlay = null, onTextPositionChange, removeWhiteBg = false, bgRemoveTolerance = 30 }) {
+function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF', textOverlay = null, onTextPositionChange, removeWhiteBg = false, bgRemoveTolerance = 30, sizeLabel = '', isMobile = false }) {
   const canvasRef = useRef(null);
   const hiResCanvasRef = useRef(null);
   const containerRef = useRef(null);
@@ -503,8 +526,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     /* ── Preview canvas ── */
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvasW, canvasH);
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(0, 0, canvasW, canvasH);
+    drawShapeShadow(ctx, shape, canvasW, canvasH, isMobile);
 
     if (isBWSheet) {
       const squareSize = canvasW * (6.5 / 8);
@@ -514,9 +536,11 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       ctx.beginPath();
       ctx.rect(sqX, sqY, squareSize, squareSize);
       ctx.clip();
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, canvasW, canvasH);
       if (bgColor && bgColor !== 'transparent') {
         ctx.fillStyle = bgColor;
-        ctx.fillRect(sqX, sqY, squareSize, squareSize);
+        ctx.fillRect(0, 0, canvasW, canvasH);
       }
       layers.forEach(layer => {
         const img = getImg(layer.id);
@@ -542,9 +566,9 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       ctx.restore();
       ctx.beginPath();
       ctx.rect(sqX, sqY, squareSize, squareSize);
-      ctx.strokeStyle = '#999';
-      ctx.setLineDash([5, 4]);
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#C8C8C8';
+      ctx.setLineDash([3, 5]);
+      ctx.lineWidth = 1;
       ctx.stroke();
       ctx.setLineDash([]);
     } else if (isMultiCircle) {
@@ -554,8 +578,14 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       const sctx = sc.getContext('2d');
       sctx.beginPath();
       sctx.arc(circlePx / 2, circlePx / 2, circlePx / 2, 0, Math.PI * 2);
-      sctx.fillStyle = bgColor;
+      sctx.fillStyle = '#FFFFFF';
       sctx.fill();
+      if (bgColor && bgColor !== 'transparent') {
+        sctx.beginPath();
+        sctx.arc(circlePx / 2, circlePx / 2, circlePx / 2, 0, Math.PI * 2);
+        sctx.fillStyle = bgColor;
+        sctx.fill();
+      }
       sctx.save();
       sctx.beginPath();
       sctx.arc(circlePx / 2, circlePx / 2, circlePx / 2, 0, Math.PI * 2);
@@ -584,9 +614,9 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
           ctx.drawImage(sc, ox, oy, circlePx, circlePx);
         }
       }
-      ctx.strokeStyle = C.brand;
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([4, 3]);
+      ctx.strokeStyle = '#C8C8C8';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 5]);
       for (let row = 0; row < mcRows; row++) {
         for (let col = 0; col < mcCols; col++) {
           ctx.beginPath();
@@ -609,6 +639,8 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
         ctx.rect(0, 0, canvasW, canvasH);
         ctx.clip();
       }
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, canvasW, canvasH);
       if (bgColor && bgColor !== 'transparent') {
         ctx.fillStyle = bgColor;
         ctx.fillRect(0, 0, canvasW, canvasH);
@@ -643,9 +675,9 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
           ctx.restore();
         }
       }
-      ctx.strokeStyle = C.brand;
-      ctx.lineWidth = 2;
-      ctx.setLineDash([6, 4]);
+      ctx.strokeStyle = '#C8C8C8';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 5]);
       if (shape === 'circular') {
         ctx.beginPath();
         ctx.arc(canvasW / 2, canvasH / 2, canvasW / 2 - 1, 0, Math.PI * 2);
@@ -653,6 +685,8 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       } else if (shape === 'heart') {
         drawHeartPath(ctx, 1, 1, canvasW - 2, canvasH - 2);
         ctx.stroke();
+      } else {
+        ctx.strokeRect(0.5, 0.5, canvasW - 1, canvasH - 1);
       }
       ctx.setLineDash([]);
     }
@@ -1012,14 +1046,26 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
         <input ref={addLayerFileRef} type="file" accept="image/*" onChange={handleAddLayerFile} style={{ display: 'none' }} />
       </div>
 
-      <canvas ref={canvasRef} width={canvasW} height={canvasH}
-        onPointerDown={handlePointerDown} onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp} onPointerLeave={handlePointerUp}
-        style={{ cursor: textDragging ? 'move' : dragging ? 'grabbing' : 'grab', touchAction: 'none',
-          borderRadius: shape === 'circular' ? '50%' : (shape === 'heart' ? 12 : 4),
-          border: isBWSheet ? '1px solid ' + C.border : 'none',
-          boxShadow: '0 8px 32px rgba(27,107,74,0.10)', maxWidth: '100%' }}
-      />
+      <div style={{ position: 'relative', background: '#F5F5F5', borderRadius: 12, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box' }}>
+        <canvas ref={canvasRef} width={canvasW} height={canvasH}
+          onPointerDown={handlePointerDown} onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp} onPointerLeave={handlePointerUp}
+          style={{ cursor: textDragging ? 'move' : dragging ? 'grabbing' : 'grab', touchAction: 'none',
+            maxWidth: '100%', display: 'block',
+            filter: 'drop-shadow(0 6px 16px rgba(0,0,0,0.12))' }}
+        />
+        {sizeLabel && (
+          <div style={{
+            position: 'absolute', bottom: 10, right: 10,
+            background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(4px)',
+            padding: '4px 10px', borderRadius: 6, fontSize: 10.5,
+            fontWeight: 600, color: '#6B7280', letterSpacing: 0.3,
+            pointerEvents: 'none', fontFamily: "'Outfit', sans-serif",
+          }}>
+            {sizeLabel}
+          </div>
+        )}
+      </div>
       {/* Hidden hi-res canvas */}
       <canvas ref={hiResCanvasRef} style={{ display: 'none' }} />
 
@@ -1255,6 +1301,14 @@ export default function EdiblePrintApp() {
     ? (parseFloat(customW || 0) * parseFloat(customH || 0) <= 36 ? 14.99 : 19.99)
     : selectedSize?.price || 0;
   const subtotal = unitPrice * qty;
+
+  const sizeLabel = shape === 'fullsheet' ? 'FULL SHEET 8" × 11"'
+    : shape === 'bwsheet' ? 'B&W 6.5" × 6.5"'
+    : shape === 'custom' ? `${customW || '?'}" × ${customH || '?'}"`
+    : shape === 'multicircle' ? (selectedSize?.sublabel || '').toUpperCase()
+    : shape === 'circular' ? `${(selectedSize?.label || '').split(' ')[0]} ROUND`
+    : shape === 'heart' ? `${(selectedSize?.label || '').split(' ')[0]} HEART`
+    : selectedSize?.label || '';
 
   const designsSubtotal = designs.reduce((sum, d) => {
     const dSizes = SIZES[d.shape] || [];
@@ -2179,6 +2233,8 @@ export default function EdiblePrintApp() {
                   onTextPositionChange={(pos) => setTextOverlay((p) => ({ ...p, position: pos }))}
                   removeWhiteBg={removeWhiteBg}
                   bgRemoveTolerance={bgRemoveTolerance}
+                  sizeLabel={sizeLabel}
+                  isMobile={isMobile}
                 />
               </div>
 
