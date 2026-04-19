@@ -1430,7 +1430,7 @@ export default function EdiblePrintApp() {
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  const [removeWhiteBg, setRemoveWhiteBg] = useState(false);
+  const [removeWhiteBg, setRemoveWhiteBg] = useState(true);
   const [bgRemoveTolerance, setBgRemoveTolerance] = useState(30);
 
   /* ── Accordion state for Step 2 ── */
