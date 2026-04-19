@@ -247,11 +247,36 @@ function computeCanvasSize(containerWidth, shape, sizeObj) {
   return { canvasW: Math.floor(w), canvasH: Math.floor(h) };
 }
 
-function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF', textOverlay = null, onTextPositionChange }) {
+function removeWhiteBackground(img, threshold = 240, softness = 15) {
+  return new Promise(resolve => {
+    const c = document.createElement('canvas');
+    c.width = img.width; c.height = img.height;
+    const x = c.getContext('2d');
+    x.drawImage(img, 0, 0);
+    const data = x.getImageData(0, 0, c.width, c.height);
+    const d = data.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i], g = d[i+1], b = d[i+2];
+      const brightness = Math.min(r, g, b);
+      const saturation = Math.max(r, g, b) - brightness;
+      if (saturation < 30 && brightness > threshold - softness) {
+        const alpha = Math.max(0, 1 - (brightness - (threshold - softness)) / softness);
+        d[i+3] = Math.round(alpha * d[i+3]);
+      }
+    }
+    x.putImageData(data, 0, 0);
+    const out = new Image();
+    out.onload = () => resolve(out);
+    out.src = c.toDataURL();
+  });
+}
+
+function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF', textOverlay = null, onTextPositionChange, removeWhiteBg = false }) {
   const canvasRef = useRef(null);
   const hiResCanvasRef = useRef(null);
   const containerRef = useRef(null);
   const imgRefs = useRef({});
+  const processedImgRefs = useRef({});
   const addLayerFileRef = useRef(null);
   const onLayersChangeRef = useRef(onLayersChange);
   onLayersChangeRef.current = onLayersChange;
@@ -381,8 +406,11 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
         return;
       }
       const img = new Image();
-      img.onload = () => {
+      img.onload = async () => {
         imgRefs.current[layer.id] = img;
+        if (removeWhiteBg) {
+          processedImgRefs.current[layer.id] = await removeWhiteBackground(img);
+        }
         const effW = isMultiCircle ? circlePx : canvasW;
         const effH = isMultiCircle ? circlePx : canvasH;
         const coverSc = Math.max(effW / img.width, effH / img.height);
@@ -398,7 +426,26 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     /* Clean up refs for removed layers */
     const ids = new Set(layers.map(l => l.id));
     Object.keys(imgRefs.current).forEach(id => { if (!ids.has(id)) delete imgRefs.current[id]; });
+    Object.keys(processedImgRefs.current).forEach(id => { if (!ids.has(id)) delete processedImgRefs.current[id]; });
   }, [layers]);
+
+  /* Re-process all loaded images when removeWhiteBg toggles */
+  useEffect(() => {
+    const process = async () => {
+      const ids = Object.keys(imgRefs.current);
+      if (removeWhiteBg) {
+        await Promise.all(ids.map(async id => {
+          processedImgRefs.current[id] = await removeWhiteBackground(imgRefs.current[id]);
+        }));
+      } else {
+        processedImgRefs.current = {};
+      }
+      setRedrawTick(t => t + 1);
+    };
+    process();
+  }, [removeWhiteBg]);
+
+  const getImg = (id) => (removeWhiteBg && processedImgRefs.current[id]) ? processedImgRefs.current[id] : imgRefs.current[id];
 
   /* Draw canvases */
   useEffect(() => {
@@ -409,8 +456,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     /* ── Preview canvas ── */
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvasW, canvasH);
-    /* multicircle/bwsheet: white sheet outside; all other shapes: bgColor fills entire canvas */
-    ctx.fillStyle = (isMultiCircle || isBWSheet) ? '#FFFFFF' : bgColor;
+    ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, canvasW, canvasH);
 
     if (isBWSheet) {
@@ -426,7 +472,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
         ctx.fillRect(sqX, sqY, squareSize, squareSize);
       }
       layers.forEach(layer => {
-        const img = imgRefs.current[layer.id];
+        const img = getImg(layer.id);
         if (!img) return;
         ctx.save();
         ctx.filter = 'grayscale(100%)';
@@ -468,7 +514,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       sctx.arc(circlePx / 2, circlePx / 2, circlePx / 2, 0, Math.PI * 2);
       sctx.clip();
       layers.forEach(layer => {
-        const img = imgRefs.current[layer.id];
+        const img = getImg(layer.id);
         if (!img) return;
         sctx.save();
         const iw = img.width * layer.scale;
@@ -511,9 +557,17 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       } else if (shape === 'heart') {
         drawHeartPath(ctx, 0, 0, canvasW, canvasH);
         ctx.clip();
+      } else {
+        ctx.beginPath();
+        ctx.rect(0, 0, canvasW, canvasH);
+        ctx.clip();
+      }
+      if (bgColor && bgColor !== 'transparent') {
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(0, 0, canvasW, canvasH);
       }
       layers.forEach(layer => {
-        const img = imgRefs.current[layer.id];
+        const img = getImg(layer.id);
         if (!img) return;
         ctx.save();
         const imgW = img.width * layer.scale;
@@ -526,6 +580,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
         ctx.drawImage(img, layer.x, layer.y, imgW, imgH);
         ctx.restore();
       });
+      drawText(ctx, textOverlay, canvasW, canvasH);
       ctx.restore();
       /* Selection outline for active layer */
       if (effectiveSelectedId) {
@@ -553,7 +608,6 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
         ctx.stroke();
       }
       ctx.setLineDash([]);
-      drawText(ctx, textOverlay, canvasW, canvasH);
     }
 
     if (onCrop) onCrop(canvas.toDataURL());
@@ -563,8 +617,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     hiResCanvas.height = hiResH;
     const hctx = hiResCanvas.getContext('2d');
     hctx.clearRect(0, 0, hiResW, hiResH);
-    /* multicircle/bwsheet: white sheet outside; all other shapes: bgColor fills entire canvas */
-    hctx.fillStyle = (isMultiCircle || isBWSheet) ? '#FFFFFF' : bgColor;
+    hctx.fillStyle = '#FFFFFF';
     hctx.fillRect(0, 0, hiResW, hiResH);
 
     if (isBWSheet) {
@@ -580,7 +633,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
         hctx.fillRect(hrSqX, hrSqY, hrSquarePx, hrSquarePx);
       }
       layers.forEach(layer => {
-        const img = imgRefs.current[layer.id];
+        const img = getImg(layer.id);
         if (!img) return;
         hctx.save();
         hctx.filter = 'grayscale(100%)';
@@ -632,7 +685,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       hsctx.arc(hrCirclePx / 2, hrCirclePx / 2, hrCirclePx / 2, 0, Math.PI * 2);
       hsctx.clip();
       layers.forEach(layer => {
-        const img = imgRefs.current[layer.id];
+        const img = getImg(layer.id);
         if (!img) return;
         hsctx.save();
         const hrX = layer.x * hrSf;
@@ -674,9 +727,17 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       } else if (shape === 'heart') {
         drawHeartPath(hctx, 0, 0, hiResW, hiResH);
         hctx.clip();
+      } else {
+        hctx.beginPath();
+        hctx.rect(0, 0, hiResW, hiResH);
+        hctx.clip();
+      }
+      if (bgColor && bgColor !== 'transparent') {
+        hctx.fillStyle = bgColor;
+        hctx.fillRect(0, 0, hiResW, hiResH);
       }
       layers.forEach(layer => {
-        const img = imgRefs.current[layer.id];
+        const img = getImg(layer.id);
         if (!img) return;
         hctx.save();
         const hrX = layer.x * scaleFactor;
@@ -691,8 +752,8 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
         hctx.drawImage(img, hrX, hrY, hrW, hrH);
         hctx.restore();
       });
-      hctx.restore();
       drawText(hctx, textOverlay, hiResW, hiResH, scaleFactor);
+      hctx.restore();
       hctx.strokeStyle = '#CCCCCC';
       hctx.lineWidth = 3;
       hctx.setLineDash([20, 10]);
@@ -1321,6 +1382,8 @@ export default function EdiblePrintApp() {
     window.addEventListener('resize', check);
     return () => window.removeEventListener('resize', check);
   }, []);
+
+  const [removeWhiteBg, setRemoveWhiteBg] = useState(false);
 
   /* ── Accordion state for Step 2 ── */
   const [accordionBg, setAccordionBg] = useState(true);
@@ -2066,6 +2129,7 @@ export default function EdiblePrintApp() {
                   bgColor={bgColor}
                   textOverlay={textOverlay}
                   onTextPositionChange={(pos) => setTextOverlay((p) => ({ ...p, position: pos }))}
+                  removeWhiteBg={removeWhiteBg}
                 />
               </div>
 
@@ -2144,6 +2208,27 @@ export default function EdiblePrintApp() {
                   <span style={{ fontSize: 20, fontWeight: 700, minWidth: 32, textAlign: 'center' }}>{qty}</span>
                   <button onClick={() => setQty(qty + 1)} style={{ width: 38, height: 38, borderRadius: 10, border: '1.5px solid ' + C.border, background: C.white, fontSize: 18, cursor: 'pointer', fontWeight: 600 }}>+</button>
                 </div>
+
+                {/* ── Remove White Background toggle ── */}
+                {shape !== 'bwsheet' && (
+                  <div style={{ borderTop: '1px solid ' + C.border, padding: '12px 0', marginBottom: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 600, fontSize: 14, color: C.text }}>✂️ Remove White Background</span>
+                    <button
+                      onClick={() => setRemoveWhiteBg(v => !v)}
+                      style={{
+                        width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
+                        background: removeWhiteBg ? C.brand : C.border,
+                        position: 'relative', transition: 'background 0.2s',
+                      }}
+                    >
+                      <span style={{
+                        position: 'absolute', top: 3, left: removeWhiteBg ? 23 : 3,
+                        width: 18, height: 18, borderRadius: '50%', background: '#fff',
+                        transition: 'left 0.2s', display: 'block',
+                      }} />
+                    </button>
+                  </div>
+                )}
 
                 {/* ── ACCORDION: Background Fill Color ── */}
                 <div style={{ borderTop: '1px solid ' + C.border, marginBottom: 4 }}>
