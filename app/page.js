@@ -247,31 +247,71 @@ function computeCanvasSize(containerWidth, shape, sizeObj) {
   return { canvasW: Math.floor(w), canvasH: Math.floor(h) };
 }
 
-function removeWhiteBackground(img, threshold = 240, softness = 15) {
-  return new Promise(resolve => {
-    const c = document.createElement('canvas');
-    c.width = img.width; c.height = img.height;
-    const x = c.getContext('2d');
-    x.drawImage(img, 0, 0);
-    const data = x.getImageData(0, 0, c.width, c.height);
-    const d = data.data;
-    for (let i = 0; i < d.length; i += 4) {
-      const r = d[i], g = d[i+1], b = d[i+2];
-      const brightness = Math.min(r, g, b);
-      const saturation = Math.max(r, g, b) - brightness;
-      if (saturation < 30 && brightness > threshold - softness) {
-        const alpha = Math.max(0, 1 - (brightness - (threshold - softness)) / softness);
-        d[i+3] = Math.round(alpha * d[i+3]);
+async function removeWhiteBackground(img, tolerance = 30) {
+  const off = document.createElement('canvas');
+  off.width = img.width;
+  off.height = img.height;
+  const ctx = off.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+
+  const w = img.width;
+  const h = img.height;
+  const imageData = ctx.getImageData(0, 0, w, h);
+  const data = imageData.data;
+  const visited = new Uint8Array(w * h);
+
+  function isWhiteish(idx) {
+    return Math.min(data[idx], data[idx + 1], data[idx + 2]) >= 255 - tolerance;
+  }
+
+  const queue = [];
+  for (let x = 0; x < w; x++) { queue.push(x, 0); queue.push(x, h - 1); }
+  for (let y = 0; y < h; y++) { queue.push(0, y); queue.push(w - 1, y); }
+
+  while (queue.length > 0) {
+    const y = queue.pop();
+    const x = queue.pop();
+    if (x < 0 || x >= w || y < 0 || y >= h) continue;
+    const pixelIdx = y * w + x;
+    if (visited[pixelIdx]) continue;
+    const dataIdx = pixelIdx * 4;
+    if (!isWhiteish(dataIdx)) continue;
+    visited[pixelIdx] = 1;
+    data[dataIdx + 3] = 0;
+    queue.push(x + 1, y); queue.push(x - 1, y);
+    queue.push(x, y + 1); queue.push(x, y - 1);
+  }
+
+  /* Anti-aliasing pass on border pixels */
+  const dataCopy = new Uint8ClampedArray(data);
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const idx = (y * w + x) * 4;
+      if (dataCopy[idx + 3] === 0 || dataCopy[idx + 3] < 255) continue;
+      let transparentNeighbors = 0;
+      for (const off of [-4, 4, -w * 4, w * 4]) {
+        if (dataCopy[idx + off + 3] === 0) transparentNeighbors++;
+      }
+      if (transparentNeighbors >= 2) {
+        const minCh = Math.min(data[idx], data[idx + 1], data[idx + 2]);
+        const edge = 255 - tolerance - 20;
+        if (minCh >= edge) {
+          const fade = (minCh - edge) / 20;
+          data[idx + 3] = Math.round(255 * (1 - Math.min(1, fade)));
+        }
       }
     }
-    x.putImageData(data, 0, 0);
-    const out = new Image();
-    out.onload = () => resolve(out);
-    out.src = c.toDataURL();
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+  return new Promise((resolve) => {
+    const newImg = new Image();
+    newImg.onload = () => resolve(newImg);
+    newImg.src = off.toDataURL('image/png');
   });
 }
 
-function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF', textOverlay = null, onTextPositionChange, removeWhiteBg = false }) {
+function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF', textOverlay = null, onTextPositionChange, removeWhiteBg = false, bgRemoveTolerance = 30 }) {
   const canvasRef = useRef(null);
   const hiResCanvasRef = useRef(null);
   const containerRef = useRef(null);
@@ -409,7 +449,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       img.onload = async () => {
         imgRefs.current[layer.id] = img;
         if (removeWhiteBg) {
-          processedImgRefs.current[layer.id] = await removeWhiteBackground(img);
+          processedImgRefs.current[layer.id] = await removeWhiteBackground(img, bgRemoveTolerance);
         }
         const effW = isMultiCircle ? circlePx : canvasW;
         const effH = isMultiCircle ? circlePx : canvasH;
@@ -429,21 +469,28 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     Object.keys(processedImgRefs.current).forEach(id => { if (!ids.has(id)) delete processedImgRefs.current[id]; });
   }, [layers]);
 
-  /* Re-process all loaded images when removeWhiteBg toggles */
+  /* Re-process all loaded images when removeWhiteBg or tolerance changes */
   useEffect(() => {
+    let cancelled = false;
     const process = async () => {
       const ids = Object.keys(imgRefs.current);
       if (removeWhiteBg) {
         await Promise.all(ids.map(async id => {
-          processedImgRefs.current[id] = await removeWhiteBackground(imgRefs.current[id]);
+          try {
+            const processed = await removeWhiteBackground(imgRefs.current[id], bgRemoveTolerance);
+            if (!cancelled) processedImgRefs.current[id] = processed;
+          } catch (e) {
+            if (!cancelled) delete processedImgRefs.current[id];
+          }
         }));
       } else {
         processedImgRefs.current = {};
       }
-      setRedrawTick(t => t + 1);
+      if (!cancelled) setRedrawTick(t => t + 1);
     };
     process();
-  }, [removeWhiteBg]);
+    return () => { cancelled = true; };
+  }, [removeWhiteBg, bgRemoveTolerance]);
 
   const getImg = (id) => (removeWhiteBg && processedImgRefs.current[id]) ? processedImgRefs.current[id] : imgRefs.current[id];
 
@@ -1384,6 +1431,7 @@ export default function EdiblePrintApp() {
   }, []);
 
   const [removeWhiteBg, setRemoveWhiteBg] = useState(false);
+  const [bgRemoveTolerance, setBgRemoveTolerance] = useState(30);
 
   /* ── Accordion state for Step 2 ── */
   const [accordionBg, setAccordionBg] = useState(true);
@@ -2130,6 +2178,7 @@ export default function EdiblePrintApp() {
                   textOverlay={textOverlay}
                   onTextPositionChange={(pos) => setTextOverlay((p) => ({ ...p, position: pos }))}
                   removeWhiteBg={removeWhiteBg}
+                  bgRemoveTolerance={bgRemoveTolerance}
                 />
               </div>
 
@@ -2211,22 +2260,46 @@ export default function EdiblePrintApp() {
 
                 {/* ── Remove White Background toggle ── */}
                 {shape !== 'bwsheet' && (
-                  <div style={{ borderTop: '1px solid ' + C.border, padding: '12px 0', marginBottom: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontWeight: 600, fontSize: 14, color: C.text }}>✂️ Remove White Background</span>
-                    <button
-                      onClick={() => setRemoveWhiteBg(v => !v)}
-                      style={{
-                        width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
-                        background: removeWhiteBg ? C.brand : C.border,
-                        position: 'relative', transition: 'background 0.2s',
-                      }}
-                    >
-                      <span style={{
-                        position: 'absolute', top: 3, left: removeWhiteBg ? 23 : 3,
-                        width: 18, height: 18, borderRadius: '50%', background: '#fff',
-                        transition: 'left 0.2s', display: 'block',
-                      }} />
-                    </button>
+                  <div style={{ borderTop: '1px solid ' + C.border, paddingTop: 12, marginBottom: 4 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: removeWhiteBg ? 8 : 12 }}>
+                      <span style={{ fontWeight: 600, fontSize: 14, color: C.text }}>✂️ Remove white background around my image</span>
+                      <button
+                        onClick={() => setRemoveWhiteBg(v => !v)}
+                        style={{
+                          flexShrink: 0, marginLeft: 10,
+                          width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
+                          background: removeWhiteBg ? C.brand : C.border,
+                          position: 'relative', transition: 'background 0.2s',
+                        }}
+                      >
+                        <span style={{
+                          position: 'absolute', top: 3, left: removeWhiteBg ? 23 : 3,
+                          width: 18, height: 18, borderRadius: '50%', background: '#fff',
+                          transition: 'left 0.2s', display: 'block',
+                        }} />
+                      </button>
+                    </div>
+                    {removeWhiteBg && (
+                      <div style={{ padding: '8px 10px', background: '#FAFBF9', borderRadius: 6, marginBottom: 10, fontSize: 11.5 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, color: C.muted }}>
+                          <span>Edge tolerance</span>
+                          <span style={{ fontWeight: 600, color: C.brand }}>{bgRemoveTolerance}</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="60"
+                          step="5"
+                          value={bgRemoveTolerance}
+                          onChange={(e) => setBgRemoveTolerance(parseInt(e.target.value))}
+                          style={{ width: '100%', accentColor: C.brand, cursor: 'pointer' }}
+                        />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: C.muted, marginTop: 2 }}>
+                          <span>Strict (white only)</span>
+                          <span>Relaxed (light grays)</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
