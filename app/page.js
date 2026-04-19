@@ -222,7 +222,7 @@ function drawImageInCircle(ctx, img, originX, originY, diameter, layer) {
   ctx.restore();
 }
 
-function computeCanvasSize(containerWidth, shape, sizeObj) {
+function computeCanvasSize(containerWidth, shape, sizeObj, viewportH = 800) {
   let aspectRatio;
   if (shape === 'circular' || shape === 'heart' || shape === 'square') {
     aspectRatio = 1;
@@ -231,17 +231,20 @@ function computeCanvasSize(containerWidth, shape, sizeObj) {
     const h = (sizeObj && sizeObj.h) || 11;
     aspectRatio = w / h;
   } else if (shape === 'custom') {
-    const w = (sizeObj && sizeObj.w) || 8;
-    const h = (sizeObj && sizeObj.h) || 11;
-    aspectRatio = w / h;
+    const cw = (sizeObj && sizeObj.w) || 8;
+    const ch = (sizeObj && sizeObj.h) || 11;
+    aspectRatio = cw > 0 && ch > 0 ? cw / ch : 1;
   } else {
     aspectRatio = 1;
   }
-  const MAX_HEIGHT = 560;
-  let w = Math.min(Math.max(containerWidth - 24, 280), 440);
+  /* Reserve space for header (~50) + add-image btn (~50) + zoom/rotation panel (~80) + help text (~24) + padding (~40) */
+  const RESERVED = 244;
+  const dynamicMaxH = Math.max(320, viewportH - RESERVED);
+  const maxW = Math.min(containerWidth - 24, 480);
+  let w = Math.max(280, maxW);
   let h = w / aspectRatio;
-  if (h > MAX_HEIGHT) {
-    h = MAX_HEIGHT;
+  if (h > dynamicMaxH) {
+    h = dynamicMaxH;
     w = Math.floor(h * aspectRatio);
   }
   return { canvasW: Math.floor(w), canvasH: Math.floor(h) };
@@ -355,18 +358,32 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
   const [redrawTick, setRedrawTick] = useState(0);
   const [canvasW, setCanvasW] = useState(360);
   const [canvasH, setCanvasH] = useState(360);
+  const [viewportHeight, setViewportHeight] = useState(
+    typeof window !== 'undefined' ? window.innerHeight : 800
+  );
 
-  /* Keep shape/sizeObj accessible inside ResizeObserver without re-creating it */
+  useEffect(() => {
+    const onResize = () => setViewportHeight(window.innerHeight);
+    window.addEventListener('resize', onResize);
+    onResize();
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  /* Keep shape/sizeObj/viewportHeight accessible inside ResizeObserver without re-creating it */
   const shapeRef = useRef(shape);
   const sizeObjRef = useRef(sizeObj);
+  const viewportHRef = useRef(viewportHeight);
   shapeRef.current = shape;
   sizeObjRef.current = sizeObj;
+  viewportHRef.current = viewportHeight;
 
   useEffect(() => {
     if (!containerRef.current) return;
     const updateSize = () => {
       const containerW = containerRef.current.offsetWidth;
-      const { canvasW: w, canvasH: h } = computeCanvasSize(containerW, shapeRef.current, sizeObjRef.current);
+      const { canvasW: w, canvasH: h } = computeCanvasSize(
+        containerW, shapeRef.current, sizeObjRef.current, viewportHRef.current
+      );
       setCanvasW(w);
       setCanvasH(h);
     };
@@ -376,14 +393,14 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     return () => ro.disconnect();
   }, []);
 
-  /* Recalculate canvas size when shape or size changes */
+  /* Recalculate canvas size when shape, size, or viewport changes */
   useEffect(() => {
     if (!containerRef.current) return;
     const containerW = containerRef.current.offsetWidth;
-    const { canvasW: w, canvasH: h } = computeCanvasSize(containerW, shape, sizeObj);
+    const { canvasW: w, canvasH: h } = computeCanvasSize(containerW, shape, sizeObj, viewportHeight);
     setCanvasW(w);
     setCanvasH(h);
-  }, [shape, sizeObj.id, sizeObj.w, sizeObj.h]);
+  }, [shape, sizeObj.id, sizeObj.w, sizeObj.h, viewportHeight]);
 
   /* Hi-res output: 300 DPI */
   const DPI = 300;
