@@ -262,6 +262,23 @@ function computeCanvasSize(containerWidth, shape, sizeObj, viewportH = 800) {
   return { canvasW: Math.floor(w), canvasH: Math.floor(h) };
 }
 
+function drawWatermark(ctx, canvasW, canvasH) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(120, 120, 120, 0.22)';
+  ctx.font = 'bold 22px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.translate(canvasW / 2, canvasH / 2);
+  ctx.rotate(-Math.PI / 6);
+  const text = 'EDIBLEPRINT.NET';
+  const spacing = 80;
+  const reps = Math.ceil(Math.max(canvasW, canvasH) / spacing) + 2;
+  for (let i = -reps; i <= reps; i++) {
+    ctx.fillText(text, 0, i * spacing);
+  }
+  ctx.restore();
+}
+
 function drawShapeShadow(ctx, shape, canvasW, canvasH, isMobile) {
   ctx.save();
   ctx.shadowColor = 'rgba(0, 0, 0, 0.12)';
@@ -721,6 +738,9 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       }
       ctx.setLineDash([]);
     }
+
+    /* Watermark — preview only, never in hi-res */
+    drawWatermark(ctx, canvasW, canvasH);
 
     if (onCrop) onCrop(canvas.toDataURL());
 
@@ -1552,6 +1572,8 @@ export default function EdiblePrintApp() {
   const [removeWhiteBg, setRemoveWhiteBg] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [customerEmail, setCustomerEmail] = useState('');
 
   useEffect(() => {
     fetch('/api/admin/check')
@@ -1614,47 +1636,50 @@ export default function EdiblePrintApp() {
     }
   };
 
-  const handleDownloadPdf = async () => {
+  const handleDownloadPdfAsAdmin = async () => {
     const hiResDataUrl = hiResCrop;
     if (!hiResDataUrl) { alert('No image to download. Please upload and adjust your image first.'); return; }
     setDownloadingPdf(true);
     try {
       const sizeW = selectedSize?.w || parseFloat(customW) || 8;
-      if (isAdmin) {
-        const resp = await fetch('/api/generate-pdf', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            imageDataUrl: hiResDataUrl,
-            shape,
-            sizeInches: sizeW,
-            customW,
-            customH,
-            paymentVerified: false,
-          }),
-        });
-        if (!resp.ok) throw new Error('PDF generation failed');
-        const blob = await resp.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `edibleprint-${shape}-${Date.now()}.pdf`;
-        a.click();
-        URL.revokeObjectURL(url);
-      } else {
-        const email = window.prompt('Enter your email for the PDF receipt:');
-        if (!email) { setDownloadingPdf(false); return; }
-        const resp = await fetch('/api/create-download-checkout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageDataUrl: hiResDataUrl, shape, sizeInches: sizeW, customW, customH, email }),
-        });
-        const { url } = await resp.json();
-        window.location.href = url;
-      }
+      const resp = await fetch('/api/generate-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageDataUrl: hiResDataUrl, shape, sizeInches: sizeW, customW, customH, paymentVerified: false }),
+      });
+      if (!resp.ok) throw new Error('PDF generation failed');
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `edibleprint-${shape}-${Date.now()}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
     } catch (e) {
       console.error(e);
       alert('Error generating PDF. Please try again.');
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
+  const handleDownloadPdfAsCustomer = async () => {
+    const hiResDataUrl = hiResCrop;
+    if (!hiResDataUrl || !customerEmail.includes('@')) return;
+    setShowEmailModal(false);
+    setDownloadingPdf(true);
+    try {
+      const sizeW = selectedSize?.w || parseFloat(customW) || 8;
+      const resp = await fetch('/api/create-download-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageDataUrl: hiResDataUrl, shape, sizeInches: sizeW, customW, customH, email: customerEmail }),
+      });
+      const { url } = await resp.json();
+      window.location.href = url;
+    } catch (e) {
+      console.error(e);
+      alert('Error creating checkout. Please try again.');
     } finally {
       setDownloadingPdf(false);
     }
@@ -2365,7 +2390,7 @@ export default function EdiblePrintApp() {
                   borderRadius: 8,
                 }}>
                   <button
-                    onClick={handleDownloadPdf}
+                    onClick={isAdmin ? handleDownloadPdfAsAdmin : () => setShowEmailModal(true)}
                     disabled={!hiResCrop || downloadingPdf}
                     style={{
                       width: '100%', padding: '10px 14px',
@@ -2831,6 +2856,57 @@ export default function EdiblePrintApp() {
           </div>
         )}
       </div>
+
+      {/* ── Email modal for paid PDF download ── */}
+      {showEmailModal && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          background: 'rgba(0,0,0,0.45)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 16,
+        }} onClick={() => setShowEmailModal(false)}>
+          <div style={{
+            background: '#fff', borderRadius: 14, padding: '32px 28px',
+            maxWidth: 420, width: '100%', boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
+            fontFamily: "'Outfit', sans-serif",
+          }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ margin: '0 0 6px', fontSize: 20, color: C.brand }}>Download PDF</h2>
+            <p style={{ margin: '0 0 20px', fontSize: 13, color: C.muted }}>
+              Enter your email to receive your receipt and access your file after payment.
+            </p>
+            <input
+              type="email"
+              placeholder="your@email.com"
+              value={customerEmail}
+              onChange={e => setCustomerEmail(e.target.value)}
+              style={{
+                width: '100%', boxSizing: 'border-box',
+                padding: '10px 14px', borderRadius: 8,
+                border: '1.5px solid #D1D5DB', fontSize: 14,
+                marginBottom: 16, outline: 'none', fontFamily: "'Outfit', sans-serif",
+              }}
+            />
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={() => setShowEmailModal(false)}
+                style={{ ...btnSecondary, flex: 1 }}
+              >Cancel</button>
+              <button
+                onClick={() => { setShowEmailModal(false); handleDownloadPdfAsCustomer(); }}
+                disabled={!customerEmail.includes('@') || downloadingPdf}
+                style={{
+                  ...btnPrimary, flex: 2,
+                  background: '#E8873C',
+                  opacity: (!customerEmail.includes('@') || downloadingPdf) ? 0.5 : 1,
+                  cursor: (!customerEmail.includes('@') || downloadingPdf) ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {downloadingPdf ? 'Preparing…' : 'Continue to Stripe →'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
