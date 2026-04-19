@@ -222,6 +222,18 @@ function drawImageInCircle(ctx, img, originX, originY, diameter, layer) {
   ctx.restore();
 }
 
+function hexToGrayscale(hex) {
+  if (!hex || hex === 'transparent') return hex;
+  const clean = hex.replace('#', '');
+  const full = clean.length === 3 ? clean.split('').map(c => c + c).join('') : clean;
+  const r = parseInt(full.substring(0, 2), 16);
+  const g = parseInt(full.substring(2, 4), 16);
+  const b = parseInt(full.substring(4, 6), 16);
+  const gray = Math.round(0.2126 * r + 0.7152 * g + 0.0722 * b);
+  const gh = gray.toString(16).padStart(2, '0');
+  return `#${gh}${gh}${gh}`;
+}
+
 function computeCanvasSize(containerWidth, shape, sizeObj, viewportH = 800) {
   let aspectRatio;
   if (shape === 'circular' || shape === 'heart' || shape === 'square') {
@@ -556,8 +568,10 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       ctx.fillStyle = '#FFFFFF';
       ctx.fillRect(0, 0, canvasW, canvasH);
       if (bgColor && bgColor !== 'transparent') {
+        ctx.filter = 'grayscale(100%)';
         ctx.fillStyle = bgColor;
         ctx.fillRect(0, 0, canvasW, canvasH);
+        ctx.filter = 'none';
       }
       layers.forEach(layer => {
         const img = getImg(layer.id);
@@ -727,8 +741,10 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       hctx.rect(hrSqX, hrSqY, hrSquarePx, hrSquarePx);
       hctx.clip();
       if (bgColor && bgColor !== 'transparent') {
+        hctx.filter = 'grayscale(100%)';
         hctx.fillStyle = bgColor;
-        hctx.fillRect(hrSqX, hrSqY, hrSquarePx, hrSquarePx);
+        hctx.fillRect(0, 0, hiResW, hiResH);
+        hctx.filter = 'none';
       }
       layers.forEach(layer => {
         const img = getImg(layer.id);
