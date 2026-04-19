@@ -80,14 +80,23 @@ export default function TermsPage() {
         before ordering if you have dietary concerns.
       </p>
 
-      <h2 style={h2}>8. Cancellations and Refunds</h2>
+      <h2 style={h2}>8. Design Responsibility</h2>
+      <p style={p}>
+        EdiblePrint produces custom edible prints exactly as designed by the customer in the online editor.
+        Customers are solely responsible for the accuracy of their designs, including but not limited to text
+        spelling, image quality, color choices, sizing, and layout. By placing an order, customers acknowledge
+        they have reviewed the preview and accept the final design. No refunds or reprints will be issued for
+        errors originating from the customer's design choices.
+      </p>
+
+      <h2 style={h2}>9. Cancellations and Refunds</h2>
       <p style={p}>
         Because each order is custom-made, cancellations and refunds are governed by our{' '}
         <a href="/refund" style={{ color: C.brand }}>Refund Policy</a>.
         Please read it carefully before placing an order.
       </p>
 
-      <h2 style={h2}>9. Limitation of Liability</h2>
+      <h2 style={h2}>10. Limitation of Liability</h2>
       <p style={p}>
         To the maximum extent permitted by law, EdiblePrint and its owners, employees, and affiliates shall not
         be liable for any indirect, incidental, consequential, or punitive damages arising from your use of our
@@ -95,19 +104,19 @@ export default function TermsPage() {
         in question.
       </p>
 
-      <h2 style={h2}>10. Governing Law</h2>
+      <h2 style={h2}>11. Governing Law</h2>
       <p style={p}>
         These Terms are governed by the laws of the Province of Ontario and the federal laws of Canada applicable
         therein. Any disputes shall be resolved in the courts of Ontario.
       </p>
 
-      <h2 style={h2}>11. Changes to Terms</h2>
+      <h2 style={h2}>12. Changes to Terms</h2>
       <p style={p}>
         We may update these Terms at any time. Continued use of our services after changes means you accept
         the updated Terms.
       </p>
 
-      <h2 style={h2}>12. Contact</h2>
+      <h2 style={h2}>13. Contact</h2>
       <p style={{ ...p, margin: 0 }}>
         Questions about these Terms?<br />
         Email: <a href={`mailto:${EMAIL}`} style={{ color: C.brand }}>{EMAIL}</a><br />

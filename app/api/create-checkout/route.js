@@ -23,6 +23,7 @@ export async function POST(request) {
       customerName, customerEmail, customerPhone,
       shippingAddress, shippingCity, shippingProvince, shippingPostal,
       shippingMethod, shippingCost,
+      designConfirmed, designConfirmedAt,
       designs,
     } = body;
 
@@ -54,7 +55,7 @@ export async function POST(request) {
       designMeta['d' + i + '_size']     = String(d.size  || '').slice(0, 500);
       designMeta['d' + i + '_qty']      = String(d.quantity);
       designMeta['d' + i + '_price']    = String(d.unitPrice);
-      designMeta['d' + i + '_notes']    = String(d.notes || 'None').slice(0, 500);
+      designMeta['d' + i + '_notes']    = 'N/A';
       designMeta['d' + i + '_imageUrl'] = String(d.imageUrl || 'No image').slice(0, 500);
     });
 
@@ -92,6 +93,8 @@ export async function POST(request) {
         shippingPostal,
         shippingMethod,
         shippingCost: String(shippingCost || 0),
+        designConfirmed: String(designConfirmed || false),
+        designConfirmedAt: designConfirmedAt || '',
         ...designMeta,
       },
       success_url: (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000') + '/success?session_id={CHECKOUT_SESSION_ID}',

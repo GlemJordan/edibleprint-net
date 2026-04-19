@@ -1111,6 +1111,7 @@ export default function EdiblePrintApp() {
   const [pendingShape, setPendingShape] = useState(null);
   const [pendingSizeId, setPendingSizeId] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [acceptedDesign, setAcceptedDesign] = useState(false);
   const [form, setForm] = useState({
     name: '', email: '', phone: '', address: '', unit: '', city: '', province: 'Ontario', postal: ''
   });
@@ -1332,21 +1333,18 @@ export default function EdiblePrintApp() {
   /* ── Accordion state for Step 2 ── */
   const [accordionBg, setAccordionBg] = useState(true);
   const [accordionText, setAccordionText] = useState(true);
-  const [accordionNotes, setAccordionNotes] = useState(true);
   const accordionInited = useRef(false);
   useEffect(() => {
     if (isMobile && !accordionInited.current) {
       accordionInited.current = true;
       setAccordionBg(false);
       setAccordionText(false);
-      setAccordionNotes(false);
     }
   }, [isMobile]);
   const toggleAccordion = (name) => {
     const nb = name === 'bg' ? !accordionBg : (isMobile ? false : accordionBg);
     const nt = name === 'text' ? !accordionText : (isMobile ? false : accordionText);
-    const nn = name === 'notes' ? !accordionNotes : (isMobile ? false : accordionNotes);
-    setAccordionBg(nb); setAccordionText(nt); setAccordionNotes(nn);
+    setAccordionBg(nb); setAccordionText(nt);
   };
 
   const [cutoffMsg, setCutoffMsg] = useState(null);
@@ -1422,6 +1420,8 @@ export default function EdiblePrintApp() {
           shippingPostal: form.postal,
           shippingMethod: shipping,
           shippingCost: shippingCost,
+          designConfirmed: acceptedDesign,
+          designConfirmedAt: new Date().toISOString(),
           designs: uploadedDesigns.map(d => {
             const dSizes = SIZES[d.shape] || [];
             const dSel = dSizes.find(sz => sz.id === d.sizeId) || dSizes[0];
@@ -1433,7 +1433,6 @@ export default function EdiblePrintApp() {
               size: d.shape === 'custom' ? d.customW + '"x' + d.customH + '"' : (dSel?.label || ''),
               quantity: d.qty,
               unitPrice: dPrice,
-              notes: d.notes || '',
               imageUrl: d.uploadedImageUrl || '',
             };
           }),
@@ -2261,22 +2260,19 @@ export default function EdiblePrintApp() {
                   )}
                 </div>
 
-                {/* ── ACCORDION: Special Instructions ── */}
-                <div style={{ borderTop: '1px solid ' + C.border, borderBottom: '1px solid ' + C.border, marginBottom: 22 }}>
-                  <button
-                    onClick={() => toggleAccordion('notes')}
-                    aria-expanded={accordionNotes}
-                    style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      background: 'none', border: 'none', cursor: 'pointer', padding: '12px 0',
-                      fontWeight: 600, fontSize: 14, fontFamily: "'Outfit', sans-serif", color: C.text }}>
-                    📝 Special Instructions <span style={{ fontWeight: 400, color: C.muted, fontSize: 13 }}>(optional)</span>
-                    <span style={{ transition: 'transform 0.2s', transform: accordionNotes ? 'rotate(180deg)' : 'none', fontSize: 12, color: C.muted }}>▼</span>
-                  </button>
-                  {accordionNotes && (
-                    <div style={{ paddingBottom: 16 }}>
-                      <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Adjust colors, add border, special requests..." rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
-                    </div>
-                  )}
+                {/* ── Design Responsibility Disclaimer ── */}
+                <div style={{
+                  background: '#FFF8E6', border: '1px solid #F4D06F',
+                  borderLeft: '4px solid #E8873C', borderRadius: 8,
+                  padding: '12px 14px', marginTop: 16, marginBottom: 16,
+                  fontSize: 12.5, lineHeight: 1.5, color: '#5C4A1A',
+                }}>
+                  <div style={{ fontWeight: 700, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    ⚠️ Design Responsibility
+                  </div>
+                  <div>
+                    You are responsible for the design choices you make here — image quality, text, colors, positioning and spelling. Your edible print will be produced <strong>exactly as shown in the preview</strong>. Please review your design carefully before placing the order.
+                  </div>
                 </div>
 
                 {/* Order summary — inside right column so sticky persists to the end */}
@@ -2433,10 +2429,43 @@ export default function EdiblePrintApp() {
                 </div>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 12, marginTop: 26 }}>
+            {/* ── Design Confirmation Checkbox ── */}
+            <div style={{
+              background: '#FFF8E6', border: '1px solid #F4D06F',
+              borderLeft: '4px solid #E8873C', borderRadius: 8,
+              padding: '14px 16px', marginTop: 20, marginBottom: 16,
+              fontSize: 13, lineHeight: 1.55, color: '#5C4A1A',
+            }}>
+              <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 14 }}>⚠️ Design Confirmation Required</div>
+              <div style={{ marginBottom: 12 }}>
+                By placing this order, I confirm that I have reviewed my design in the preview and take full responsibility for:
+                <ul style={{ margin: '8px 0 0 18px', paddingLeft: 0 }}>
+                  <li>Image quality and resolution</li>
+                  <li>Text spelling, grammar, and content</li>
+                  <li>Colors, positioning, and sizing choices</li>
+                  <li>Any design elements added (backgrounds, text, etc.)</li>
+                </ul>
+                <div style={{ marginTop: 8 }}>
+                  I understand my edible print will be produced <strong>exactly as shown in the preview</strong>, and <strong>no refunds or reprints</strong> will be issued due to design errors I made.
+                </div>
+              </div>
+              <label style={{
+                display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer',
+                padding: '10px 12px', background: 'white', borderRadius: 6,
+                border: '2px solid ' + (acceptedDesign ? C.brand : '#F4D06F'), marginTop: 6,
+              }}>
+                <input type="checkbox" checked={acceptedDesign}
+                  onChange={(e) => setAcceptedDesign(e.target.checked)}
+                  style={{ marginTop: 3, width: 18, height: 18, cursor: 'pointer', accentColor: C.brand }} />
+                <span style={{ fontSize: 13, color: C.text, fontWeight: 500 }}>
+                  I have reviewed my design and accept responsibility for all design choices. I understand my order will be printed as shown in the preview.
+                </span>
+              </label>
+            </div>
+            <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
               <button onClick={() => setStep(2)} style={{ ...btnSecondary, flex: 1 }}>← Back</button>
-              <button onClick={handlePlaceOrder} disabled={loading}
-                style={{ ...btnPrimary, flex: 2, opacity: loading ? 0.7 : 1 }}>
+              <button onClick={handlePlaceOrder} disabled={loading || !acceptedDesign}
+                style={{ ...btnPrimary, flex: 2, opacity: (loading || !acceptedDesign) ? 0.5 : 1, cursor: (loading || !acceptedDesign) ? 'not-allowed' : 'pointer' }}>
                 {loading ? 'Redirecting to payment...' : 'Place Order →'}
               </button>
             </div>

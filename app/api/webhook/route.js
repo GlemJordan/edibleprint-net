@@ -190,6 +190,7 @@ async function processOrder(session, orderId) {
     + '<h3 style="color:#1B6B4A;margin-top:20px;">Customer Images</h3>'
     + designs.map(buildImageBlockOwner).join('')
     + '<hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0;" />'
+    + (meta.designConfirmed === 'true' ? '<p style="font-size:13px;color:#059669;background:#ECFDF5;padding:8px 12px;border-radius:6px;">✓ Design responsibility accepted by customer at: ' + (meta.designConfirmedAt || 'unknown time') + '</p>' : '<p style="font-size:13px;color:#DC2626;background:#FEF2F2;padding:8px 12px;border-radius:6px;">⚠️ Design confirmation not recorded.</p>')
     + '<p style="font-size:13px;color:#6b7280;"><a href="https://dashboard.stripe.com/payments/' + session.payment_intent + '">View in Stripe Dashboard</a>'
     + ' &nbsp;|&nbsp; <a href="' + savedRecord.assets.cloudinaryFolder + '">Cloudinary Folder</a></p>'
     + '</div></div>';
