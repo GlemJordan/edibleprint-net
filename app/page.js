@@ -1517,6 +1517,15 @@ export default function EdiblePrintApp() {
   }, []);
 
   const [removeWhiteBg, setRemoveWhiteBg] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/admin/check')
+      .then(r => r.json())
+      .then(d => setIsAdmin(d.isAdmin))
+      .catch(() => setIsAdmin(false));
+  }, []);
   const [bgRemoveTolerance, setBgRemoveTolerance] = useState(30);
 
   /* ── Accordion state for Step 2 ── */
@@ -1569,6 +1578,52 @@ export default function EdiblePrintApp() {
       setForm((prev) => ({ ...prev, address: raw.replace(unitPattern, '').trim(), unit: match[1].trim() }));
     } else {
       updateForm('address', raw);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    const hiResDataUrl = hiResCrop;
+    if (!hiResDataUrl) { alert('No image to download. Please upload and adjust your image first.'); return; }
+    setDownloadingPdf(true);
+    try {
+      const sizeW = selectedSize?.w || parseFloat(customW) || 8;
+      if (isAdmin) {
+        const resp = await fetch('/api/generate-pdf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imageDataUrl: hiResDataUrl,
+            shape,
+            sizeInches: sizeW,
+            customW,
+            customH,
+            paymentVerified: false,
+          }),
+        });
+        if (!resp.ok) throw new Error('PDF generation failed');
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `edibleprint-${shape}-${Date.now()}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        const email = window.prompt('Enter your email for the PDF receipt:');
+        if (!email) { setDownloadingPdf(false); return; }
+        const resp = await fetch('/api/create-download-checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageDataUrl: hiResDataUrl, shape, sizeInches: sizeW, customW, customH, email }),
+        });
+        const { url } = await resp.json();
+        window.location.href = url;
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Error generating PDF. Please try again.');
+    } finally {
+      setDownloadingPdf(false);
     }
   };
 
@@ -2267,6 +2322,37 @@ export default function EdiblePrintApp() {
                   sizeLabel={sizeLabel}
                   isMobile={isMobile}
                 />
+
+                {/* ── Download PDF button ── */}
+                <div style={{
+                  marginTop: 12, width: '100%',
+                  padding: '10px 12px',
+                  background: isAdmin ? '#E8F5EE' : '#FFF8E6',
+                  border: '1px solid ' + (isAdmin ? C.brand : '#F4D06F'),
+                  borderRadius: 8,
+                }}>
+                  <button
+                    onClick={handleDownloadPdf}
+                    disabled={!hiResCrop || downloadingPdf}
+                    style={{
+                      width: '100%', padding: '10px 14px',
+                      background: isAdmin ? C.brand : '#E8873C',
+                      color: 'white', border: 'none', borderRadius: 6,
+                      cursor: hiResCrop && !downloadingPdf ? 'pointer' : 'not-allowed',
+                      opacity: hiResCrop && !downloadingPdf ? 1 : 0.5,
+                      fontWeight: 600, fontSize: 13, fontFamily: "'Outfit', sans-serif",
+                    }}
+                  >
+                    {downloadingPdf
+                      ? 'Generating PDF…'
+                      : isAdmin
+                        ? '⬇ Download PDF (Admin · Free)'
+                        : '⬇ Download as PDF — $3.99'}
+                  </button>
+                  <div style={{ fontSize: 10.5, color: C.muted, textAlign: 'center', marginTop: 6 }}>
+                    A4 sheet · {shape} {selectedSize?.label || (customW && customH ? `${customW}" × ${customH}"` : '')}
+                  </div>
+                </div>
               </div>
 
               {/* ── RIGHT: 40% controls ── */}
