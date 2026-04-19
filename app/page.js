@@ -1027,25 +1027,30 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
   };
 
   return (
-    <div ref={containerRef} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, width: '100%' }}>
-      {/* Add image + delete selected */}
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', width: '100%', maxWidth: canvasW }}>
-        <button onClick={() => addLayerFileRef.current?.click()}
-          style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1.5px dashed ' + C.brand,
-            background: C.brandLight, color: C.brand, cursor: 'pointer', fontSize: 13, fontWeight: 600,
-            fontFamily: "'Outfit', sans-serif" }}>
-          + Add Image
-        </button>
-        {layers.length > 1 && effectiveSelectedId && (
-          <button onClick={() => deleteLayer(effectiveSelectedId)} title="Delete selected layer"
-            style={{ padding: '8px 10px', borderRadius: 8, border: '1.5px solid #EF4444',
-              background: '#FEF2F2', color: '#EF4444', cursor: 'pointer', fontSize: 14 }}>
-            🗑
+    <div ref={containerRef} style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
+
+      {/* Compact header: label + add/delete buttons */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: C.text, fontFamily: "'Outfit', sans-serif" }}>Adjust Your Image</span>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <button onClick={() => addLayerFileRef.current?.click()}
+            style={{ fontSize: 11, padding: '5px 10px', background: C.brandLight, color: C.brand,
+              border: '1px solid ' + C.brand, borderRadius: 6, cursor: 'pointer', fontWeight: 600,
+              fontFamily: "'Outfit', sans-serif" }}>
+            + Add Image
           </button>
-        )}
-        <input ref={addLayerFileRef} type="file" accept="image/*" onChange={handleAddLayerFile} style={{ display: 'none' }} />
+          {layers.length > 1 && effectiveSelectedId && (
+            <button onClick={() => deleteLayer(effectiveSelectedId)} title="Delete selected layer"
+              style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid #EF4444',
+                background: '#FEF2F2', color: '#EF4444', cursor: 'pointer', fontSize: 12 }}>
+              🗑
+            </button>
+          )}
+          <input ref={addLayerFileRef} type="file" accept="image/*" onChange={handleAddLayerFile} style={{ display: 'none' }} />
+        </div>
       </div>
 
+      {/* Canvas */}
       <div style={{ position: 'relative', background: '#F5F5F5', borderRadius: 12, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box' }}>
         <canvas ref={canvasRef} width={canvasW} height={canvasH}
           onPointerDown={handlePointerDown} onPointerMove={handlePointerMove}
@@ -1066,89 +1071,116 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
           </div>
         )}
       </div>
-      {/* Hidden hi-res canvas */}
       <canvas ref={hiResCanvasRef} style={{ display: 'none' }} />
 
-      {/* Zoom */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', maxWidth: canvasW }}>
-        <span style={{ fontSize: 18, color: C.muted, fontWeight: 700 }}>-</span>
-        <input type="range" min={minScale} max={maxScale} step={0.001} value={currentScale}
-          onChange={(e) => {
-            const newScale = parseFloat(e.target.value);
-            if (!effectiveSelectedId || !selectedLayer) return;
-            const ratio = newScale / (selectedLayer.scale || newScale);
-            const cx = canvasW / 2;
-            const cy = canvasH / 2;
-            updateSelectedLayer({
-              scale: newScale,
-              x: cx - ratio * (cx - selectedLayer.x),
-              y: cy - ratio * (cy - selectedLayer.y),
-            });
-          }}
-          disabled={!effectiveSelectedId}
-          style={{ flex: 1, accentColor: C.brand }} />
-        <span style={{ fontSize: 18, color: C.muted, fontWeight: 700 }}>+</span>
+      {/* Compact zoom + rotation panel */}
+      <div style={{ padding: '10px 12px', background: C.white, borderRadius: 8, border: '1px solid ' + C.border }}>
+        {/* Zoom row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
+          <button
+            onClick={() => {
+              if (!effectiveSelectedId || !selectedLayer) return;
+              const newScale = Math.max(minScale, currentScale - (maxScale - minScale) / 10);
+              const ratio = newScale / (selectedLayer.scale || newScale);
+              const cx = canvasW / 2, cy = canvasH / 2;
+              updateSelectedLayer({ scale: newScale, x: cx - ratio * (cx - selectedLayer.x), y: cy - ratio * (cy - selectedLayer.y) });
+            }}
+            disabled={!effectiveSelectedId}
+            style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid ' + C.border, background: C.white,
+              cursor: effectiveSelectedId ? 'pointer' : 'default', fontSize: 15, fontWeight: 700,
+              color: C.text, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              opacity: effectiveSelectedId ? 1 : 0.4, fontFamily: "'Outfit', sans-serif" }}>−</button>
+          <input type="range" min={minScale} max={maxScale} step={0.001} value={currentScale}
+            onChange={(e) => {
+              const newScale = parseFloat(e.target.value);
+              if (!effectiveSelectedId || !selectedLayer) return;
+              const ratio = newScale / (selectedLayer.scale || newScale);
+              const cx = canvasW / 2, cy = canvasH / 2;
+              updateSelectedLayer({ scale: newScale, x: cx - ratio * (cx - selectedLayer.x), y: cy - ratio * (cy - selectedLayer.y) });
+            }}
+            disabled={!effectiveSelectedId}
+            style={{ flex: 1, accentColor: C.brand, cursor: effectiveSelectedId ? 'pointer' : 'default' }} />
+          <button
+            onClick={() => {
+              if (!effectiveSelectedId || !selectedLayer) return;
+              const newScale = Math.min(maxScale, currentScale + (maxScale - minScale) / 10);
+              const ratio = newScale / (selectedLayer.scale || newScale);
+              const cx = canvasW / 2, cy = canvasH / 2;
+              updateSelectedLayer({ scale: newScale, x: cx - ratio * (cx - selectedLayer.x), y: cy - ratio * (cy - selectedLayer.y) });
+            }}
+            disabled={!effectiveSelectedId}
+            style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid ' + C.border, background: C.white,
+              cursor: effectiveSelectedId ? 'pointer' : 'default', fontSize: 15, fontWeight: 700,
+              color: C.text, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              opacity: effectiveSelectedId ? 1 : 0.4, fontFamily: "'Outfit', sans-serif" }}>+</button>
+          <span style={{ fontSize: 10.5, color: C.muted, minWidth: 36, textAlign: 'right', fontWeight: 600, fontFamily: "'Outfit', sans-serif" }}>
+            {Math.round(currentScale * 100)}%
+          </span>
+        </div>
+        {/* Rotation row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 10, color: C.muted, minWidth: 28, textAlign: 'right', fontFamily: "'Outfit', sans-serif" }}>−180°</span>
+          <input type="range" min={-180} max={180} step={1} value={currentRotation}
+            onChange={(e) => updateSelectedLayer({ rotation: parseInt(e.target.value) })}
+            disabled={!effectiveSelectedId}
+            style={{ flex: 1, accentColor: C.brand, cursor: effectiveSelectedId ? 'pointer' : 'default' }} />
+          <span style={{ fontSize: 10, color: C.muted, minWidth: 28, fontFamily: "'Outfit', sans-serif" }}>+180°</span>
+          <span style={{ fontSize: 10.5, color: C.muted, minWidth: 36, textAlign: 'right', fontWeight: 600, fontFamily: "'Outfit', sans-serif" }}>
+            {currentRotation}°
+          </span>
+          {currentRotation !== 0 && (
+            <button onClick={() => updateSelectedLayer({ rotation: 0 })}
+              style={{ fontSize: 10, color: C.brand, background: 'none', border: '1px solid ' + C.brand,
+                borderRadius: 5, padding: '2px 6px', cursor: 'pointer', whiteSpace: 'nowrap',
+                fontFamily: "'Outfit', sans-serif" }}>↺ Reset</button>
+          )}
+        </div>
       </div>
-      <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>
-        {layers.length > 1 ? 'Click layer to select · Drag to reposition · Pinch or slider to zoom' : 'Drag to reposition · Pinch or slider to zoom'}
+
+      {/* Help text */}
+      <p style={{ fontSize: 10.5, color: C.muted, textAlign: 'center', margin: 0, fontStyle: 'italic' }}>
+        {layers.length > 1 ? 'Click layer to select · Drag to reposition' : 'Drag to reposition'}
       </p>
 
-      {/* Rotation */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', maxWidth: canvasW }}>
-        <button onClick={() => updateSelectedLayer({ rotation: Math.max(-180, currentRotation - 90) })}
-          disabled={!effectiveSelectedId}
-          style={{ fontSize: 12, padding: '4px 8px', borderRadius: 7, border: '1.5px solid ' + C.border, background: C.white, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: "'Outfit', sans-serif" }}>↺ -90°</button>
-        <input type="range" min={-180} max={180} step={1} value={currentRotation}
-          onChange={(e) => updateSelectedLayer({ rotation: parseInt(e.target.value) })}
-          disabled={!effectiveSelectedId}
-          style={{ flex: 1, accentColor: C.brand }} />
-        <button onClick={() => updateSelectedLayer({ rotation: Math.min(180, currentRotation + 90) })}
-          disabled={!effectiveSelectedId}
-          style={{ fontSize: 12, padding: '4px 8px', borderRadius: 7, border: '1.5px solid ' + C.border, background: C.white, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: "'Outfit', sans-serif" }}>↻ +90°</button>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>Rotation: {currentRotation}°</p>
-        {currentRotation !== 0 && (
-          <button onClick={() => updateSelectedLayer({ rotation: 0 })}
-            style={{ fontSize: 11, color: C.brand, background: 'none', border: '1px solid ' + C.brand, borderRadius: 6, padding: '2px 8px', cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>Reset</button>
-        )}
-      </div>
-
-      {/* Layer list */}
+      {/* Layers — collapsible */}
       {layers.length > 0 && (
-        <div style={{ width: '100%', maxWidth: canvasW }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>
-            Layers ({layers.length}) — top to bottom
+        <details style={{ width: '100%' }}>
+          <summary style={{ fontSize: 11, fontWeight: 600, color: C.muted, cursor: 'pointer',
+            padding: '4px 0', fontFamily: "'Outfit', sans-serif", listStyle: 'none',
+            display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span>▸</span> Layers ({layers.length})
+          </summary>
+          <div style={{ marginTop: 6 }}>
+            {[...layers].reverse().map((layer, revIdx) => {
+              const realIdx = layers.length - 1 - revIdx;
+              const isSelected = layer.id === effectiveSelectedId;
+              return (
+                <div key={layer.id} onClick={() => setSelectedLayerId(layer.id)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', cursor: 'pointer',
+                    background: isSelected ? C.brandLight : C.white,
+                    border: '1px solid ' + (isSelected ? C.brand : C.border),
+                    borderRadius: 8, marginBottom: 4 }}>
+                  <img src={layer.src} alt="" style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />
+                  <span style={{ flex: 1, fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    color: isSelected ? C.brand : C.text, fontWeight: isSelected ? 600 : 400 }}>{layer.name}</span>
+                  <button onClick={(ev) => { ev.stopPropagation(); moveLayerUp(layer.id); }} title="Move up"
+                    disabled={realIdx >= layers.length - 1}
+                    style={{ fontSize: 11, padding: '2px 5px', borderRadius: 5, border: '1px solid ' + C.border,
+                      background: C.white, cursor: realIdx >= layers.length - 1 ? 'default' : 'pointer',
+                      opacity: realIdx >= layers.length - 1 ? 0.3 : 1, fontFamily: "'Outfit', sans-serif" }}>↑</button>
+                  <button onClick={(ev) => { ev.stopPropagation(); moveLayerDown(layer.id); }} title="Move down"
+                    disabled={realIdx <= 0}
+                    style={{ fontSize: 11, padding: '2px 5px', borderRadius: 5, border: '1px solid ' + C.border,
+                      background: C.white, cursor: realIdx <= 0 ? 'default' : 'pointer',
+                      opacity: realIdx <= 0 ? 0.3 : 1, fontFamily: "'Outfit', sans-serif" }}>↓</button>
+                  <button onClick={(ev) => { ev.stopPropagation(); deleteLayer(layer.id); }} title="Delete layer"
+                    style={{ fontSize: 11, padding: '2px 5px', borderRadius: 5, border: '1px solid #EF4444',
+                      background: '#FEF2F2', color: '#EF4444', cursor: 'pointer' }}>🗑</button>
+                </div>
+              );
+            })}
           </div>
-          {[...layers].reverse().map((layer, revIdx) => {
-            const realIdx = layers.length - 1 - revIdx;
-            const isSelected = layer.id === effectiveSelectedId;
-            return (
-              <div key={layer.id} onClick={() => setSelectedLayerId(layer.id)}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', cursor: 'pointer',
-                  background: isSelected ? C.brandLight : C.white,
-                  border: '1px solid ' + (isSelected ? C.brand : C.border),
-                  borderRadius: 8, marginBottom: 4 }}>
-                <img src={layer.src} alt="" style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />
-                <span style={{ flex: 1, fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  color: isSelected ? C.brand : C.text, fontWeight: isSelected ? 600 : 400 }}>{layer.name}</span>
-                <button onClick={(ev) => { ev.stopPropagation(); moveLayerUp(layer.id); }} title="Move up (higher z-index)"
-                  disabled={realIdx >= layers.length - 1}
-                  style={{ fontSize: 11, padding: '2px 5px', borderRadius: 5, border: '1px solid ' + C.border,
-                    background: C.white, cursor: realIdx >= layers.length - 1 ? 'default' : 'pointer',
-                    opacity: realIdx >= layers.length - 1 ? 0.3 : 1, fontFamily: "'Outfit', sans-serif" }}>↑</button>
-                <button onClick={(ev) => { ev.stopPropagation(); moveLayerDown(layer.id); }} title="Move down (lower z-index)"
-                  disabled={realIdx <= 0}
-                  style={{ fontSize: 11, padding: '2px 5px', borderRadius: 5, border: '1px solid ' + C.border,
-                    background: C.white, cursor: realIdx <= 0 ? 'default' : 'pointer',
-                    opacity: realIdx <= 0 ? 0.3 : 1, fontFamily: "'Outfit', sans-serif" }}>↓</button>
-                <button onClick={(ev) => { ev.stopPropagation(); deleteLayer(layer.id); }} title="Delete layer"
-                  style={{ fontSize: 11, padding: '2px 5px', borderRadius: 5, border: '1px solid #EF4444',
-                    background: '#FEF2F2', color: '#EF4444', cursor: 'pointer' }}>🗑</button>
-              </div>
-            );
-          })}
-        </div>
+        </details>
       )}
 
       <p style={{ fontSize: 11, color: '#bbb', margin: 0 }}>Print output: {hiResW}×{hiResH}px ({DPI} DPI)</p>
@@ -2220,7 +2252,6 @@ export default function EdiblePrintApp() {
                     ℹ️ B&W Sheet prints in grayscale for $9.99 — perfect for text, logos, and portraits.
                   </div>
                 )}
-                <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 10, alignSelf: 'flex-start' }}>Adjust Your Image</label>
                 <ImageEditor
                   layers={layers}
                   onLayersChange={setLayers}
