@@ -1,7 +1,11 @@
 import Stripe from 'stripe';
 import { NextResponse } from 'next/server';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const isTest = process.env.STRIPE_MODE === 'test';
+const stripeKey = isTest
+  ? (process.env.STRIPE_SECRET_KEY_TEST || process.env.STRIPE_SECRET_KEY)
+  : (process.env.STRIPE_SECRET_KEY_LIVE || process.env.STRIPE_SECRET_KEY);
+const stripe = new Stripe(stripeKey);
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
