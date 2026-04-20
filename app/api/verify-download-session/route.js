@@ -26,6 +26,7 @@ export async function GET(request) {
         customW: parseFloat(session.metadata.customW) || null,
         customH: parseFloat(session.metadata.customH) || null,
         cloudinaryUrl: session.metadata.cloudinaryUrl,
+        customerEmail: session.customer_email || session.customer_details?.email || null,
       });
     }
 

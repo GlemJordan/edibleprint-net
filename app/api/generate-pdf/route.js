@@ -2,10 +2,11 @@ import { PDFDocument, rgb } from 'pdf-lib';
 import { NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
+import { Resend } from 'resend';
 
 export async function POST(request) {
   const body = await request.json();
-  const { imageDataUrl, shape, sizeInches, customW, customH, paymentVerified } = body;
+  const { imageDataUrl, shape, sizeInches, customW, customH, paymentVerified, customerEmail } = body;
 
   // Verify auth: admin cookie OR payment verified flag
   const cookieStore = await cookies();
@@ -81,6 +82,50 @@ export async function POST(request) {
   });
 
   const pdfBytes = await pdfDoc.save();
+
+  // Send PDF as email attachment to paying customer (never to admin)
+  if (customerEmail && !isAdmin && process.env.RESEND_API_KEY) {
+    try {
+      const resend = new Resend(process.env.RESEND_API_KEY);
+      const pdfBase64 = Buffer.from(pdfBytes).toString('base64');
+      const sizeLabel = shape === 'custom'
+        ? `${customW}" × ${customH}"`
+        : sizeInches ? `${sizeInches}"` : '';
+
+      const emailResult = await resend.emails.send({
+        from: 'EdiblePrint.net <onboarding@resend.dev>',
+        to: customerEmail,
+        subject: 'Your EdiblePrint PDF download',
+        html: `
+          <div style="font-family: sans-serif; max-width: 540px; padding: 24px;">
+            <h2 style="color: #1B6B4A; margin-top: 0;">Your PDF is ready</h2>
+            <p>Thank you for your purchase. Attached is your custom edible print design as a print-ready PDF in A4 format.</p>
+            <div style="background: #F5F5F5; padding: 14px 18px; border-radius: 8px; margin: 18px 0; font-size: 14px;">
+              <strong>Order details:</strong><br>
+              Shape: ${shape}${sizeLabel ? `<br>Size: ${sizeLabel}` : ''}
+            </div>
+            <p style="font-size: 13px; color: #666;">
+              <strong>How to print:</strong> Open the attached PDF and print at 100% scale (no fit-to-page) on edible icing sheets using a food-safe printer.
+            </p>
+            <p style="font-size: 12px; color: #888; margin-top: 24px;">
+              Need help? Reply to this email.<br>
+              EdiblePrint · London, Ontario
+            </p>
+          </div>
+        `,
+        attachments: [
+          {
+            filename: `edibleprint-${shape}-${Date.now()}.pdf`,
+            content: pdfBase64,
+          },
+        ],
+      });
+      console.log('[GENERATE-PDF] Email sent to customer:', JSON.stringify(emailResult));
+    } catch (emailError) {
+      // Don't fail the download if email fails — just log it
+      console.error('[GENERATE-PDF] Email send failed:', emailError);
+    }
+  }
 
   return new NextResponse(pdfBytes, {
     status: 200,

@@ -47,6 +47,7 @@ function DownloadPdfContent() {
             customW: verified.customW,
             customH: verified.customH,
             paymentVerified: true,
+            customerEmail: verified.customerEmail,
           }),
         });
 
