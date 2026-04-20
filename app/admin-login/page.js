@@ -26,11 +26,17 @@ function AdminLoginContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       });
-      if (!resp.ok) throw new Error('Request failed');
-      setStatus('sent');
-    } catch {
+      const data = await resp.json();
+      if (data.ok) {
+        setStatus('sent');
+      } else {
+        setStatus('error');
+        const detail = data.details ? JSON.stringify(data.details) : data.message || 'check server logs';
+        setErrorMsg(`Error: ${data.error || 'Unknown'} — ${detail}`);
+      }
+    } catch (e) {
       setStatus('error');
-      setErrorMsg('Something went wrong. Please try again.');
+      setErrorMsg(`Network error: ${e.message}`);
     }
   }
 
