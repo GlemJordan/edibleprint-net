@@ -2,8 +2,8 @@ import GoogleAnalytics from './_components/analytics/GoogleAnalytics';
 import MetaPixel from './_components/analytics/MetaPixel';
 
 export const metadata = {
-  title: 'EdiblePrint.net — Custom Edible Image Printing | London ON & Canada-Wide',
-  description: 'Upload your photo, logo or design. We print it on premium edible icing sheets with food-safe inks. Same-day local delivery in London, Ontario. Shipped across Canada. Perfect for cakes, cookies, cupcakes and custom cake toppers.',
+  title: 'Custom Edible Image Printing Canada | EdiblePrint.net',
+  description: 'Order custom edible image prints for cakes, cookies and cupcakes. Upload your photo online with fast shipping across Canada and same-day delivery in London, Ontario.',
   keywords: 'edible print, edible image, cake topper, custom edible printing, edible paper, Canada, icing sheet, London Ontario, edible cake topper, custom cookie printing, edible photo',
   openGraph: {
     title: 'EdiblePrint.net — Your Image, Printed on Edible Sheets',
