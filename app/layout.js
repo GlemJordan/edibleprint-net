@@ -58,6 +58,7 @@ export default function RootLayout({ children }) {
           async
           defer
         />
+        <meta name="google-site-verification" content="AmSzZHbyuZyRnNgw40UuHd2n93tzrQoCU-3MV2yuWls" />
       </head>
       <body>
         <GoogleAnalytics />
