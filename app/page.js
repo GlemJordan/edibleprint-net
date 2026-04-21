@@ -264,14 +264,14 @@ function computeCanvasSize(containerWidth, shape, sizeObj, viewportH = 800) {
 
 function drawWatermark(ctx, canvasW, canvasH) {
   ctx.save();
-  ctx.fillStyle = 'rgba(120, 120, 120, 0.22)';
-  ctx.font = 'bold 22px sans-serif';
+  ctx.fillStyle = 'rgba(120, 120, 120, 0.13)';
+  ctx.font = 'bold 18px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.translate(canvasW / 2, canvasH / 2);
   ctx.rotate(-Math.PI / 6);
   const text = 'EDIBLEPRINT.NET';
-  const spacing = 80;
+  const spacing = 100;
   const reps = Math.ceil(Math.max(canvasW, canvasH) / spacing) + 2;
   for (let i = -reps; i <= reps; i++) {
     ctx.fillText(text, 0, i * spacing);
@@ -1125,6 +1125,16 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
         )}
       </div>
       <canvas ref={hiResCanvasRef} style={{ display: 'none' }} />
+      <div style={{
+        fontSize: 10.5,
+        color: C.muted,
+        textAlign: 'center',
+        marginTop: 8,
+        fontStyle: 'italic',
+        letterSpacing: 0.2,
+      }}>
+        Watermark shown only in preview — removed from final product
+      </div>
 
       {/* Compact zoom + rotation panel */}
       <div style={{ padding: '10px 12px', background: C.white, borderRadius: 8, border: '1px solid ' + C.border }}>
@@ -1770,7 +1780,7 @@ export default function EdiblePrintApp() {
           background: 'linear-gradient(180deg, #E8F5EE 0%, #FAFBF9 100%)', borderRadius: '0 0 40px 40px' }}>
           <div style={{ display: 'inline-block', background: 'rgba(27,107,74,0.12)', color: C.brand,
             borderRadius: 24, padding: '7px 18px', fontSize: 13, fontWeight: 600, marginBottom: 22 }}>
-            🇨🇦 Free Standard Shipping on Orders Over $50
+            🇨🇦 Free Local Pickup · Same-Day London Delivery · Canada-Wide Shipping
           </div>
           <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 'clamp(36px, 7vw, 62px)',
             lineHeight: 1.08, margin: '0 0 20px', fontWeight: 700, letterSpacing: -1 }}>
@@ -1869,7 +1879,7 @@ export default function EdiblePrintApp() {
           <p style={{ color: C.muted, marginBottom: 8, fontSize: 15 }}>Premium edible paper + food-safe inks included in every order.</p>
           <p style={{ fontSize: 22, fontWeight: 700, color: C.brand, marginBottom: 28 }}>Starting at <strong>$14.99</strong></p>
           {/* Category tabs */}
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 28 }}>
+          <div style={{ display: 'flex', gap: 0, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 28, borderBottom: '2px solid ' + C.border }}>
             {[
               { key: 'circular', label: 'Round' },
               { key: 'heart', label: 'Heart' },
@@ -1879,11 +1889,12 @@ export default function EdiblePrintApp() {
               { key: 'bwsheet', label: 'B&W Sheet' },
             ].map(tab => (
               <button key={tab.key} onClick={() => setPricingTab(tab.key)} style={{
-                padding: '9px 20px', borderRadius: 24, fontSize: 14, fontWeight: 600, cursor: 'pointer',
-                fontFamily: "'Outfit', sans-serif", border: 'none', transition: 'all 0.2s',
-                background: pricingTab === tab.key ? C.brand : C.white,
-                color: pricingTab === tab.key ? '#fff' : C.muted,
-                boxShadow: pricingTab === tab.key ? '0 2px 10px rgba(27,107,74,0.25)' : '0 1px 4px rgba(0,0,0,0.08)',
+                padding: '10px 20px', fontSize: 14, cursor: 'pointer',
+                fontFamily: "'Outfit', sans-serif", background: 'transparent', transition: 'all 0.2s',
+                border: 'none', borderBottom: pricingTab === tab.key ? '2px solid ' + C.brand : '2px solid transparent',
+                marginBottom: -2,
+                fontWeight: pricingTab === tab.key ? 700 : 500,
+                color: pricingTab === tab.key ? C.brand : C.muted,
               }}>{tab.label}</button>
             ))}
           </div>
@@ -1924,7 +1935,7 @@ export default function EdiblePrintApp() {
                   {isBestValue && (
                     <div style={{ position: 'absolute', top: -11, left: '50%', transform: 'translateX(-50%)',
                       background: C.accent, color: '#fff', fontSize: 11, fontWeight: 700,
-                      borderRadius: 20, padding: '3px 10px', whiteSpace: 'nowrap' }}>BEST VALUE</div>
+                      borderRadius: 20, padding: '3px 10px', whiteSpace: 'nowrap' }}>ECONOMY</div>
                   )}
                   <div style={{ fontSize: 32, fontWeight: 700, color: C.brand, marginBottom: 4 }}>{'$' + sz.price.toFixed(2)}</div>
                   <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 6 }}>{sz.label}</div>
@@ -1935,7 +1946,96 @@ export default function EdiblePrintApp() {
               );
             })}
           </div>
-          <p style={{ fontSize: 13, color: '#bbb', marginTop: 20 }}>Custom sizes available · Shipping from $6.99 · HST calculated at checkout</p>
+          <p style={{ fontSize: 13, color: '#bbb', marginTop: 20 }}>Custom sizes available · Free local pickup · Shipping from $6.99 · HST calculated at checkout</p>
+        </section>
+
+        {/* ── PDF DOWNLOAD SECTION ── */}
+        <section style={{ padding: '56px 24px', maxWidth: 1080, margin: '0 auto' }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #E8F5EE 0%, #FFF8E6 100%)',
+            borderRadius: 20,
+            padding: '44px 36px',
+            textAlign: 'center',
+            position: 'relative',
+            overflow: 'hidden',
+          }}>
+            <div style={{
+              display: 'inline-block',
+              background: C.accent,
+              color: 'white',
+              fontSize: 11,
+              fontWeight: 700,
+              padding: '4px 12px',
+              borderRadius: 20,
+              letterSpacing: 0.5,
+              marginBottom: 16,
+            }}>
+              NEW · DIGITAL OPTION
+            </div>
+            <h2 style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: 36,
+              fontWeight: 700,
+              marginBottom: 12,
+            }}>
+              Just need the design? Get a PDF for $3.99
+            </h2>
+            <p style={{
+              fontSize: 16,
+              color: C.muted,
+              maxWidth: 560,
+              margin: '0 auto 28px',
+              lineHeight: 1.6,
+            }}>
+              Download your custom design as a print-ready PDF in A4 format.
+              Perfect if you already have an edible printer, a local print
+              shop, or just want the design file for yourself.
+            </p>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'center',
+              gap: 24,
+              flexWrap: 'wrap',
+              marginBottom: 28,
+              fontSize: 14,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>📄</span> Print-ready A4
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>⚡</span> Instant download
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>📧</span> Copy sent to your email
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>🎨</span> No watermark
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setStep(0);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              style={{
+                ...btnPrimary,
+                background: C.brand,
+                padding: '14px 32px',
+                fontSize: 15,
+                fontWeight: 700,
+              }}
+            >
+              Design Your PDF — $3.99 →
+            </button>
+            <p style={{
+              fontSize: 12,
+              color: C.muted,
+              marginTop: 16,
+              fontStyle: 'italic',
+            }}>
+              Or order a printed edible print for $14.99+ above
+            </p>
+          </div>
         </section>
 
         {/* ── QUALITY GUARANTEE SECTION ── */}
@@ -2070,7 +2170,7 @@ export default function EdiblePrintApp() {
           {[
             ['What are edible prints made of?', 'Our prints use FDA-approved, food-safe edible icing sheets printed with vibrant, water-based edible inks. Every ingredient is certified safe for consumption and tasteless \u2014 so they won\u2019t affect the flavour of your baked goods.'],
             ['How do I apply the edible print?', 'Peel the backing sheet gently and lay the print directly onto a freshly frosted or fondant-covered surface. Press lightly from the centre outward to remove air bubbles. For best results, apply within 30 minutes of frosting and keep refrigerated until serving.'],
-            ['How long does shipping take?', 'Same-day local delivery is available across London, Ontario (from $6.99). Standard Canada-wide shipping takes 3–5 business days. Express (1–2 business days) is also available at checkout.'],
+            ['How long does shipping take?', 'Free pickup is available at our London, Ontario location. Same-day local delivery in London is available for $5–$10 depending on your postal code zone. Canada-wide shipping via Canada Post takes 3–5 business days (from $6.99), with express options available at checkout.'],
             ['What image resolution do I need for good quality?', 'We recommend a minimum of 1000×1000 pixels at 300 DPI. We review every order before printing — if we spot a quality issue with your file, we\'ll reach out before proceeding.'],
             ['Do you ship to all Canadian provinces and territories?', 'Yes — we ship to all provinces and territories via Canada Post. Delivery times vary by location; remote areas may take an additional 1–2 business days.'],
             ['Can I order multiple copies of the same design?', 'Yes — simply increase the quantity at checkout. For bulk orders (20+ units), contact us for a volume pricing quote.'],
@@ -2750,10 +2850,10 @@ export default function EdiblePrintApp() {
             <div style={{ marginTop: 26 }}>
               <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 10 }}>Shipping Method</label>
               {[
-                { key: 'local', label: localZone ? 'Same Day Delivery — ' + localZone.name : 'Same Day Delivery — London, ON', price: localZone?.price || 0, disabled: !localZone },
-                { key: 'standard', label: 'Standard Shipping — 3-5 business days', price: SHIPPING.standard, disabled: false },
-                { key: 'express', label: 'Express Shipping — 1-2 business days', price: SHIPPING.express, disabled: false },
-                { key: 'pickup', label: 'Free Pickup — South London, ON', price: 0, disabled: false, note: "South London (Glen Cairn / Westmount area). We'll confirm the exact time by email." },
+                { key: 'pickup', label: 'Free Pickup — London, ON', price: 0, disabled: false, note: "South London (Glen Cairn / Westmount area). We'll confirm the exact time by email." },
+                { key: 'local', label: localZone ? 'Local Delivery — ' + localZone.name : 'Local Delivery (London zones)', price: localZone?.price || 0, disabled: !localZone },
+                { key: 'standard', label: 'Canada Post Standard — 3–5 business days', price: SHIPPING.standard, disabled: false },
+                { key: 'express', label: 'Canada Post Express — 1–2 business days', price: SHIPPING.express, disabled: false },
               ].map((opt) => (
                 <label key={opt.key} style={{
                   display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 12,
