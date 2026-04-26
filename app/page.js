@@ -1780,6 +1780,20 @@ export default function EdiblePrintApp() {
   };
 
   /* HOME PAGE */
+  const galleryItems = [
+    { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180323/649680716_1500541474823954_8161943662036624436_n_supe0j.jpg', title: '2" Cookie Circles', category: 'Cookie Sheet' },
+    { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180334/WhatsApp_Image_2026-02-18_at_5.02.46_PM_4_bdffmh.jpg', title: 'Edible Print on Cookie', category: 'Cookie Topper' },
+    { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180316/631155092_927287009710918_2725418458120497650_n_alqxgi.jpg', title: '8" Round Cake Topper', category: 'Round' },
+    { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180315/564037940_606689965772579_7150919334617048888_n_vtkhf1.jpg', title: 'Full Sheet on Cake', category: 'Full Sheet' },
+    { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180321/643374882_1221779420149107_4563453986619431265_n_x0ry5y.jpg', title: 'Full Sheet Print', category: 'Full Sheet' },
+    { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180326/661142328_1334185021979269_4781349991339791662_n_kjtbdp.jpg', title: '6" Round Cake Topper', category: 'Round' },
+    { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180330/674461215_2470531503382051_8704629536921250123_n_iztbl6.jpg', title: '6" Round Celebration', category: 'Round' },
+    { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180311/WhatsApp_Image_2026-02-18_at_5.14.09_PM_z4dkxf.jpg', title: '1.25" Mini Cookie Circles', category: 'Cookie Sheet' },
+    { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180313/553460353_1257238136170817_2212358949708882210_n_syfirg.jpg', title: '8" Round on Cake', category: 'Round' },
+    { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180311/WhatsApp_Image_2026-02-18_at_5.02.46_PM_vuvwmr.jpg', title: 'Photo Round 8"', category: 'Round' },
+    { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180337/WhatsApp_Image_2026-02-18_at_5.02.46_PM_7_d04sga.jpg', title: '2" Circles on Cupcakes', category: 'Cookie Sheet' },
+  ];
+
   if (step === 0) {
     const stepColors = ['#E8F5EE', '#FFF4EB', '#EEF2FF', '#FFF9E6'];
     return (
@@ -2080,27 +2094,58 @@ export default function EdiblePrintApp() {
         </section>
 
         {/* ── CUSTOMER GALLERY ── */}
-        <section style={{ padding: '52px 24px', maxWidth: 860, margin: '0 auto' }}>
-          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, textAlign: 'center', marginBottom: 8, fontWeight: 700 }}>Real Customer Prints</h2>
-          <p style={{ textAlign: 'center', color: C.muted, marginBottom: 32, fontSize: 15 }}>Fresh from our printer — loved by customers across Canada</p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-            {[
-              { label: 'Birthday Cake Topper', emoji: '🎂' },
-              { label: 'Cookie Sheet Print', emoji: '🍪' },
-              { label: 'Heart-Shape Cake', emoji: '❤️' },
-              { label: 'Corporate Logo Print', emoji: '🏢' },
-              { label: 'Baby Shower Cupcakes', emoji: '👶' },
-              { label: 'Wedding Cake Topper', emoji: '💍' },
-            ].map((item, i) => (
-              <div key={i} style={{ aspectRatio: '1', background: 'linear-gradient(135deg, #E8F5EE 0%, #C6E6D6 100%)',
-                borderRadius: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                gap: 8, border: '1px solid #C6E6D6', cursor: 'default' }}>
-                <span style={{ fontSize: 40 }}>{item.emoji}</span>
-                <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, textAlign: 'center', padding: '0 12px' }}>{item.label}</span>
-              </div>
-            ))}
+        <section style={{ padding: '64px 24px', background: '#FAFBF9' }}>
+          <div style={{ maxWidth: 1080, margin: '0 auto' }}>
+            <div style={{ textAlign: 'center', marginBottom: 40 }}>
+              <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 36, fontWeight: 700, marginBottom: 12 }}>
+                Real Customer Prints
+              </h2>
+              <p style={{ fontSize: 16, color: C.muted, maxWidth: 480, margin: '0 auto' }}>
+                Fresh from our printer — loved by customers across Canada
+              </p>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+              {galleryItems.map((item, i) => (
+                <div
+                  key={i}
+                  style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', background: '#F0F0F0', aspectRatio: '1 / 1', cursor: 'pointer' }}
+                  onMouseEnter={(e) => { e.currentTarget.querySelector('.overlay').style.opacity = '1'; }}
+                  onMouseLeave={(e) => { e.currentTarget.querySelector('.overlay').style.opacity = '0'; }}
+                >
+                  <img
+                    src={item.url}
+                    alt={item.title}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                    loading="lazy"
+                  />
+                  <div
+                    className="overlay"
+                    style={{
+                      position: 'absolute', inset: 0,
+                      background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 60%)',
+                      opacity: 0, transition: 'opacity 0.2s ease',
+                      display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', padding: '16px',
+                    }}
+                  >
+                    <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>
+                      {item.category}
+                    </span>
+                    <span style={{ fontSize: 15, fontWeight: 600, color: 'white' }}>
+                      {item.title}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ textAlign: 'center', marginTop: 36 }}>
+              <button
+                onClick={() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                style={{ ...btnPrimary, padding: '14px 32px', fontSize: 15 }}
+              >
+                Order Your Custom Print →
+              </button>
+            </div>
           </div>
-          <p style={{ textAlign: 'center', fontSize: 13, color: '#bbb', marginTop: 16 }}>📸 Gallery photos coming soon — we're building our collection!</p>
         </section>
 
         <section style={{ padding: '56px 24px', maxWidth: 920, margin: '0 auto' }}>
