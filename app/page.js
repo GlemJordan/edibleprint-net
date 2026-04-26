@@ -1839,7 +1839,7 @@ export default function EdiblePrintApp() {
             </button>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginTop: 12, flexWrap: 'wrap', fontSize: 14, color: C.muted }}>
-            <span>✦ From <strong style={{ color: C.text }}>$14.99</strong></span>
+            <span>✦ From <strong style={{ color: C.text }}>$9.99</strong></span>
             <span>✦ Free local pickup</span>
             <span>✦ Ships Canada-wide</span>
           </div>
