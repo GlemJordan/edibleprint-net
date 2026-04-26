@@ -1920,8 +1920,8 @@ export default function EdiblePrintApp() {
         </section>
         <section id="pricing" style={{ padding: '52px 24px', maxWidth: 760, margin: '0 auto', textAlign: 'center' }}>
           <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, marginBottom: 8, fontWeight: 700 }}>Simple, Transparent Pricing</h2>
-          <p style={{ color: C.muted, marginBottom: 8, fontSize: 15 }}>Premium edible paper + food-safe inks included in every order.</p>
-          <p style={{ fontSize: 22, fontWeight: 700, color: C.brand, marginBottom: 28 }}>Starting at <strong>$14.99</strong></p>
+          <p style={{ color: C.muted, marginBottom: 8, fontSize: 15 }}>B&amp;W Sheet from $9.99 · Cake Toppers from $14.99 · Food-safe inks &amp; premium paper included</p>
+          <p style={{ fontSize: 22, fontWeight: 700, color: C.brand, marginBottom: 28 }}>Starting at <strong>$9.99</strong></p>
           {/* Category tabs */}
           <div style={{ display: 'flex', gap: 0, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 28, borderBottom: '2px solid ' + C.border }}>
             {[
@@ -2077,7 +2077,7 @@ export default function EdiblePrintApp() {
               marginTop: 16,
               fontStyle: 'italic',
             }}>
-              Or order a printed edible print for $14.99+ above
+              Or order a printed edible print from $9.99 above
             </p>
           </div>
         </section>
