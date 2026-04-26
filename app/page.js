@@ -112,15 +112,16 @@ const card = {
 };
 
 /* ═══ LOGO ═══ */
-const LOGO_URL = 'https://res.cloudinary.com/dslkizfuj/image/upload/f_auto,q_auto/v1777183040/ChatGPT_Image_26_abr_2026_01_45_51_a.m._ya1io4.png';
-
-function Logo({ height = 44, style: extraStyle }) {
+function Logo({ footer = false }) {
+  const brandColor = footer ? '#6EE7B7' : C.brand;
+  const textColor  = footer ? '#F9FAFB' : C.text;
+  const mutedColor = footer ? '#9CA3AF' : C.muted;
   return (
-    <img
-      src={LOGO_URL}
-      alt="EdiblePrint.net — Custom Edible Image Prints"
-      style={{ height, width: 'auto', objectFit: 'contain', display: 'block', ...extraStyle }}
-    />
+    <span style={{ userSelect: 'none' }}>
+      <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 700, color: brandColor, letterSpacing: '-0.3px' }}>Edible</span>
+      <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 400, color: textColor, letterSpacing: '-0.3px' }}>Print</span>
+      <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 13, fontWeight: 400, color: mutedColor, letterSpacing: '0.5px', marginLeft: 3, verticalAlign: 'middle' }}>.net</span>
+    </span>
   );
 }
 
@@ -2276,7 +2277,7 @@ export default function EdiblePrintApp() {
             gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 36 }}>
             {/* Col 1: Brand */}
             <div>
-              <Logo height={52} style={{ marginBottom: 12, opacity: 0.9 }} />
+              <Logo footer />
               <p style={{ fontSize: 13.5, lineHeight: 1.7, marginTop: 14, color: '#9CA3AF', maxWidth: 220 }}>
                 Custom edible image printing on premium icing sheets. Made with love in London, Ontario.
               </p>
