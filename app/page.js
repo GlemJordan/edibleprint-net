@@ -1824,13 +1824,24 @@ export default function EdiblePrintApp() {
             border: '1px solid ' + C.border, borderRadius: 40, padding: '8px 18px',
             fontSize: 13.5, fontWeight: 600, marginBottom: 22, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
             <span style={{ color: '#FBBF24', letterSpacing: 1 }}>★★★★★</span>
-            <span style={{ color: C.text }}>Trusted by 200+ happy customers across Canada</span>
+            <span style={{ color: C.text }}>11 five-star reviews · Serving London, Ontario &amp; Canada</span>
           </div>
-          <div>
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', marginTop: 24 }}>
             <button onClick={() => setStep(1)} style={{ ...btnPrimary, fontSize: 20, padding: '20px 52px',
               borderRadius: 16, boxShadow: '0 8px 28px rgba(27,107,74,0.35)', letterSpacing: 0.3 }}>
               Upload Your Photo Now →
             </button>
+            <button
+              onClick={() => document.getElementById('pricing').scrollIntoView({ behavior: 'smooth' })}
+              style={{ ...btnSecondary, padding: '14px 24px', fontSize: 15 }}
+            >
+              See Pricing ↓
+            </button>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginTop: 12, flexWrap: 'wrap', fontSize: 14, color: C.muted }}>
+            <span>✦ From <strong style={{ color: C.text }}>$14.99</strong></span>
+            <span>✦ Free local pickup</span>
+            <span>✦ Ships Canada-wide</span>
           </div>
           {cutoffMsg && (
             <div style={{
@@ -1862,6 +1873,9 @@ export default function EdiblePrintApp() {
                 </div>
               </div>
             ))}
+          </div>
+          <div style={{ background: '#FFF8E6', border: '1px solid #F4D06F', borderRadius: 8, padding: '10px 20px', textAlign: 'center', fontSize: 13, color: '#5C4A1A', fontWeight: 500, maxWidth: 600, margin: '16px auto 0' }}>
+            🎯 Order before <strong>2 PM EST</strong> for same-day production · Ready for pickup or shipping next business day
           </div>
         </div>
         {/* ── DELIVERY TIMES BAR ── */}
@@ -1904,7 +1918,7 @@ export default function EdiblePrintApp() {
             ))}
           </div>
         </section>
-        <section style={{ padding: '52px 24px', maxWidth: 760, margin: '0 auto', textAlign: 'center' }}>
+        <section id="pricing" style={{ padding: '52px 24px', maxWidth: 760, margin: '0 auto', textAlign: 'center' }}>
           <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, marginBottom: 8, fontWeight: 700 }}>Simple, Transparent Pricing</h2>
           <p style={{ color: C.muted, marginBottom: 8, fontSize: 15 }}>Premium edible paper + food-safe inks included in every order.</p>
           <p style={{ fontSize: 22, fontWeight: 700, color: C.brand, marginBottom: 28 }}>Starting at <strong>$14.99</strong></p>
