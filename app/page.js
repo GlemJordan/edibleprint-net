@@ -1607,7 +1607,7 @@ export default function EdiblePrintApp() {
       .then(d => setIsAdmin(d.isAdmin))
       .catch(() => setIsAdmin(false));
   }, []);
-  const [bgRemoveTolerance, setBgRemoveTolerance] = useState(30);
+  const [bgRemoveTolerance, setBgRemoveTolerance] = useState(15);
 
   /* ── Accordion state for Step 2 ── */
   const [accordionBg, setAccordionBg] = useState(true);
@@ -2687,8 +2687,11 @@ export default function EdiblePrintApp() {
                           style={{ width: '100%', accentColor: C.brand, cursor: 'pointer' }}
                         />
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: C.muted, marginTop: 2 }}>
-                          <span>Strict (white only)</span>
-                          <span>Relaxed (light grays)</span>
+                          <span>Conservative (white only)</span>
+                          <span>Aggressive (light colors)</span>
+                        </div>
+                        <div style={{ fontSize: 10.5, color: C.muted, marginTop: 4, fontStyle: 'italic' }}>
+                          Increase only if white areas remain visible
                         </div>
                       </div>
                     )}
