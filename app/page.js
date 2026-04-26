@@ -1487,6 +1487,13 @@ export default function EdiblePrintApp() {
       const initialLayer = { id: String(Date.now() + 1), src: ev.target.result, name: file.name, x: 0, y: 0, scale: 1, rotation: 0, _autoFit: true };
       const newShape = pendingShape || 'circular';
       const newSizeId = pendingSizeId || (SIZES[newShape]?.[SIZES[newShape].length - 1]?.id || 'c8');
+      const newSizeObj = (SIZES[newShape] || []).find(sz => sz.id === newSizeId) || (SIZES[newShape] || [])[0];
+      const newPrice = newSizeObj?.price || 0;
+      trackGA('add_to_cart', {
+        currency: 'CAD',
+        value: newPrice,
+        items: [{ item_id: `${newShape}-${newSizeId}`, item_name: `EdiblePrint ${newShape}`, price: newPrice, quantity: 1 }],
+      });
       setDesigns(ds => [...ds, {
         id: newId,
         layers: [initialLayer],
@@ -1568,7 +1575,16 @@ export default function EdiblePrintApp() {
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    if (step === 2) trackMeta('ViewContent', { content_category: 'customize', content_type: 'product' });
+    if (step === 2) {
+      trackMeta('ViewContent', { content_category: 'customize', content_type: 'product' });
+      if (layers.length > 0) {
+        trackGA('view_item', {
+          currency: 'CAD',
+          value: unitPrice,
+          items: [{ item_id: `${shape}-${sizeId}`, item_name: `EdiblePrint ${shape} ${selectedSize?.label || ''}`, price: unitPrice, quantity: 1 }],
+        });
+      }
+    }
   }, [step]);
 
   const [isMobile, setIsMobile] = useState(false);

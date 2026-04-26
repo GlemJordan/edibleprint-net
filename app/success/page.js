@@ -32,6 +32,17 @@ function SuccessContent() {
               currency: data.currency,
               items: data.items,
             });
+
+            const gadsId = process.env.NEXT_PUBLIC_GADS_ID;
+            const gadsLabel = process.env.NEXT_PUBLIC_GADS_PURCHASE_LABEL;
+            if (gadsId && gadsLabel) {
+              window.gtag('event', 'conversion', {
+                send_to: `${gadsId}/${gadsLabel}`,
+                value: data.value,
+                currency: data.currency,
+                transaction_id: data.transaction_id,
+              });
+            }
           }
           if (window.fbq) {
             window.fbq('track', 'Purchase', { value: data.value, currency: data.currency });
