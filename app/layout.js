@@ -6,12 +6,17 @@ export const metadata = {
   description: 'Order custom edible image prints for cakes, cookies and cupcakes. Upload your photo online with fast shipping across Canada and same-day delivery in London, Ontario.',
   keywords: 'edible print, edible image, cake topper, custom edible printing, edible paper, Canada, icing sheet, London Ontario, edible cake topper, custom cookie printing, edible photo',
   openGraph: {
-    title: 'EdiblePrint.net — Your Image, Printed on Edible Sheets',
-    description: 'Custom edible image printing. Same-day delivery in London ON. Canada-wide shipping.',
+    title: 'EdiblePrint.net — Custom Edible Image Prints',
+    description: 'Custom edible image printing on premium icing sheets. From $9.99. Free local pickup in London, Ontario.',
     url: 'https://edibleprint.net',
     siteName: 'EdiblePrint.net',
     locale: 'en_CA',
     type: 'website',
+    images: ['https://res.cloudinary.com/dslkizfuj/image/upload/f_auto,q_auto/v1777183040/ChatGPT_Image_26_abr_2026_01_45_51_a.m._ya1io4.png'],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    images: ['https://res.cloudinary.com/dslkizfuj/image/upload/f_auto,q_auto/v1777183040/ChatGPT_Image_26_abr_2026_01_45_51_a.m._ya1io4.png'],
   },
   alternates: {
     canonical: 'https://edibleprint.net',

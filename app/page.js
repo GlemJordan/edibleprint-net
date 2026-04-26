@@ -112,13 +112,15 @@ const card = {
 };
 
 /* ═══ LOGO ═══ */
-function Logo({ size = 28 }) {
+const LOGO_URL = 'https://res.cloudinary.com/dslkizfuj/image/upload/f_auto,q_auto/v1777183040/ChatGPT_Image_26_abr_2026_01_45_51_a.m._ya1io4.png';
+
+function Logo({ height = 44, style: extraStyle }) {
   return (
-    <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: size, fontWeight: 700, letterSpacing: -0.5 }}>
-      <span style={{ color: C.brand }}>edible</span>
-      <span style={{ color: C.text }}>print</span>
-      <span style={{ fontSize: size * 0.42, color: C.muted, fontWeight: 400, marginLeft: 5, fontFamily: "'Outfit', sans-serif" }}>.net</span>
-    </span>
+    <img
+      src={LOGO_URL}
+      alt="EdiblePrint.net — Custom Edible Image Prints"
+      style={{ height, width: 'auto', objectFit: 'contain', display: 'block', ...extraStyle }}
+    />
   );
 }
 
@@ -2274,7 +2276,7 @@ export default function EdiblePrintApp() {
             gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 36 }}>
             {/* Col 1: Brand */}
             <div>
-              <Logo size={26} />
+              <Logo height={52} style={{ marginBottom: 12, opacity: 0.9 }} />
               <p style={{ fontSize: 13.5, lineHeight: 1.7, marginTop: 14, color: '#9CA3AF', maxWidth: 220 }}>
                 Custom edible image printing on premium icing sheets. Made with love in London, Ontario.
               </p>
