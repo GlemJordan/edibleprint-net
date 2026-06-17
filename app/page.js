@@ -907,7 +907,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       hctx.setLineDash([]);
     }
 
-    if (onHiResCrop) onHiResCrop(hiResCanvas.toDataURL('image/png'));
+    if (onHiResCrop) onHiResCrop(hiResCanvas.toDataURL('image/jpeg', 0.92));
   }, [layers, redrawTick, effectiveSelectedId, shape, hiResW, hiResH, scaleFactor, bgColor, textOverlay, isMultiCircle, isBWSheet, circlePx, mcCols, mcRows, mcOffsetX, mcOffsetY, mcStepPx, circleSize, canvasW, canvasH]);
 
   const handlePointerDown = (e) => {
@@ -1735,7 +1735,22 @@ export default function EdiblePrintApp() {
         if (imageToUpload) {
           const CLOUDINARY_CLOUD = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 'dslkizfuj';
           const CLOUDINARY_PRESET = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'edibleprint_orders';
-          const blob = await (await fetch(imageToUpload)).blob();
+          let blob = await (await fetch(imageToUpload)).blob();
+          if (blob.size > 10 * 1024 * 1024) {
+            blob = await new Promise((resolve) => {
+              const img = new Image();
+              img.onload = () => {
+                const c = document.createElement('canvas');
+                c.width = img.naturalWidth; c.height = img.naturalHeight;
+                const ctx = c.getContext('2d');
+                ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, c.width, c.height);
+                ctx.drawImage(img, 0, 0);
+                c.toBlob(resolve, 'image/jpeg', 0.85);
+              };
+              img.src = imageToUpload;
+            });
+            console.log('[upload-debug] blob too large, recompressed to JPEG 0.85, new size:', (blob.size/1024/1024).toFixed(2), 'MB');
+          }
           const cloudFormData = new FormData();
           cloudFormData.append('file', blob, 'upload.png');
           cloudFormData.append('upload_preset', CLOUDINARY_PRESET);
