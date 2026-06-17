@@ -352,6 +352,7 @@ async function removeWhiteBackground(img, tolerance = 30) {
       }
       if (transparentNeighbors >= 2) {
         const minCh = Math.min(data[idx], data[idx + 1], data[idx + 2]);
+        if (minCh < 200) continue;
         const edge = 255 - tolerance - 20;
         if (minCh >= edge) {
           const fade = (minCh - edge) / 20;
@@ -905,7 +906,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       hctx.setLineDash([]);
     }
 
-    if (onHiResCrop) onHiResCrop(hiResCanvas.toDataURL('image/jpeg', 0.95));
+    if (onHiResCrop) onHiResCrop(hiResCanvas.toDataURL('image/png'));
   }, [layers, redrawTick, effectiveSelectedId, shape, hiResW, hiResH, scaleFactor, bgColor, textOverlay, isMultiCircle, isBWSheet, circlePx, mcCols, mcRows, mcOffsetX, mcOffsetY, mcStepPx, circleSize, canvasW, canvasH]);
 
   const handlePointerDown = (e) => {
