@@ -1740,6 +1740,10 @@ export default function EdiblePrintApp() {
           cloudFormData.append('upload_preset', CLOUDINARY_PRESET);
           cloudFormData.append('folder', 'edibleprint-orders');
           cloudFormData.append('public_id', 'order_' + Date.now() + '_' + (d.layers?.[0]?.name || '').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 80));
+          console.log('[upload-debug] typeof imageToUpload:', typeof imageToUpload);
+          console.log('[upload-debug] imageToUpload prefix:', typeof imageToUpload === 'string' ? imageToUpload.slice(0, 50) : '(not a string)');
+          console.log('[upload-debug] CLOUDINARY_PRESET:', CLOUDINARY_PRESET);
+          console.log('[upload-debug] FormData keys:', [...cloudFormData.keys()]);
           let uploadRes;
           try {
             uploadRes = await fetch(
