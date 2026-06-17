@@ -163,7 +163,7 @@ function SuccessContent() {
         padding: '14px 32px', fontSize: 16, fontWeight: 600, textDecoration: 'none' }}>
         Back to Home
       </a>
-      <p style={{ marginTop: 20, fontSize: 12, color: '#bbb' }}>Questions? Email hello@edibleprint.net</p>
+      <p style={{ marginTop: 20, fontSize: 12, color: '#bbb' }}>Questions? Email glenj.belmar@gmail.com</p>
     </div>
   );
 }

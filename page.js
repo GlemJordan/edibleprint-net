@@ -356,7 +356,7 @@ export default function EdiblePrintApp() {
         <footer style={{ borderTop: '1px solid ' + C.border, padding: '28px 24px', textAlign: 'center', fontSize: 13, color: '#aaa', background: C.white }}>
           <Logo size={22} />
           <p style={{ margin: '10px 0 0' }}>London, Ontario · Shipping Canada-wide</p>
-          <p style={{ margin: '4px 0 0' }}>hello@edibleprint.net · © 2026 EdiblePrint.net. All rights reserved.</p>
+          <p style={{ margin: '4px 0 0' }}>glenj.belmar@gmail.com · © 2026 EdiblePrint.net. All rights reserved.</p>
         </footer>
       </div>
     );
