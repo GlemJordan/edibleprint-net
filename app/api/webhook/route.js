@@ -1,5 +1,5 @@
 import Stripe from 'stripe';
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { buildOrderRecord, saveOrderRecord } from '../../../lib/order-record.js';
 import { generateProductionSlip } from '../../../lib/generate-pdf.js';
 import { uploadRaw, orderFolderPath } from '../../../lib/cloudinary-ops.js';
@@ -312,10 +312,17 @@ export async function POST(request) {
     const orderId = 'EP-' + session.id.slice(-8).toUpperCase();
     console.log('--- NEW ORDER: ' + orderId + (isTest ? ' [TEST]' : '') + ' ---');
 
-    // Fire-and-forget pipeline — always return 200 to Stripe immediately
-    processOrder(session, orderId).catch(async (err) => {
-      console.error('Order pipeline failed for', orderId, err);
-      await sendAlertEmail(orderId, err.message);
+    // Respond to Stripe immediately, then run the pipeline after the response
+    // is committed. `after()` tells Vercel to keep this function instance alive
+    // until the callback completes — without it, the process is killed when the
+    // response is sent and Resend/Cloudinary calls never execute.
+    after(async () => {
+      try {
+        await processOrder(session, orderId);
+      } catch (err) {
+        console.error('Order pipeline failed for', orderId, err);
+        await sendAlertEmail(orderId, err.message);
+      }
     });
   }
 
