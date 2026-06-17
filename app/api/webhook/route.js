@@ -207,7 +207,11 @@ async function processOrder(session, orderId) {
         html: ownerHtml,
       }),
     });
-    if (!r.ok) throw new Error('Owner email HTTP ' + r.status + ': ' + await r.text());
+    if (!r.ok) {
+      const body = await r.text();
+      console.error('Resend owner email error:', r.status, body);
+      throw new Error('Owner email HTTP ' + r.status + ': ' + body);
+    }
   }, 'ownerEmail:' + orderId);
 
   // 5. Customer confirmation email (unchanged logic)
@@ -275,7 +279,11 @@ async function processOrder(session, orderId) {
         html: customerHtml,
       }),
     });
-    if (!r.ok) throw new Error('Customer email HTTP ' + r.status + ': ' + await r.text());
+    if (!r.ok) {
+      const body = await r.text();
+      console.error('Resend customer email error:', r.status, body);
+      throw new Error('Customer email HTTP ' + r.status + ': ' + body);
+    }
   }, 'customerEmail:' + orderId);
 
   console.log('Order pipeline complete:', orderId, '| PDF:', pdfUrl);
