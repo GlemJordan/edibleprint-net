@@ -1733,15 +1733,17 @@ export default function EdiblePrintApp() {
         let imageUrl = '';
         const imageToUpload = d.hiResCrop || d.cropPreview || d.layers?.[0]?.src;
         if (imageToUpload) {
+          const CLOUDINARY_CLOUD = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 'dslkizfuj';
+          const CLOUDINARY_PRESET = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'edibleprint_orders';
           const cloudFormData = new FormData();
           cloudFormData.append('file', imageToUpload);
-          cloudFormData.append('upload_preset', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET);
+          cloudFormData.append('upload_preset', CLOUDINARY_PRESET);
           cloudFormData.append('folder', 'edibleprint-orders');
           cloudFormData.append('public_id', 'order_' + Date.now() + '_' + (d.layers?.[0]?.name || '').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 80));
           let uploadRes;
           try {
             uploadRes = await fetch(
-              `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
+              `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`,
               { method: 'POST', body: cloudFormData }
             );
           } catch {
