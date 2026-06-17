@@ -1733,19 +1733,23 @@ export default function EdiblePrintApp() {
         let imageUrl = '';
         const imageToUpload = d.hiResCrop || d.cropPreview || d.layers?.[0]?.src;
         if (imageToUpload) {
+          const cloudFormData = new FormData();
+          cloudFormData.append('file', imageToUpload);
+          cloudFormData.append('upload_preset', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET);
+          cloudFormData.append('folder', 'edibleprint-orders');
+          cloudFormData.append('public_id', 'order_' + Date.now() + '_' + (d.layers?.[0]?.name || '').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 80));
           let uploadRes;
           try {
-            uploadRes = await fetch('/api/upload-image', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ imageData: imageToUpload, fileName: d.layers?.[0]?.name || '' }),
-            });
+            uploadRes = await fetch(
+              `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`,
+              { method: 'POST', body: cloudFormData }
+            );
           } catch {
             throw new Error('IMAGE_UPLOAD_FAILED');
           }
           if (!uploadRes.ok) throw new Error('IMAGE_UPLOAD_FAILED');
           const uploadData = await uploadRes.json();
-          imageUrl = uploadData.secure_url || uploadData.url || '';
+          imageUrl = uploadData.secure_url || '';
           if (!imageUrl.startsWith('https://res.cloudinary.com')) throw new Error('IMAGE_UPLOAD_FAILED');
         }
         return { ...d, uploadedImageUrl: imageUrl };
