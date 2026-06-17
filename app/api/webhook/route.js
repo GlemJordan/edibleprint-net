@@ -132,7 +132,7 @@ async function processOrder(session, orderId) {
 
   // 3. Upload PDF to Cloudinary
   const folder = orderFolderPath(orderId);
-  const pdfPublicId = `${folder}/production-slip`;
+  const pdfPublicId = `${folder}/production-slip.pdf`;
   const pdfUrl = await withRetry(
     () => uploadRaw(pdfBytes, pdfPublicId),
     'uploadPDF:' + orderId,
