@@ -1735,8 +1735,9 @@ export default function EdiblePrintApp() {
         if (imageToUpload) {
           const CLOUDINARY_CLOUD = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 'dslkizfuj';
           const CLOUDINARY_PRESET = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'edibleprint_orders';
+          const blob = await (await fetch(imageToUpload)).blob();
           const cloudFormData = new FormData();
-          cloudFormData.append('file', imageToUpload);
+          cloudFormData.append('file', blob, 'upload.png');
           cloudFormData.append('upload_preset', CLOUDINARY_PRESET);
           cloudFormData.append('folder', 'edibleprint-orders');
           cloudFormData.append('public_id', 'order_' + Date.now() + '_' + (d.layers?.[0]?.name || '').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 80));
