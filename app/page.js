@@ -1733,7 +1733,7 @@ export default function EdiblePrintApp() {
             uploadRes = await fetch('/api/upload-image', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ imageData: imageToUpload, fileName: d.imageName }),
+              body: JSON.stringify({ imageData: imageToUpload, fileName: d.layers?.[0]?.name || '' }),
             });
           } catch {
             throw new Error('IMAGE_UPLOAD_FAILED');
