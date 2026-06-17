@@ -18,6 +18,15 @@ function SuccessContent() {
         const isPaid = data.payment_status === 'paid' && data.session_status === 'complete';
         setPaymentStatus(isPaid ? 'paid' : 'unpaid');
 
+        if (isPaid) {
+          const seenKey = 'order_seen_' + sessionId;
+          if (sessionStorage.getItem(seenKey)) {
+            window.location.replace('/');
+            return;
+          }
+          sessionStorage.setItem(seenKey, '1');
+        }
+
         if (!isPaid) return;
 
         const key = 'ep_purchase_fired_' + sessionId;

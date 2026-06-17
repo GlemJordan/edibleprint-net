@@ -485,7 +485,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     onLayersChangeRef.current(prev => prev.map(l => {
       const img = imgRefs.current[l.id];
       if (!img) return l;
-      const sc = Math.max(effW / img.width, effH / img.height);
+      const sc = fitMode(effW / img.width, effH / img.height);
       return { ...l, x: (effW - img.width * sc) / 2, y: (effH - img.height * sc) / 2, scale: sc };
     }));
   }, [shape, sizeObj.id, sizeObj.w, sizeObj.h, sizeObj.circleSize]);
@@ -498,7 +498,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     onLayersChangeRef.current(prev => prev.map(l => {
       const img = imgRefs.current[l.id];
       if (!img) return l;
-      const sc = Math.max(effW / img.width, effH / img.height);
+      const sc = fitMode(effW / img.width, effH / img.height);
       return { ...l, x: (effW - img.width * sc) / 2, y: (effH - img.height * sc) / 2, scale: sc };
     }));
   }, [canvasW, canvasH]);
@@ -511,7 +511,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
           const img = imgRefs.current[layer.id];
           const effW = isMultiCircle ? circlePx : canvasW;
           const effH = isMultiCircle ? circlePx : canvasH;
-          const coverSc = Math.max(effW / img.width, effH / img.height);
+          const coverSc = fitMode(effW / img.width, effH / img.height);
           onLayersChangeRef.current(prev => prev.map(l =>
             l.id === layer.id ? { ...l, x: (effW - img.width * coverSc) / 2, y: (effH - img.height * coverSc) / 2, scale: coverSc, _autoFit: false } : l
           ));
@@ -526,7 +526,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
         }
         const effW = isMultiCircle ? circlePx : canvasW;
         const effH = isMultiCircle ? circlePx : canvasH;
-        const coverSc = Math.max(effW / img.width, effH / img.height);
+        const coverSc = fitMode(effW / img.width, effH / img.height);
         onLayersChangeRef.current(prev => prev.map(l =>
           l.id === layer.id && l._autoFit
             ? { ...l, x: (effW - img.width * coverSc) / 2, y: (effH - img.height * coverSc) / 2, scale: coverSc, _autoFit: false }
@@ -566,6 +566,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
   }, [removeWhiteBg, bgRemoveTolerance]);
 
   const getImg = (id) => (removeWhiteBg && processedImgRefs.current[id]) ? processedImgRefs.current[id] : imgRefs.current[id];
+  const fitMode = shape === 'custom' ? Math.min : Math.max;
 
   /* Draw canvases */
   useEffect(() => {
@@ -1396,6 +1397,9 @@ export default function EdiblePrintApp() {
 
   const sizes = SIZES[shape] || [];
   const selectedSize = sizes.find((sz) => sz.id === sizeId) || sizes[0];
+  const effectiveSize = shape === 'custom'
+    ? { id: 'custom', label: 'Custom Size', w: parseFloat(customW) || 2, h: parseFloat(customH) || 2, price: selectedSize?.price || 0 }
+    : selectedSize;
   const unitPrice = shape === 'custom'
     ? (parseFloat(customW || 0) * parseFloat(customH || 0) <= 36 ? 14.99 : 19.99)
     : selectedSize?.price || 0;
@@ -2565,7 +2569,7 @@ export default function EdiblePrintApp() {
                   layers={layers}
                   onLayersChange={setLayers}
                   shape={shape}
-                  sizeObj={selectedSize || { w: parseFloat(customW) || 6, h: parseFloat(customH) || 6 }}
+                  sizeObj={effectiveSize}
                   onCrop={setCropPreview}
                   onHiResCrop={setHiResCrop}
                   bgColor={bgColor}

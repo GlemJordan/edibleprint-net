@@ -97,6 +97,20 @@ export async function POST(request) {
         designConfirmedAt: designConfirmedAt || '',
         ...designMeta,
       },
+      ...(shippingMethod !== 'pickup' && shippingAddress ? {
+        payment_intent_data: {
+          shipping: {
+            name: customerName,
+            address: {
+              line1: shippingAddress,
+              city: shippingCity,
+              state: shippingProvince,
+              postal_code: shippingPostal,
+              country: 'CA',
+            },
+          },
+        },
+      } : {}),
       success_url: (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000') + '/success?session_id={CHECKOUT_SESSION_ID}',
       cancel_url: (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000') + '/cancel',
     });
