@@ -1728,16 +1728,29 @@ export default function EdiblePrintApp() {
         let imageUrl = '';
         const imageToUpload = d.hiResCrop || d.cropPreview || d.layers?.[0]?.src;
         if (imageToUpload) {
-          const uploadRes = await fetch('/api/upload-image', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ imageData: imageToUpload, fileName: d.imageName }),
-          });
+          let uploadRes;
+          try {
+            uploadRes = await fetch('/api/upload-image', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ imageData: imageToUpload, fileName: d.imageName }),
+            });
+          } catch {
+            throw new Error('IMAGE_UPLOAD_FAILED');
+          }
+          if (!uploadRes.ok) throw new Error('IMAGE_UPLOAD_FAILED');
           const uploadData = await uploadRes.json();
-          if (uploadData.url) imageUrl = uploadData.url;
+          imageUrl = uploadData.secure_url || uploadData.url || '';
+          if (!imageUrl.startsWith('https://res.cloudinary.com')) throw new Error('IMAGE_UPLOAD_FAILED');
         }
         return { ...d, uploadedImageUrl: imageUrl };
       }));
+      for (const d of uploadedDesigns) {
+        if ((d.hiResCrop || d.cropPreview || d.layers?.[0]?.src) &&
+            !d.uploadedImageUrl?.startsWith('https://res.cloudinary.com')) {
+          throw new Error('IMAGE_UPLOAD_FAILED');
+        }
+      }
       const response = await fetch('/api/create-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1776,7 +1789,11 @@ export default function EdiblePrintApp() {
         alert('Something went wrong. Please try again.');
       }
     } catch (error) {
-      alert('Connection error. Please try again.');
+      if (error.message === 'IMAGE_UPLOAD_FAILED') {
+        alert('There was a problem uploading your image. Please try again.');
+      } else {
+        alert('Connection error. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -2282,7 +2299,7 @@ export default function EdiblePrintApp() {
                 Custom edible image printing on premium icing sheets. Made with love in London, Ontario.
               </p>
               <p style={{ fontSize: 13, marginTop: 12, color: '#9CA3AF' }}>
-                <a href="mailto:hello@edibleprint.net" style={{ color: '#6ee7b7', textDecoration: 'none' }}>hello@edibleprint.net</a>
+                <a href="mailto:glenj.belmar@gmail.com" style={{ color: '#6ee7b7', textDecoration: 'none' }}>glenj.belmar@gmail.com</a>
               </p>
               <p style={{ fontSize: 13, marginTop: 4, color: '#9CA3AF' }}>London, Ontario, Canada 🇨🇦</p>
             </div>
@@ -2313,7 +2330,7 @@ export default function EdiblePrintApp() {
               {[
                 ['About Us', '/about'],
                 ['FAQ', '/#faq'],
-                ['Contact', 'mailto:hello@edibleprint.net'],
+                ['Contact', 'mailto:glenj.belmar@gmail.com'],
               ].map(([label, href]) => (
                 <div key={label} style={{ marginBottom: 10 }}>
                   <a href={href} style={{ fontSize: 13.5, color: '#9CA3AF', textDecoration: 'none', transition: 'color 0.15s' }}
