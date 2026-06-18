@@ -38,7 +38,25 @@ const SIZES = {
 };
 
 /* ═══ SHIPPING & DELIVERY ZONES ═══ */
-const SHIPPING = { standard: 9.99, express: 19.99 };
+const SHIPPING_ZONES = {
+  on:       { standard: 13.99, express: 22.99 }, // Ontario (express = costo real)
+  qc:       { standard: 14.99, express: 23.99 }, // Quebec
+  prairies: { standard: 16.99, express: 26.99 }, // MB, SK
+  west:     { standard: 18.99, express: 29.99 }, // AB, BC
+  atlantic: { standard: 18.99, express: 28.99 }, // NB, NS, PE, NL
+  north:    { standard: 28.99, express: 42.99 }, // YT, NT, NU
+};
+const PROVINCE_TO_ZONE = {
+  'Ontario': 'on', 'Quebec': 'qc',
+  'Manitoba': 'prairies', 'Saskatchewan': 'prairies',
+  'Alberta': 'west', 'British Columbia': 'west',
+  'New Brunswick': 'atlantic', 'Nova Scotia': 'atlantic',
+  'Prince Edward Island': 'atlantic', 'Newfoundland and Labrador': 'atlantic',
+  'Yukon': 'north', 'Northwest Territories': 'north', 'Nunavut': 'north',
+};
+function getNationalRates(province) {
+  return SHIPPING_ZONES[PROVINCE_TO_ZONE[province] || 'on'];
+}
 const LOCAL_ZONES = {
   south:   { name: 'South London',   price: 6.99, fsas: ['N5Z','N6E','N6J','N6L','N6M','N6N','N6P'] },
   central: { name: 'Central London', price: 7,    fsas: ['N6A','N6B','N6C'] },
@@ -1424,7 +1442,8 @@ export default function EdiblePrintApp() {
   }, 0);
 
   const localZone = getLocalZone(form.postal);
-  const shippingCost = shipping === 'local' ? (localZone?.price || 0) : shipping === 'pickup' ? 0 : (SHIPPING[shipping] || 0);
+  const nationalRates = getNationalRates(form.province);
+  const shippingCost = shipping === 'local' ? (localZone?.price || 0) : shipping === 'pickup' ? 0 : (nationalRates[shipping] || 0);
   const tax = (designsSubtotal + shippingCost) * TAX_RATE;
   const total = designsSubtotal + shippingCost + tax;
 
@@ -2287,7 +2306,7 @@ export default function EdiblePrintApp() {
                 Custom edible image printing on premium icing sheets. Made with love in London, Ontario.
               </p>
               <p style={{ fontSize: 13, marginTop: 12, color: '#9CA3AF' }}>
-                <a href="mailto:glenj.belmar@gmail.com" style={{ color: '#6ee7b7', textDecoration: 'none' }}>glenj.belmar@gmail.com</a>
+                <a href="mailto:edibleprintorders@gmail.com" style={{ color: '#6ee7b7', textDecoration: 'none' }}>edibleprintorders@gmail.com</a>
               </p>
               <p style={{ fontSize: 13, marginTop: 4, color: '#9CA3AF' }}>London, Ontario, Canada 🇨🇦</p>
             </div>
@@ -2318,7 +2337,7 @@ export default function EdiblePrintApp() {
               {[
                 ['About Us', '/about'],
                 ['FAQ', '/#faq'],
-                ['Contact', 'mailto:glenj.belmar@gmail.com'],
+                ['Contact', 'mailto:edibleprintorders@gmail.com'],
               ].map(([label, href]) => (
                 <div key={label} style={{ marginBottom: 10 }}>
                   <a href={href} style={{ fontSize: 13.5, color: '#9CA3AF', textDecoration: 'none', transition: 'color 0.15s' }}
@@ -2938,8 +2957,8 @@ export default function EdiblePrintApp() {
               {[
                 { key: 'pickup', label: 'Free Pickup — London, ON', price: 0, disabled: false, note: "South London (Glen Cairn / Westmount area). We'll confirm the exact time by email." },
                 { key: 'local', label: localZone ? 'Local Delivery — ' + localZone.name : 'Local Delivery (London zones)', price: localZone?.price || 0, disabled: !localZone },
-                { key: 'standard', label: 'Canada Post Standard — 3–5 business days', price: SHIPPING.standard, disabled: false },
-                { key: 'express', label: 'Canada Post Express — 1–2 business days', price: SHIPPING.express, disabled: false },
+                { key: 'standard', label: 'Canada Post Standard — 3–5 business days', price: nationalRates.standard, disabled: false },
+                { key: 'express', label: 'Canada Post Express — 1–2 business days', price: nationalRates.express, disabled: false },
               ].map((opt) => (
                 <label key={opt.key} style={{
                   display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 12,
