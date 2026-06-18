@@ -1,7 +1,7 @@
 import Stripe from 'stripe';
 import { NextResponse, after } from 'next/server';
 import { buildOrderRecord, saveOrderRecord } from '../../../lib/order-record.js';
-import { generateProductionSlip } from '../../../lib/generate-pdf.js';
+import { generateProductionSlip, generatePrintPdf } from '../../../lib/generate-pdf.js';
 import { uploadRaw, orderFolderPath } from '../../../lib/cloudinary-ops.js';
 
 export const maxDuration = 60;
@@ -138,6 +138,30 @@ async function processOrder(session, orderId) {
     'uploadPDF:' + orderId,
   );
 
+  // 3b. Generate + upload print-ready PDFs (one per design with an image)
+  const printPdfUrls = [];
+  for (let i = 0; i < designs.length; i++) {
+    const d = designs[i];
+    if (!d.imageUrl || d.imageUrl === 'No image') continue;
+    const sizeInches = parseFloat(d.size) || 6;
+    const customW = d.shape === 'custom' ? parseFloat(d.size.split('"x')[0]) : undefined;
+    const customH = d.shape === 'custom' ? parseFloat(d.size.split('"x')[1]) : undefined;
+    try {
+      const printBytes = await withRetry(
+        () => generatePrintPdf({ imageUrl: d.imageUrl, shape: d.shape, sizeInches, customW, customH }),
+        'generatePrintPdf:' + orderId + ':' + i,
+      );
+      const printPublicId = `${folder}/print-design${designs.length > 1 ? '-' + (i + 1) : ''}.pdf`;
+      const printUrl = await withRetry(
+        () => uploadRaw(printBytes, printPublicId),
+        'uploadPrintPdf:' + orderId + ':' + i,
+      );
+      printPdfUrls.push({ url: printUrl, label: designs.length > 1 ? 'Design ' + (i + 1) : 'Print-Ready' });
+    } catch (printErr) {
+      console.error('[webhook] print PDF failed for design', i, printErr.message);
+    }
+  }
+
   // 4. Owner email with PDF attachment
   const buildDesignRowsOwner = (d, i) => {
     const shapeLabel = SHAPE_LABELS[d.shape] || d.shape;
@@ -178,6 +202,11 @@ async function processOrder(session, orderId) {
     + '<div style="border:1px solid #e5e7eb;border-top:none;padding:20px;border-radius:0 0 8px 8px;">'
     + urgentBanner
     + '<p><a href="' + pdfUrl + '" style="background:#1B6B4A;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:15px;display:inline-block;">📄 Download Production Slip (PDF)</a></p>'
+    + (printPdfUrls.length > 0
+        ? '<p>' + printPdfUrls.map(p =>
+            '<a href="' + p.url + '" style="background:#1D4ED8;color:white;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:14px;display:inline-block;margin-right:8px;">🖨️ ' + p.label + ' — Print-Ready PDF</a>'
+          ).join('') + '</p>'
+        : '')
     + '<h3 style="color:#1B6B4A;margin-top:16px;">Customer</h3>'
     + '<p><strong>' + meta.customerName + '</strong><br/>' + session.customer_email + '<br/>' + (meta.customerPhone || '—') + '</p>'
     + '<h3 style="color:#1B6B4A;">Shipping</h3>'
