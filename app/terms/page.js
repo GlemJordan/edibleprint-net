@@ -5,7 +5,7 @@ export const metadata = {
   description: 'Terms governing your use of EdiblePrint.net and purchase of custom edible prints.',
 };
 
-const EMAIL = 'glenj.belmar@gmail.com';
+const EMAIL = 'edibleprintorders@gmail.com';
 const ADDRESS = 'London, Ontario, Canada';
 const C = { brand: '#1B6B4A' };
 

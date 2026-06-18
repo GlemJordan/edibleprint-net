@@ -470,7 +470,7 @@ export default function EdiblePrintApp() {
         <footer style={{ borderTop: '1px solid ' + C.border, padding: '28px 24px', textAlign: 'center', fontSize: 13, color: '#aaa', background: C.white }}>
           <Logo size={22} />
           <p style={{ margin: '10px 0 0' }}>London, Ontario · Shipping Canada-wide</p>
-          <p style={{ margin: '4px 0 0' }}>glenj.belmar@gmail.com · © 2026 EdiblePrint.net. All rights reserved.</p>
+          <p style={{ margin: '4px 0 0' }}>edibleprintorders@gmail.com · © 2026 EdiblePrint.net. All rights reserved.</p>
         </footer>
       </div>
     );
@@ -918,7 +918,7 @@ function SuccessContent() {
       </a>
 
       <p style={{ marginTop: 20, fontSize: 12, color: '#bbb' }}>
-        Questions? Email us at glenj.belmar@gmail.com
+        Questions? Email us at edibleprintorders@gmail.com
       </p>
     </div>
   );

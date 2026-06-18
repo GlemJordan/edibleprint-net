@@ -78,8 +78,8 @@ export default function AboutPage() {
         <div style={{ textAlign: 'center' }}>
           <p style={{ fontSize: 15, color: C.muted, marginBottom: 20 }}>
             Questions? Reach us anytime at{' '}
-            <a href="mailto:glenj.belmar@gmail.com" style={{ color: C.brand, textDecoration: 'none', fontWeight: 600 }}>
-              glenj.belmar@gmail.com
+            <a href="mailto:edibleprintorders@gmail.com" style={{ color: C.brand, textDecoration: 'none', fontWeight: 600 }}>
+              edibleprintorders@gmail.com
             </a>
           </p>
           <Link href="/" style={{ background: C.brand, color: '#fff', borderRadius: 14,

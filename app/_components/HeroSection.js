@@ -4,10 +4,10 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 
 const SLIDES = [
-  { tag: 'Birthday Cake', after: '/hero/ejemplo-1-after.jpg', before: '/hero/ejemplo-1-before.jpg' },
-  { tag: 'Cookies',       after: '/hero/ejemplo-2-after.jpg', before: '/hero/ejemplo-2-before.jpg' },
-  { tag: 'Full Sheet',    after: '/hero/ejemplo-3-after.jpg', before: '/hero/ejemplo-3-before.jpg' },
-  { tag: 'Cupcakes',      after: '/hero/ejemplo-4-after.jpg', before: '/hero/ejemplo-4-before.jpg' },
+  { tag: 'Photo cake',     after: '/hero/ejemplo-1-after.jpg', before: '/hero/ejemplo-1-before.jpg' },
+  { tag: 'Leopard print',  after: '/hero/ejemplo-2-after.jpg', before: '/hero/ejemplo-2-before.jpg' },
+  { tag: 'Birthday cake',  after: '/hero/ejemplo-3-after.jpg', before: '/hero/ejemplo-3-before.jpg' },
+  { tag: 'Space cupcakes', after: '/hero/ejemplo-4-after.jpg', before: '/hero/ejemplo-4-before.jpg' },
 ];
 
 export default function HeroSection({ onOrderClick, cutoffMsg }) {

@@ -87,7 +87,7 @@ function SuccessContent() {
         <p style={{ fontSize: 16, color: '#6B7280', lineHeight: 1.65, marginBottom: 28 }}>
           We could not confirm your payment. If you completed checkout, please contact us with your order details.
         </p>
-        <a href="mailto:glenj.belmar@gmail.com" style={{ display: 'inline-block', background: '#1B6B4A', color: '#fff', borderRadius: 12, padding: '14px 32px', fontSize: 16, fontWeight: 600, textDecoration: 'none', marginBottom: 16 }}>
+        <a href="mailto:edibleprintorders@gmail.com" style={{ display: 'inline-block', background: '#1B6B4A', color: '#fff', borderRadius: 12, padding: '14px 32px', fontSize: 16, fontWeight: 600, textDecoration: 'none', marginBottom: 16 }}>
           Contact Support
         </a>
         <br />
@@ -118,7 +118,7 @@ function SuccessContent() {
       <a href="/" style={{ display: 'inline-block', background: '#1B6B4A', color: '#fff', borderRadius: 12, padding: '14px 32px', fontSize: 16, fontWeight: 600, textDecoration: 'none' }}>
         Back to Home
       </a>
-      <p style={{ marginTop: 20, fontSize: 12, color: '#bbb' }}>Questions? Email glenj.belmar@gmail.com</p>
+      <p style={{ marginTop: 20, fontSize: 12, color: '#bbb' }}>Questions? Email edibleprintorders@gmail.com</p>
     </>
   );
 }

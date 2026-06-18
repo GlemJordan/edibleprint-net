@@ -74,7 +74,7 @@ async function sendAlertEmail(orderId, errorMsg) {
       },
       body: JSON.stringify({
         from: 'EdiblePrint.net <onboarding@resend.dev>',
-        to: ['glenj.belmar@gmail.com'],
+        to: ['edibleprintorders@gmail.com'],
         subject: '⚠️ ORDER PROCESSING FAILED — #' + orderId,
         html: '<p><strong>Order ' + orderId + ' failed to process fully.</strong></p>'
           + '<p>Error: ' + String(errorMsg).slice(0, 500) + '</p>'
@@ -230,8 +230,8 @@ async function processOrder(session, orderId) {
       headers: { 'Authorization': 'Bearer ' + process.env.RESEND_API_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         from: 'EdiblePrint.net Orders <onboarding@resend.dev>',
-        to: [process.env.ORDER_NOTIFICATION_EMAIL || 'glenj.belmar@gmail.com'],
-        reply_to: 'glenj.belmar@gmail.com',
+        to: [process.env.ORDER_NOTIFICATION_EMAIL || 'edibleprintorders@gmail.com'],
+        reply_to: 'edibleprintorders@gmail.com',
         subject: (isTest ? '[TEST] ' : '') + 'New Order ' + orderId + ' — ' + designs.length + ' design' + (designs.length > 1 ? 's' : '') + ' — $' + totalAmt.toFixed(2) + ' CAD',
         html: ownerHtml,
       }),
@@ -291,7 +291,7 @@ async function processOrder(session, orderId) {
         + '</div>'
       : '')
     + '<hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;" />'
-    + '<p style="font-size:13px;color:#6b7280;text-align:center;margin:0;">Questions? Reply to this email or contact <a href="mailto:glenj.belmar@gmail.com" style="color:#1B6B4A;">glenj.belmar@gmail.com</a></p>'
+    + '<p style="font-size:13px;color:#6b7280;text-align:center;margin:0;">Questions? Reply to this email or contact <a href="mailto:edibleprintorders@gmail.com" style="color:#1B6B4A;">edibleprintorders@gmail.com</a></p>'
     + '<hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0;" />'
     + '<p style="font-size:12px;color:#9ca3af;text-align:center;margin:0;line-height:1.6;">This email serves as your official receipt.<br/>EdiblePrint.net — London, Ontario. HST Registration: [pending]</p>'
     + '</div></div>';
@@ -303,7 +303,7 @@ async function processOrder(session, orderId) {
       body: JSON.stringify({
         from: 'EdiblePrint.net <onboarding@resend.dev>',
         to: [session.customer_email],
-        reply_to: 'glenj.belmar@gmail.com',
+        reply_to: 'edibleprintorders@gmail.com',
         subject: 'Order Confirmed — EdiblePrint.net #' + orderId,
         html: customerHtml,
       }),
