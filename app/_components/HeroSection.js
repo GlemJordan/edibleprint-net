@@ -316,16 +316,6 @@ export default function HeroSection({ onOrderClick, cutoffMsg }) {
                 </div>
               </div>
 
-              {/* Tag — top-right */}
-              <div style={{
-                position: 'absolute', top: 16, right: 16, zIndex: 3,
-                background: '#fff', borderRadius: 40,
-                padding: '5px 14px', fontSize: 13, fontWeight: 600, color: '#1f5236',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-              }}>
-                {slide.tag}
-              </div>
-
               {/* Prev arrow */}
               <button
                 className="ep-nav-btn"

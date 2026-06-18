@@ -1638,21 +1638,7 @@ export default function EdiblePrintApp() {
   const [bgRemoveTolerance, setBgRemoveTolerance] = useState(15);
 
   /* ── Accordion state for Step 2 ── */
-  const [accordionBg, setAccordionBg] = useState(true);
-  const [accordionText, setAccordionText] = useState(true);
-  const accordionInited = useRef(false);
-  useEffect(() => {
-    if (isMobile && !accordionInited.current) {
-      accordionInited.current = true;
-      setAccordionBg(false);
-      setAccordionText(false);
-    }
-  }, [isMobile]);
-  const toggleAccordion = (name) => {
-    const nb = name === 'bg' ? !accordionBg : (isMobile ? false : accordionBg);
-    const nt = name === 'text' ? !accordionText : (isMobile ? false : accordionText);
-    setAccordionBg(nb); setAccordionText(nt);
-  };
+  const [accordionText, setAccordionText] = useState(false);
 
   const [cutoffMsg, setCutoffMsg] = useState(null);
   useEffect(() => {
@@ -2514,7 +2500,7 @@ export default function EdiblePrintApp() {
 
         {/* STEP 2: CUSTOMIZE */}
         {step === 2 && activeDesign && (
-          <div>
+          <div style={{ maxWidth: 600, margin: '0 auto' }}>
             <div style={{ textAlign: 'center' }}>
               <div style={stepBadge}>2</div>
               <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, margin: '16px 0 8px', fontWeight: 700 }}>Customize Your Print</h2>
@@ -2547,350 +2533,325 @@ export default function EdiblePrintApp() {
               )}
             </div>
 
-            <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 28, alignItems: 'flex-start' }}>
-              {/* ── LEFT: 60% preview ── */}
-              <div style={{
-                flex: isMobile ? 'none' : '0 0 58%',
-                width: isMobile ? '100%' : undefined,
-                display: 'flex', flexDirection: 'column', alignItems: 'center',
-                padding: isMobile ? 0 : '12px 20px 12px 0',
-                position: isMobile ? 'static' : 'sticky',
-                top: isMobile ? undefined : 16,
-                alignSelf: isMobile ? undefined : 'flex-start',
-              }}>
-                {shape === 'bwsheet' && (
-                  <div style={{
-                    background: '#F5F5F5', borderLeft: '3px solid ' + C.accent,
-                    padding: '10px 14px', borderRadius: 6, fontSize: 13,
-                    marginBottom: 16, color: C.text, alignSelf: 'stretch',
-                  }}>
-                    ℹ️ B&W Sheet prints in grayscale for $9.99 — perfect for text, logos, and portraits.
-                  </div>
-                )}
-                <ImageEditor
-                  layers={layers}
-                  onLayersChange={setLayers}
-                  shape={shape}
-                  sizeObj={effectiveSize}
-                  onCrop={setCropPreview}
-                  onHiResCrop={setHiResCrop}
-                  bgColor={bgColor}
-                  textOverlay={textOverlay}
-                  onTextPositionChange={(pos) => setTextOverlay((p) => ({ ...p, position: pos }))}
-                  removeWhiteBg={removeWhiteBg}
-                  bgRemoveTolerance={bgRemoveTolerance}
-                  sizeLabel={sizeLabel}
-                  isMobile={isMobile}
-                />
-
-                {/* ── Download PDF button ── */}
+            {/* 1. Preview + ImageEditor */}
+            <div style={{ marginBottom: 28 }}>
+              {shape === 'bwsheet' && (
                 <div style={{
-                  marginTop: 12, width: '100%',
-                  padding: '10px 12px',
-                  background: isAdmin ? '#E8F5EE' : '#FFF8E6',
-                  border: '1px solid ' + (isAdmin ? C.brand : '#F4D06F'),
-                  borderRadius: 8,
+                  background: '#F5F5F5', borderLeft: '3px solid ' + C.accent,
+                  padding: '10px 14px', borderRadius: 6, fontSize: 13,
+                  marginBottom: 16, color: C.text,
                 }}>
-                  <button
-                    onClick={isAdmin ? handleDownloadPdfAsAdmin : () => setShowEmailModal(true)}
-                    disabled={!hiResCrop || downloadingPdf}
-                    style={{
-                      width: '100%', padding: '10px 14px',
-                      background: isAdmin ? C.brand : '#E8873C',
-                      color: 'white', border: 'none', borderRadius: 6,
-                      cursor: hiResCrop && !downloadingPdf ? 'pointer' : 'not-allowed',
-                      opacity: hiResCrop && !downloadingPdf ? 1 : 0.5,
-                      fontWeight: 600, fontSize: 13, fontFamily: "'Outfit', sans-serif",
-                    }}
-                  >
-                    {downloadingPdf
-                      ? 'Generating PDF…'
-                      : isAdmin
-                        ? '⬇ Download PDF (Admin · Free)'
-                        : '⬇ Download as PDF — $3.99'}
-                  </button>
-                  <div style={{ fontSize: 10.5, color: C.muted, textAlign: 'center', marginTop: 6 }}>
-                    A4 sheet · {shape} {selectedSize?.label || (customW && customH ? `${customW}" × ${customH}"` : '')}
-                  </div>
+                  ℹ️ B&W Sheet prints in grayscale for $9.99 — perfect for text, logos, and portraits.
+                </div>
+              )}
+              <ImageEditor
+                layers={layers}
+                onLayersChange={setLayers}
+                shape={shape}
+                sizeObj={effectiveSize}
+                onCrop={setCropPreview}
+                onHiResCrop={setHiResCrop}
+                bgColor={bgColor}
+                textOverlay={textOverlay}
+                onTextPositionChange={(pos) => setTextOverlay((p) => ({ ...p, position: pos }))}
+                removeWhiteBg={removeWhiteBg}
+                bgRemoveTolerance={bgRemoveTolerance}
+                sizeLabel={sizeLabel}
+                isMobile={isMobile}
+              />
+              <div style={{
+                marginTop: 12, width: '100%',
+                padding: '10px 12px',
+                background: isAdmin ? '#E8F5EE' : '#FFF8E6',
+                border: '1px solid ' + (isAdmin ? C.brand : '#F4D06F'),
+                borderRadius: 8,
+              }}>
+                <button
+                  onClick={isAdmin ? handleDownloadPdfAsAdmin : () => setShowEmailModal(true)}
+                  disabled={!hiResCrop || downloadingPdf}
+                  style={{
+                    width: '100%', padding: '10px 14px',
+                    background: isAdmin ? C.brand : '#E8873C',
+                    color: 'white', border: 'none', borderRadius: 6,
+                    cursor: hiResCrop && !downloadingPdf ? 'pointer' : 'not-allowed',
+                    opacity: hiResCrop && !downloadingPdf ? 1 : 0.5,
+                    fontWeight: 600, fontSize: 13, fontFamily: "'Outfit', sans-serif",
+                  }}
+                >
+                  {downloadingPdf
+                    ? 'Generating PDF…'
+                    : isAdmin
+                      ? '⬇ Download PDF (Admin · Free)'
+                      : '⬇ Download as PDF — $3.99'}
+                </button>
+                <div style={{ fontSize: 10.5, color: C.muted, textAlign: 'center', marginTop: 6 }}>
+                  A4 sheet · {shape} {selectedSize?.label || (customW && customH ? `${customW}" × ${customH}"` : '')}
                 </div>
               </div>
+            </div>
 
-              {/* ── RIGHT: 40% controls ── */}
-              <div style={{ flex: isMobile ? 1 : '0 0 42%', minWidth: 0, width: isMobile ? '100%' : undefined }}>
-                <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Shape</label>
-                <div style={{ display: 'flex', gap: 8, marginBottom: 22, flexWrap: 'wrap' }}>
-                  {[{ key: 'circular', icon: '⭕', label: 'Round' }, { key: 'heart', icon: '❤️', label: 'Heart' },
-                    { key: 'multicircle', icon: '🍪', label: 'Cookie Sheet' },
-                    { key: 'square', icon: '⬜', label: 'Square' },
-                    { key: 'fullsheet', icon: '▬', label: 'Full Sheet' },
-                    { key: 'bwsheet', icon: '⬛', label: 'B&W Sheet' },
-                    { key: 'custom', icon: '✏️', label: 'Custom' }].map((sh) => (
-                    <button key={sh.key} onClick={() => {
-                      setShape(sh.key);
-                      const newSizes = SIZES[sh.key] || [];
-                      if (newSizes.length > 0 && !newSizes.find(sz => sz.id === sizeId)) setSizeId(newSizes[0].id);
-                    }} style={{
-                      flex: 1, minWidth: 72, padding: '12px 8px', borderRadius: 12,
-                      border: shape === sh.key ? '2.5px solid ' + C.brand : '2px solid ' + C.border,
-                      background: shape === sh.key ? C.brandLight : C.white,
-                      cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: "'Outfit', sans-serif", transition: 'all 0.2s' }}>
-                      <div style={{ position: 'relative', display: 'inline-block' }}>
-                        <div style={{ fontSize: 20, marginBottom: 2 }}>{sh.icon}</div>
-                        {sh.key === 'bwsheet' && (
-                          <span style={{ position: 'absolute', top: -6, right: -22, background: C.accent,
-                            color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 6px',
-                            borderRadius: 4, lineHeight: 1 }}>$9.99</span>
-                        )}
-                      </div>
-                      {sh.label}
-                      {sh.key === 'bwsheet' && <div style={{ fontSize: 10, color: C.muted, fontWeight: 400, marginTop: 1 }}>Economy</div>}
-                    </button>
-                  ))}
-                </div>
-
-                {shape !== 'custom' ? (
-                  <>
-                    <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Size</label>
-                    <div style={{ display: 'flex', gap: 8, marginBottom: 22, flexWrap: 'wrap' }}>
-                      {sizes.map((sz) => {
-                        const cookieGrid = sz.circleSize ? getCircleGrid(sz.w, sz.h, sz.circleSize) : null;
-                        return (
-                          <button key={sz.id} onClick={() => { setSizeId(sz.id); trackGA('select_size', { shape, size_id: sz.id, price: sz.price }); }} style={{
-                            flex: 1, minWidth: 90, padding: '14px 10px', borderRadius: 12,
-                            border: sizeId === sz.id ? '2.5px solid ' + C.brand : '2px solid ' + C.border,
-                            background: sizeId === sz.id ? C.brandLight : C.white,
-                            cursor: 'pointer', textAlign: 'center', fontFamily: "'Outfit', sans-serif", transition: 'all 0.2s' }}>
-                            <div style={{ fontWeight: 700, fontSize: 17, color: C.brand }}>{'$' + sz.price.toFixed(2)}</div>
-                            <div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>{sz.label}</div>
-                            {(sz.sublabel || cookieGrid) && <div style={{ fontSize: 12, color: C.brand, fontWeight: 600, marginTop: 3 }}>{sz.sublabel || (cookieGrid.count + ' cookies/sheet')}</div>}
-                          </button>
-                        );
-                      })}
+            {/* 2. Shape */}
+            <div style={{ marginBottom: 22 }}>
+              <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Shape</label>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {[{ key: 'circular', icon: '⭕', label: 'Round' }, { key: 'heart', icon: '❤️', label: 'Heart' },
+                  { key: 'multicircle', icon: '🍪', label: 'Cookie Sheet' },
+                  { key: 'square', icon: '⬜', label: 'Square' },
+                  { key: 'fullsheet', icon: '▬', label: 'Full Sheet' },
+                  { key: 'bwsheet', icon: '⬛', label: 'B&W Sheet' },
+                  { key: 'custom', icon: '✏️', label: 'Custom' }].map((sh) => (
+                  <button key={sh.key} onClick={() => {
+                    setShape(sh.key);
+                    const newSizes = SIZES[sh.key] || [];
+                    if (newSizes.length > 0 && !newSizes.find(sz => sz.id === sizeId)) setSizeId(newSizes[0].id);
+                  }} style={{
+                    flex: 1, minWidth: 72, padding: '12px 8px', borderRadius: 12,
+                    border: shape === sh.key ? '2.5px solid ' + C.brand : '2px solid ' + C.border,
+                    background: shape === sh.key ? C.brandLight : C.white,
+                    cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: "'Outfit', sans-serif", transition: 'all 0.2s' }}>
+                    <div style={{ position: 'relative', display: 'inline-block' }}>
+                      <div style={{ fontSize: 20, marginBottom: 2 }}>{sh.icon}</div>
+                      {sh.key === 'bwsheet' && (
+                        <span style={{ position: 'absolute', top: -6, right: -22, background: C.accent,
+                          color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 6px',
+                          borderRadius: 4, lineHeight: 1 }}>$9.99</span>
+                      )}
                     </div>
-                  </>
-                ) : (
-                  <>
-                    <div style={{ display: 'flex', gap: 12, marginBottom: 22 }}>
-                      <div style={{ flex: 1 }}>
-                        <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>Width (inches)</label>
-                        <input type="number" value={customW} onChange={(e) => { const v = parseFloat(e.target.value); setCustomW(isNaN(v) ? '' : String(Math.min(8, v))); }} placeholder="e.g. 5" style={inputStyle} />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>Height (inches)</label>
-                        <input type="number" value={customH} onChange={(e) => { const v = parseFloat(e.target.value); setCustomH(isNaN(v) ? '' : String(Math.min(11, v))); }} placeholder="e.g. 7" style={inputStyle} />
-                      </div>
-                    </div>
-                    <p style={{ fontSize: 12, color: C.muted, margin: '-14px 0 22px', textAlign: 'center' }}>Max size: 8″ × 11″ (A4 sheet)</p>
-                  </>
-                )}
-
-                <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Quantity</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 22 }}>
-                  <button onClick={() => setQty(Math.max(1, qty - 1))} style={{ width: 38, height: 38, borderRadius: 10, border: '1.5px solid ' + C.border, background: C.white, fontSize: 18, cursor: 'pointer', fontWeight: 600 }}>-</button>
-                  <span style={{ fontSize: 20, fontWeight: 700, minWidth: 32, textAlign: 'center' }}>{qty}</span>
-                  <button onClick={() => setQty(qty + 1)} style={{ width: 38, height: 38, borderRadius: 10, border: '1.5px solid ' + C.border, background: C.white, fontSize: 18, cursor: 'pointer', fontWeight: 600 }}>+</button>
-                </div>
-
-                {/* ── Remove White Background toggle ── */}
-                {shape !== 'bwsheet' && (
-                  <div style={{ borderTop: '1px solid ' + C.border, paddingTop: 12, marginBottom: 4 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: removeWhiteBg ? 8 : 12 }}>
-                      <span style={{ fontWeight: 600, fontSize: 14, color: C.text }}>✂️ Remove white background around my image</span>
-                      <button
-                        onClick={() => setRemoveWhiteBg(v => !v)}
-                        style={{
-                          flexShrink: 0, marginLeft: 10,
-                          width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
-                          background: removeWhiteBg ? C.brand : C.border,
-                          position: 'relative', transition: 'background 0.2s',
-                        }}
-                      >
-                        <span style={{
-                          position: 'absolute', top: 3, left: removeWhiteBg ? 23 : 3,
-                          width: 18, height: 18, borderRadius: '50%', background: '#fff',
-                          transition: 'left 0.2s', display: 'block',
-                        }} />
-                      </button>
-                    </div>
-                    {removeWhiteBg && (
-                      <div style={{ padding: '8px 10px', background: '#FAFBF9', borderRadius: 6, marginBottom: 10, fontSize: 11.5 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, color: C.muted }}>
-                          <span>Edge tolerance</span>
-                          <span style={{ fontWeight: 600, color: C.brand }}>{bgRemoveTolerance}</span>
-                        </div>
-                        <input
-                          type="range"
-                          min="0"
-                          max="60"
-                          step="5"
-                          value={bgRemoveTolerance}
-                          onChange={(e) => setBgRemoveTolerance(parseInt(e.target.value))}
-                          style={{ width: '100%', accentColor: C.brand, cursor: 'pointer' }}
-                        />
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: C.muted, marginTop: 2 }}>
-                          <span>Conservative (white only)</span>
-                          <span>Aggressive (light colors)</span>
-                        </div>
-                        <div style={{ fontSize: 10.5, color: C.muted, marginTop: 4, fontStyle: 'italic' }}>
-                          Increase only if white areas remain visible
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* ── ACCORDION: Background Fill Color ── */}
-                <div style={{ borderTop: '1px solid ' + C.border, marginBottom: 4 }}>
-                  <button
-                    onClick={() => toggleAccordion('bg')}
-                    aria-expanded={accordionBg}
-                    style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      background: 'none', border: 'none', cursor: 'pointer', padding: '12px 0',
-                      fontWeight: 600, fontSize: 14, fontFamily: "'Outfit', sans-serif", color: C.text }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      🎨 Background Fill Color
-                      <span style={{ width: 20, height: 20, borderRadius: 4, background: bgColor, flexShrink: 0,
-                        border: '2px solid ' + C.border, boxShadow: bgColor === '#FFFFFF' ? 'inset 0 0 0 1px #d1d5db' : 'none', display: 'inline-block' }} />
-                    </span>
-                    <span style={{ transition: 'transform 0.2s', transform: accordionBg ? 'rotate(180deg)' : 'none', fontSize: 12, color: C.muted }}>▼</span>
+                    {sh.label}
+                    {sh.key === 'bwsheet' && <div style={{ fontSize: 10, color: C.muted, fontWeight: 400, marginTop: 1 }}>Economy</div>}
                   </button>
-                  {accordionBg && (
-                    <div style={{ paddingBottom: 16 }}>
-                      <ColorPickerDropdown value={bgColor} onChange={setBgColor} colors={shape === 'bwsheet' ? BW_PALETTE : PALETTE} label="Fill" allowCustom={shape !== 'bwsheet'} />
-                    </div>
-                  )}
-                </div>
+                ))}
+              </div>
+            </div>
 
-                {/* ── ACCORDION: Add Text ── */}
-                <div style={{ borderTop: '1px solid ' + C.border, marginBottom: 4 }}>
-                  <button
-                    onClick={() => toggleAccordion('text')}
-                    aria-expanded={accordionText}
-                    style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      background: 'none', border: 'none', cursor: 'pointer', padding: '12px 0',
-                      fontWeight: 600, fontSize: 14, fontFamily: "'Outfit', sans-serif", color: C.text }}>
-                    ✏️ Add Text <span style={{ fontWeight: 400, color: C.muted, fontSize: 13 }}>(optional)</span>
-                    <span style={{ transition: 'transform 0.2s', transform: accordionText ? 'rotate(180deg)' : 'none', fontSize: 12, color: C.muted }}>▼</span>
-                  </button>
-                  {accordionText && (
-                    <div style={{ paddingBottom: 16 }}>
-                      <input
-                        value={textOverlay.text}
-                        onChange={(e) => setTextOverlay((p) => ({ ...p, text: e.target.value }))}
-                        placeholder="Type your message..."
-                        style={{ ...inputStyle, marginBottom: 12 }}
-                      />
-                      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
-                        <div style={{ flex: 1, minWidth: 100 }}>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Size</div>
-                          <select value={textOverlay.fontSize} onChange={(e) => setTextOverlay((p) => ({ ...p, fontSize: Number(e.target.value) }))} style={{
-                            width: '100%', padding: '8px 6px', borderRadius: 8, border: '1.5px solid ' + C.border,
-                            fontSize: 14, cursor: 'pointer', background: C.white, color: C.text, fontFamily: "'Outfit', sans-serif",
-                          }}>
-                            {[8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48, 56, 72, 96].map((s) => (
-                              <option key={s} value={s}>{s}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div style={{ flex: 1, minWidth: 130 }}>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Style</div>
-                          <select value={textOverlay.fontStyle} onChange={(e) => setTextOverlay((p) => ({ ...p, fontStyle: e.target.value }))} style={{
-                            width: '100%', padding: '8px 6px', borderRadius: 8, border: '1.5px solid ' + C.border,
-                            fontSize: 13, cursor: 'pointer', background: C.white, color: C.text,
-                          }}>
-                            <option value="normal">Normal</option>
-                            <option value="bold">Bold</option>
-                            <option value="italic">Italic</option>
-                            <option value="bold italic">Bold Italic</option>
-                          </select>
-                        </div>
-                      </div>
-                      <div style={{ marginBottom: 10 }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Font</div>
-                        <select value={textOverlay.fontFamily} onChange={(e) => setTextOverlay((p) => ({ ...p, fontFamily: e.target.value }))} style={{
-                          width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid ' + C.border,
-                          fontSize: 15, cursor: 'pointer', background: C.white, color: C.text,
-                          fontFamily: textOverlay.fontFamily,
-                        }}>
-                          {[
-                            { value: 'Arial', label: 'Arial' },
-                            { value: 'Georgia', label: 'Georgia' },
-                            { value: 'Impact', label: 'Impact' },
-                            { value: 'Comic Sans MS', label: 'Comic Sans MS' },
-                            { value: 'Courier New', label: 'Courier New' },
-                            { value: 'Brush Script MT', label: 'Brush Script MT' },
-                            { value: 'Lobster', label: 'Lobster — Festive Script' },
-                            { value: 'Pacifico', label: 'Pacifico — Birthday Style' },
-                            { value: 'Dancing Script', label: 'Dancing Script — Elegant Cursive' },
-                            { value: 'Great Vibes', label: 'Great Vibes — Wedding Style' },
-                            { value: 'Bangers', label: 'Bangers — Comic/Party' },
-                            { value: 'Permanent Marker', label: 'Permanent Marker — Handwritten' },
-                            { value: 'Fredoka One', label: 'Fredoka One — Round Bold' },
-                          ].map(({ value, label }) => (
-                            <option key={value} value={value} style={{ fontFamily: value }}>{label}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <p style={{ fontSize: 11, color: C.muted, margin: '0 0 10px', textAlign: 'center' }}>Drag text in preview to reposition</p>
-                      <div>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Text Color</div>
-                        <ColorPickerDropdown
-                          value={textOverlay.color}
-                          onChange={(color) => setTextOverlay((p) => ({ ...p, color }))}
-                          colors={shape === 'bwsheet' ? BW_PALETTE : PALETTE}
-                          label="Text color"
-                          allowCustom={shape !== 'bwsheet'}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* ── Design Responsibility Disclaimer ── */}
-                <div style={{
-                  background: '#FFF8E6', border: '1px solid #F4D06F',
-                  borderLeft: '4px solid #E8873C', borderRadius: 8,
-                  padding: '12px 14px', marginTop: 16, marginBottom: 16,
-                  fontSize: 12.5, lineHeight: 1.5, color: '#5C4A1A',
-                }}>
-                  <div style={{ fontWeight: 700, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    ⚠️ Design Responsibility
-                  </div>
-                  <div>
-                    You are responsible for the design choices you make here — image quality, text, colors, positioning and spelling. Your edible print will be produced <strong>exactly as shown in the preview</strong>. Please review your design carefully before placing the order.
-                  </div>
-                </div>
-
-                {/* Order summary — inside right column so sticky persists to the end */}
-                <div style={{ ...card, marginTop: 4 }}>
-                  {designs.map((d, i) => {
-                    const dSizes = SIZES[d.shape] || [];
-                    const dSel = dSizes.find(sz => sz.id === d.sizeId) || dSizes[0];
-                    const dPrice = d.shape === 'custom'
-                      ? (parseFloat(d.customW || 0) * parseFloat(d.customH || 0) <= 36 ? 14.99 : 19.99)
-                      : dSel?.price || 0;
+            {/* 3. Size */}
+            {shape !== 'custom' ? (
+              <div style={{ marginBottom: 22 }}>
+                <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Size</label>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {sizes.map((sz) => {
+                    const cookieGrid = sz.circleSize ? getCircleGrid(sz.w, sz.h, sz.circleSize) : null;
                     return (
-                      <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: d.id === activeDesignId ? 700 : 500,
-                        marginBottom: i < designs.length - 1 ? 8 : 0, paddingBottom: i < designs.length - 1 ? 8 : 0,
-                        borderBottom: i < designs.length - 1 ? '1px solid ' + C.border : 'none',
-                        color: d.id === activeDesignId ? C.text : C.muted }}>
-                        <span>Design {i + 1}: {d.qty}x {d.shape === 'custom' ? (d.customW + '"x' + d.customH + '"') : (dSel?.label || d.shape)}</span>
-                        <span style={{ color: C.brand }}>{'$' + (dPrice * d.qty).toFixed(2)}</span>
-                      </div>
+                      <button key={sz.id} onClick={() => { setSizeId(sz.id); trackGA('select_size', { shape, size_id: sz.id, price: sz.price }); }} style={{
+                        flex: 1, minWidth: 90, padding: '14px 10px', borderRadius: 12,
+                        border: sizeId === sz.id ? '2.5px solid ' + C.brand : '2px solid ' + C.border,
+                        background: sizeId === sz.id ? C.brandLight : C.white,
+                        cursor: 'pointer', textAlign: 'center', fontFamily: "'Outfit', sans-serif", transition: 'all 0.2s' }}>
+                        <div style={{ fontWeight: 700, fontSize: 17, color: C.brand }}>{'$' + sz.price.toFixed(2)}</div>
+                        <div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>{sz.label}</div>
+                        {(sz.sublabel || cookieGrid) && <div style={{ fontSize: 12, color: C.brand, fontWeight: 600, marginTop: 3 }}>{sz.sublabel || (cookieGrid.count + ' cookies/sheet')}</div>}
+                      </button>
                     );
                   })}
-                  {designs.length > 1 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 700, marginTop: 10, paddingTop: 10, borderTop: '1.5px solid ' + C.border }}>
-                      <span>Subtotal</span>
-                      <span style={{ color: C.brand }}>{'$' + designsSubtotal.toFixed(2)}</span>
-                    </div>
-                  )}
-                </div>
-                <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
-                  <button onClick={() => setStep(1)} style={{ ...btnSecondary, flex: 1 }}>← Back</button>
-                  <button onClick={() => setStep(3)} style={{ ...btnPrimary, flex: 2 }}>Continue →</button>
                 </div>
               </div>
+            ) : (
+              <div style={{ marginBottom: 22 }}>
+                <div style={{ display: 'flex', gap: 12, marginBottom: 8 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>Width (inches)</label>
+                    <input type="number" value={customW} onChange={(e) => { const v = parseFloat(e.target.value); setCustomW(isNaN(v) ? '' : String(Math.min(8, v))); }} placeholder="e.g. 5" style={inputStyle} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>Height (inches)</label>
+                    <input type="number" value={customH} onChange={(e) => { const v = parseFloat(e.target.value); setCustomH(isNaN(v) ? '' : String(Math.min(11, v))); }} placeholder="e.g. 7" style={inputStyle} />
+                  </div>
+                </div>
+                <p style={{ fontSize: 12, color: C.muted, margin: '0 0 0', textAlign: 'center' }}>Max size: 8″ × 11″ (A4 sheet)</p>
+              </div>
+            )}
+
+            {/* 4. Quantity */}
+            <div style={{ marginBottom: 22 }}>
+              <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Quantity</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <button onClick={() => setQty(Math.max(1, qty - 1))} style={{ width: 38, height: 38, borderRadius: 10, border: '1.5px solid ' + C.border, background: C.white, fontSize: 18, cursor: 'pointer', fontWeight: 600 }}>-</button>
+                <span style={{ fontSize: 20, fontWeight: 700, minWidth: 32, textAlign: 'center' }}>{qty}</span>
+                <button onClick={() => setQty(qty + 1)} style={{ width: 38, height: 38, borderRadius: 10, border: '1.5px solid ' + C.border, background: C.white, fontSize: 18, cursor: 'pointer', fontWeight: 600 }}>+</button>
+              </div>
+            </div>
+
+            {/* 5. Remove White Background — toggle always visible; fine controls visible only when on */}
+            {shape !== 'bwsheet' && (
+              <div style={{ borderTop: '1px solid ' + C.border, paddingTop: 12, marginBottom: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: removeWhiteBg ? 12 : 0 }}>
+                  <span style={{ fontWeight: 600, fontSize: 14, color: C.text }}>✂️ Remove white background around my image</span>
+                  <button
+                    onClick={() => setRemoveWhiteBg(v => !v)}
+                    aria-pressed={removeWhiteBg}
+                    style={{
+                      flexShrink: 0, marginLeft: 10,
+                      width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
+                      background: removeWhiteBg ? C.brand : C.border,
+                      position: 'relative', transition: 'background 0.2s',
+                    }}
+                  >
+                    <span style={{
+                      position: 'absolute', top: 3, left: removeWhiteBg ? 23 : 3,
+                      width: 18, height: 18, borderRadius: '50%', background: '#fff',
+                      transition: 'left 0.2s', display: 'block',
+                    }} />
+                  </button>
+                </div>
+                {removeWhiteBg && (
+                  <>
+                    <div style={{ padding: '8px 10px', background: '#FAFBF9', borderRadius: 6, marginBottom: 10, fontSize: 11.5 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, color: C.muted }}>
+                        <span>Edge tolerance</span>
+                        <span style={{ fontWeight: 600, color: C.brand }}>{bgRemoveTolerance}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="60"
+                        step="5"
+                        value={bgRemoveTolerance}
+                        onChange={(e) => setBgRemoveTolerance(parseInt(e.target.value))}
+                        style={{ width: '100%', accentColor: C.brand, cursor: 'pointer' }}
+                      />
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: C.muted, marginTop: 2 }}>
+                        <span>Conservative (white only)</span>
+                        <span>Aggressive (light colors)</span>
+                      </div>
+                      <div style={{ fontSize: 10.5, color: C.muted, marginTop: 4, fontStyle: 'italic' }}>
+                        Increase only if white areas remain visible
+                      </div>
+                    </div>
+                    <div style={{ marginBottom: 4 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Background Fill Color</div>
+                      <ColorPickerDropdown value={bgColor} onChange={setBgColor} colors={shape === 'bwsheet' ? BW_PALETTE : PALETTE} label="Fill" allowCustom={shape !== 'bwsheet'} />
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* 6. Add Text — accordion, closed by default */}
+            <div style={{ borderTop: '1px solid ' + C.border, marginBottom: 4 }}>
+              <button
+                onClick={() => setAccordionText(v => !v)}
+                aria-expanded={accordionText}
+                style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  background: 'none', border: 'none', cursor: 'pointer', padding: '12px 0',
+                  fontWeight: 600, fontSize: 14, fontFamily: "'Outfit', sans-serif", color: C.text }}>
+                <span>✏️ Add Text <span style={{ fontWeight: 400, color: C.muted, fontSize: 13 }}>(optional)</span></span>
+                <span style={{ transition: 'transform 0.2s', transform: accordionText ? 'rotate(180deg)' : 'none', fontSize: 12, color: C.muted }}>▼</span>
+              </button>
+              {accordionText && (
+                <div style={{ paddingBottom: 16 }}>
+                  <input
+                    value={textOverlay.text}
+                    onChange={(e) => setTextOverlay((p) => ({ ...p, text: e.target.value }))}
+                    placeholder="Type your message..."
+                    style={{ ...inputStyle, marginBottom: 12 }}
+                  />
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+                    <div style={{ flex: 1, minWidth: 100 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Size</div>
+                      <select value={textOverlay.fontSize} onChange={(e) => setTextOverlay((p) => ({ ...p, fontSize: Number(e.target.value) }))} style={{
+                        width: '100%', padding: '8px 6px', borderRadius: 8, border: '1.5px solid ' + C.border,
+                        fontSize: 14, cursor: 'pointer', background: C.white, color: C.text, fontFamily: "'Outfit', sans-serif",
+                      }}>
+                        {[8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48, 56, 72, 96].map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 130 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Style</div>
+                      <select value={textOverlay.fontStyle} onChange={(e) => setTextOverlay((p) => ({ ...p, fontStyle: e.target.value }))} style={{
+                        width: '100%', padding: '8px 6px', borderRadius: 8, border: '1.5px solid ' + C.border,
+                        fontSize: 13, cursor: 'pointer', background: C.white, color: C.text,
+                      }}>
+                        <option value="normal">Normal</option>
+                        <option value="bold">Bold</option>
+                        <option value="italic">Italic</option>
+                        <option value="bold italic">Bold Italic</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Font</div>
+                    <select value={textOverlay.fontFamily} onChange={(e) => setTextOverlay((p) => ({ ...p, fontFamily: e.target.value }))} style={{
+                      width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid ' + C.border,
+                      fontSize: 15, cursor: 'pointer', background: C.white, color: C.text,
+                      fontFamily: textOverlay.fontFamily,
+                    }}>
+                      {[
+                        { value: 'Arial', label: 'Arial' },
+                        { value: 'Georgia', label: 'Georgia' },
+                        { value: 'Impact', label: 'Impact' },
+                        { value: 'Comic Sans MS', label: 'Comic Sans MS' },
+                        { value: 'Courier New', label: 'Courier New' },
+                        { value: 'Brush Script MT', label: 'Brush Script MT' },
+                        { value: 'Lobster', label: 'Lobster — Festive Script' },
+                        { value: 'Pacifico', label: 'Pacifico — Birthday Style' },
+                        { value: 'Dancing Script', label: 'Dancing Script — Elegant Cursive' },
+                        { value: 'Great Vibes', label: 'Great Vibes — Wedding Style' },
+                        { value: 'Bangers', label: 'Bangers — Comic/Party' },
+                        { value: 'Permanent Marker', label: 'Permanent Marker — Handwritten' },
+                        { value: 'Fredoka One', label: 'Fredoka One — Round Bold' },
+                      ].map(({ value, label }) => (
+                        <option key={value} value={value} style={{ fontFamily: value }}>{label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <p style={{ fontSize: 11, color: C.muted, margin: '0 0 10px', textAlign: 'center' }}>Drag text in preview to reposition</p>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Text Color</div>
+                    <ColorPickerDropdown
+                      value={textOverlay.color}
+                      onChange={(color) => setTextOverlay((p) => ({ ...p, color }))}
+                      colors={shape === 'bwsheet' ? BW_PALETTE : PALETTE}
+                      label="Text color"
+                      allowCustom={shape !== 'bwsheet'}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 7. Design Responsibility + Order Summary + Buttons */}
+            <div style={{
+              background: '#FFF8E6', border: '1px solid #F4D06F',
+              borderLeft: '4px solid #E8873C', borderRadius: 8,
+              padding: '12px 14px', marginTop: 16, marginBottom: 16,
+              fontSize: 12.5, lineHeight: 1.5, color: '#5C4A1A',
+            }}>
+              <div style={{ fontWeight: 700, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                ⚠️ Design Responsibility
+              </div>
+              <div>
+                You are responsible for the design choices you make here — image quality, text, colors, positioning and spelling. Your edible print will be produced <strong>exactly as shown in the preview</strong>. Please review your design carefully before placing the order.
+              </div>
+            </div>
+            <div style={{ ...card, marginTop: 4 }}>
+              {designs.map((d, i) => {
+                const dSizes = SIZES[d.shape] || [];
+                const dSel = dSizes.find(sz => sz.id === d.sizeId) || dSizes[0];
+                const dPrice = d.shape === 'custom'
+                  ? (parseFloat(d.customW || 0) * parseFloat(d.customH || 0) <= 36 ? 14.99 : 19.99)
+                  : dSel?.price || 0;
+                return (
+                  <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: d.id === activeDesignId ? 700 : 500,
+                    marginBottom: i < designs.length - 1 ? 8 : 0, paddingBottom: i < designs.length - 1 ? 8 : 0,
+                    borderBottom: i < designs.length - 1 ? '1px solid ' + C.border : 'none',
+                    color: d.id === activeDesignId ? C.text : C.muted }}>
+                    <span>Design {i + 1}: {d.qty}x {d.shape === 'custom' ? (d.customW + '"x' + d.customH + '"') : (dSel?.label || d.shape)}</span>
+                    <span style={{ color: C.brand }}>{'$' + (dPrice * d.qty).toFixed(2)}</span>
+                  </div>
+                );
+              })}
+              {designs.length > 1 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 700, marginTop: 10, paddingTop: 10, borderTop: '1.5px solid ' + C.border }}>
+                  <span>Subtotal</span>
+                  <span style={{ color: C.brand }}>{'$' + designsSubtotal.toFixed(2)}</span>
+                </div>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
+              <button onClick={() => setStep(1)} style={{ ...btnSecondary, flex: 1 }}>← Back</button>
+              <button onClick={() => setStep(3)} style={{ ...btnPrimary, flex: 2 }}>Continue →</button>
             </div>
           </div>
         )}
