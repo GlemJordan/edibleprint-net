@@ -230,7 +230,7 @@ async function processOrder(session, orderId) {
       headers: { 'Authorization': 'Bearer ' + process.env.RESEND_API_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         from: 'EdiblePrint.net Orders <onboarding@resend.dev>',
-        to: [process.env.ORDER_NOTIFICATION_EMAIL || 'edibleprintorders@gmail.com'],
+        to: [process.env.ORDER_NOTIFICATION_EMAIL || 'glenj.belmar@gmail.com'],
         reply_to: 'edibleprintorders@gmail.com',
         subject: (isTest ? '[TEST] ' : '') + 'New Order ' + orderId + ' — ' + designs.length + ' design' + (designs.length > 1 ? 's' : '') + ' — $' + totalAmt.toFixed(2) + ' CAD',
         html: ownerHtml,
