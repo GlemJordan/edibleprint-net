@@ -1,3 +1,17 @@
+:root {
+  --forest:      #1f5236;
+  --forest-deep: #163d28;
+  --coral:       #e8704a;
+  --coral-deep:  #d85a30;
+  --cream:       #f4f6f1;
+  --cream-tint:  #e8efe6;
+  --ink:         #1a2420;
+  --muted:       #5c6b62;
+  --gold-soft:   #fdf4e3;
+  --gold-ink:    #8a5e15;
+  --line:        #d9e2d6;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;

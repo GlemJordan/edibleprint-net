@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import './globals.css';
+import HeroSection from './_components/HeroSection';
 
 /* ═══ PRICING CONFIG ═══ */
 const SIZES = {
@@ -1862,56 +1863,7 @@ export default function EdiblePrintApp() {
             Order Now
           </button>
         </nav>
-        <section style={{ padding: '60px 24px 52px', textAlign: 'center', maxWidth: 740, margin: '0 auto',
-          background: 'linear-gradient(180deg, #E8F5EE 0%, #FAFBF9 100%)', borderRadius: '0 0 40px 40px' }}>
-          <div style={{ display: 'inline-block', background: 'rgba(27,107,74,0.12)', color: C.brand,
-            borderRadius: 24, padding: '7px 18px', fontSize: 13, fontWeight: 600, marginBottom: 22 }}>
-            🇨🇦 Free Local Pickup · Same-Day London Delivery · Canada-Wide Shipping
-          </div>
-          <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 'clamp(36px, 7vw, 62px)',
-            lineHeight: 1.08, margin: '0 0 20px', fontWeight: 700, letterSpacing: -1 }}>
-            Turn Any Photo Into an<br />
-            <span style={{ color: C.brand }}>Edible Masterpiece</span>
-          </h1>
-          <p style={{ fontSize: 18, color: C.muted, lineHeight: 1.65, margin: '0 auto 28px', maxWidth: 500 }}>
-            Custom printed on premium edible sheets. Perfect for cakes, cookies &amp; celebrations.
-          </p>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: C.white,
-            border: '1px solid ' + C.border, borderRadius: 40, padding: '8px 18px',
-            fontSize: 13.5, fontWeight: 600, marginBottom: 22, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-            <span style={{ color: '#FBBF24', letterSpacing: 1 }}>★★★★★</span>
-            <span style={{ color: C.text }}>11 five-star reviews · Serving London, Ontario &amp; Canada</span>
-          </div>
-          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', marginTop: 24 }}>
-            <button onClick={() => setStep(1)} style={{ ...btnPrimary, fontSize: 20, padding: '20px 52px',
-              borderRadius: 16, boxShadow: '0 8px 28px rgba(27,107,74,0.35)', letterSpacing: 0.3 }}>
-              Upload Your Photo Now →
-            </button>
-            <button
-              onClick={() => document.getElementById('pricing').scrollIntoView({ behavior: 'smooth' })}
-              style={{ ...btnSecondary, padding: '14px 24px', fontSize: 15 }}
-            >
-              See Pricing ↓
-            </button>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginTop: 12, flexWrap: 'wrap', fontSize: 14, color: C.muted }}>
-            <span>✦ From <strong style={{ color: C.text }}>$9.99</strong></span>
-            <span>✦ Free local pickup</span>
-            <span>✦ Ships Canada-wide</span>
-          </div>
-          {cutoffMsg && (
-            <div style={{
-              display: 'inline-block', borderRadius: 10, padding: '8px 20px', marginTop: 14,
-              fontSize: 13.5, fontWeight: 600,
-              background: cutoffMsg.green ? '#ECFDF5' : '#FFF4EB',
-              border: '1px solid ' + (cutoffMsg.green ? '#6EE7B7' : '#FDDBB6'),
-              color: cutoffMsg.green ? '#065F46' : '#B45309',
-            }}>
-              {cutoffMsg.green ? '🟢' : '🟡'} {cutoffMsg.text}
-            </div>
-          )}
-          <p style={{ fontSize: 13, color: '#bbb', marginTop: 12 }}>No account needed · Takes under 2 minutes</p>
-        </section>
+        <HeroSection onOrderClick={() => setStep(1)} cutoffMsg={cutoffMsg} />
         <div style={{ background: C.white, borderTop: '1px solid ' + C.border, borderBottom: '1px solid ' + C.border, padding: '16px 24px' }}>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 0, flexWrap: 'wrap', maxWidth: 760, margin: '0 auto' }}>
             {[
