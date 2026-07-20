@@ -73,7 +73,7 @@ async function sendAlertEmail(orderId, errorMsg) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'EdiblePrint.net <onboarding@resend.dev>',
+        from: 'EdiblePrint.net <orders@edibleprint.net>',
         to: ['edibleprintorders@gmail.com'],
         subject: '⚠️ ORDER PROCESSING FAILED — #' + orderId,
         html: '<p><strong>Order ' + orderId + ' failed to process fully.</strong></p>'
@@ -229,7 +229,7 @@ async function processOrder(session, orderId) {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + process.env.RESEND_API_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        from: 'EdiblePrint.net Orders <onboarding@resend.dev>',
+        from: 'EdiblePrint.net Orders <orders@edibleprint.net>',
         to: [process.env.ORDER_NOTIFICATION_EMAIL || 'glenj.belmar@gmail.com'],
         reply_to: 'edibleprintorders@gmail.com',
         subject: (isTest ? '[TEST] ' : '') + 'New Order ' + orderId + ' — ' + designs.length + ' design' + (designs.length > 1 ? 's' : '') + ' — $' + totalAmt.toFixed(2) + ' CAD',
@@ -296,24 +296,28 @@ async function processOrder(session, orderId) {
     + '<p style="font-size:12px;color:#9ca3af;text-align:center;margin:0;line-height:1.6;">This email serves as your official receipt.<br/>EdiblePrint.net — London, Ontario. HST Registration: [pending]</p>'
     + '</div></div>';
 
-  await withRetry(async () => {
-    const r = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + process.env.RESEND_API_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        from: 'EdiblePrint.net <onboarding@resend.dev>',
-        to: [session.customer_email],
-        reply_to: 'edibleprintorders@gmail.com',
-        subject: 'Order Confirmed — EdiblePrint.net #' + orderId,
-        html: customerHtml,
-      }),
-    });
-    if (!r.ok) {
-      const body = await r.text();
-      console.error('Resend customer email error:', r.status, body);
-      throw new Error('Customer email HTTP ' + r.status + ': ' + body);
-    }
-  }, 'customerEmail:' + orderId);
+  try {
+    await withRetry(async () => {
+      const r = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + process.env.RESEND_API_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: 'EdiblePrint.net <orders@edibleprint.net>',
+          to: [session.customer_email],
+          reply_to: 'edibleprintorders@gmail.com',
+          subject: 'Order Confirmed — EdiblePrint.net #' + orderId,
+          html: customerHtml,
+        }),
+      });
+      if (!r.ok) {
+        const body = await r.text();
+        console.error('Resend customer email error:', r.status, body);
+        throw new Error('Customer email HTTP ' + r.status + ': ' + body);
+      }
+    }, 'customerEmail:' + orderId);
+  } catch (err) {
+    console.error('Customer confirmation email failed for', orderId, '— order already processed, not failing pipeline:', err.message);
+  }
 
   console.log('Order pipeline complete:', orderId, '| PDF:', pdfUrl);
 }

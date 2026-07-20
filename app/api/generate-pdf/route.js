@@ -93,7 +93,7 @@ export async function POST(request) {
         : sizeInches ? `${sizeInches}"` : '';
 
       const emailResult = await resend.emails.send({
-        from: 'EdiblePrint.net <onboarding@resend.dev>',
+        from: 'EdiblePrint.net <orders@edibleprint.net>',
         to: customerEmail,
         subject: 'Your EdiblePrint PDF download',
         html: `

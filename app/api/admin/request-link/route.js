@@ -60,7 +60,7 @@ export async function POST(request) {
     const resend = new Resend(resendKey);
 
     const result = await resend.emails.send({
-      from: 'EdiblePrint.net <onboarding@resend.dev>',
+      from: 'EdiblePrint.net <orders@edibleprint.net>',
       to: email,
       subject: 'Your EdiblePrint admin login link',
       html: `
