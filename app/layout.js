@@ -58,11 +58,6 @@ export default function RootLayout({ children }) {
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-        <script
-          src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY}&libraries=places`}
-          async
-          defer
-        />
         <meta name="google-site-verification" content="AmSzZHbyuZyRnNgw40UuHd2n93tzrQoCU-3MV2yuWls" />
       </head>
       <body>

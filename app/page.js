@@ -1340,8 +1340,6 @@ export default function EdiblePrintApp() {
     name: '', email: '', phone: '', address: '', unit: '', city: '', province: 'Ontario', postal: ''
   });
   const fileRef = useRef(null);
-  const addressRef = useRef(null);
-  const autocompleteRef = useRef(null);
 
   /* Active design aliases */
   const activeDesign = designs.find(d => d.id === activeDesignId) ?? designs[0] ?? null;
@@ -1419,42 +1417,6 @@ export default function EdiblePrintApp() {
       document.removeEventListener('drop', prevent);
     };
   }, []);
-
-  useEffect(() => {
-    if (step !== 3 || !addressRef.current || autocompleteRef.current) return;
-    const checkGoogle = setInterval(() => {
-      if (window.google?.maps?.places) {
-        clearInterval(checkGoogle);
-        const ac = new window.google.maps.places.Autocomplete(addressRef.current, {
-          types: ['address'],
-          componentRestrictions: { country: 'ca' },
-          fields: ['address_components', 'formatted_address'],
-        });
-        ac.addListener('place_changed', () => {
-          const place = ac.getPlace();
-          if (!place.address_components) return;
-          let street = '', city = '', province = '', postal = '';
-          for (const comp of place.address_components) {
-            const t = comp.types;
-            if (t.includes('street_number')) street = comp.long_name + ' ';
-            if (t.includes('route')) street += comp.long_name;
-            if (t.includes('locality')) city = comp.long_name;
-            if (t.includes('administrative_area_level_1')) province = comp.long_name;
-            if (t.includes('postal_code')) postal = comp.short_name;
-          }
-          setForm((prev) => ({
-            ...prev,
-            address: street.trim(),
-            city: city || prev.city,
-            province: province || prev.province,
-            postal: postal || prev.postal,
-          }));
-        });
-        autocompleteRef.current = ac;
-      }
-    }, 200);
-    return () => { clearInterval(checkGoogle); autocompleteRef.current = null; };
-  }, [step]);
 
   const addDesignFromFile = (file) => {
     if (!file) return;
@@ -2833,7 +2795,7 @@ export default function EdiblePrintApp() {
               {shipping !== 'pickup' && (<>
               <div>
                 <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Street Address *</label>
-                <input ref={addressRef} value={form.address} onChange={(e) => handleAddressChange(e.target.value)} style={inputStyle} placeholder="e.g. 123 Main Street" autoComplete="off" />
+                <input value={form.address} onChange={(e) => handleAddressChange(e.target.value)} style={inputStyle} placeholder="e.g. 123 Main Street" autoComplete="off" />
               </div>
               <div style={{ maxWidth: 220 }}>
                 <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Unit / Suite (optional)</label>
