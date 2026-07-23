@@ -35,7 +35,7 @@ export default function RootLayout({ children }) {
       '@type': 'PostalAddress',
       addressLocality: 'London',
       addressRegion: 'ON',
-      postalCode: 'N5Z 3Y1',
+      postalCode: 'N5W 2V7',
       addressCountry: 'CA',
     },
     areaServed: [

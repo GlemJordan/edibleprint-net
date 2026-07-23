@@ -37,51 +37,10 @@ const SIZES = {
   custom: [{ id: 'custom', label: 'Custom Size', w: 0, h: 0, price: 0 }],
 };
 
-/* ═══ SHIPPING & DELIVERY ZONES ═══ */
-const SHIPPING_ZONES = {
-  on:       { standard: 13.99, express: 22.99 }, // Ontario (express = costo real)
-  qc:       { standard: 14.99, express: 23.99 }, // Quebec
-  prairies: { standard: 16.99, express: 26.99 }, // MB, SK
-  west:     { standard: 18.99, express: 29.99 }, // AB, BC
-  atlantic: { standard: 18.99, express: 28.99 }, // NB, NS, PE, NL
-  north:    { standard: 28.99, express: 42.99 }, // YT, NT, NU
-};
-const PROVINCE_TO_ZONE = {
-  'Ontario': 'on', 'Quebec': 'qc',
-  'Manitoba': 'prairies', 'Saskatchewan': 'prairies',
-  'Alberta': 'west', 'British Columbia': 'west',
-  'New Brunswick': 'atlantic', 'Nova Scotia': 'atlantic',
-  'Prince Edward Island': 'atlantic', 'Newfoundland and Labrador': 'atlantic',
-  'Yukon': 'north', 'Northwest Territories': 'north', 'Nunavut': 'north',
-};
-function getNationalRates(province) {
-  return SHIPPING_ZONES[PROVINCE_TO_ZONE[province] || 'on'];
-}
-const LOCAL_ZONES = {
-  south:   { name: 'South London',   price: 6.99, fsas: ['N5Z','N6E','N6J','N6L','N6M','N6N','N6P'] },
-  central: { name: 'Central London', price: 7,    fsas: ['N6A','N6B','N6C'] },
-  east:    { name: 'East London',    price: 8,    fsas: ['N5V','N5W'] },
-  west:    { name: 'West London',    price: 8,    fsas: ['N5P','N6G','N6H','N6K'] },
-  north:   { name: 'North London',   price: 10,   fsas: ['N5X','N5Y'] },
-};
-
-function getLocalZone(postalCode) {
-  if (!postalCode) return null;
-  const fsa = postalCode.replace(/\s/g, '').toUpperCase().slice(0, 3);
-  for (const [key, zone] of Object.entries(LOCAL_ZONES)) {
-    if (zone.fsas.includes(fsa)) return { key, ...zone };
-  }
-  return null;
-}
-
-function getDeliveryEstimate(province, postal) {
-  if (postal && getLocalZone(postal)) return 'Same-day or next-day delivery (London, ON)';
-  if (province === 'Ontario') return '2–3 business days';
-  if (province === 'Quebec' || province === 'Manitoba') return '3–4 business days';
-  if (province === 'Alberta' || province === 'Saskatchewan' || province === 'British Columbia') return '4–6 business days';
-  if (province === 'New Brunswick' || province === 'Nova Scotia' || province === 'Prince Edward Island' || province === 'Newfoundland and Labrador') return '4–7 business days';
-  if (province === 'Yukon' || province === 'Northwest Territories' || province === 'Nunavut') return '6–11 business days';
-  return 'Typically 2–5 business days across Canada';
+/* ═══ SHIPPING ═══ */
+const SHIPPING_RATE = 9.99;
+function getDeliveryEstimate() {
+  return "Free pickup in London, ON (we'll confirm the exact time by email). Canada Post shipping available anywhere in Canada.";
 }
 
 function trackGA(event, params) {
@@ -1370,7 +1329,7 @@ export default function EdiblePrintApp() {
   const [step, setStep] = useState(0);
   const [designs, setDesigns] = useState([]);
   const [activeDesignId, setActiveDesignId] = useState(null);
-  const [shipping, setShipping] = useState('standard');
+  const [shipping, setShipping] = useState('shipping');
   const [pricingTab, setPricingTab] = useState('circular');
   const [hoveredCardId, setHoveredCardId] = useState(null);
   const [pendingShape, setPendingShape] = useState(null);
@@ -1441,17 +1400,9 @@ export default function EdiblePrintApp() {
     return sum + dPrice * d.qty;
   }, 0);
 
-  const localZone = getLocalZone(form.postal);
-  const nationalRates = getNationalRates(form.province);
-  const shippingCost = shipping === 'local' ? (localZone?.price || 0) : shipping === 'pickup' ? 0 : (nationalRates[shipping] || 0);
+  const shippingCost = shipping === 'pickup' ? 0 : SHIPPING_RATE;
   const tax = (designsSubtotal + shippingCost) * TAX_RATE;
   const total = designsSubtotal + shippingCost + tax;
-
-  useEffect(() => {
-    if (shipping === 'local' && form.postal && !getLocalZone(form.postal)) {
-      setShipping('standard');
-    }
-  }, [form.postal]);
 
   useEffect(() => {
     if (!activeDesignId) return;
@@ -2904,42 +2855,31 @@ export default function EdiblePrintApp() {
                 <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Postal Code *</label>
                 <input value={form.postal} onChange={(e) => updateForm('postal', e.target.value.toUpperCase())} style={inputStyle} placeholder="N6A 1B2" maxLength={7} />
               </div>
-              {(form.province || form.postal) && (
-                <div style={{ background: C.brandLight, border: '1px solid #C6E6D6', borderRadius: 10,
-                  padding: '10px 16px', fontSize: 13.5, color: C.brandDark, fontWeight: 600 }}>
-                  📦 Estimated delivery: <strong>{getDeliveryEstimate(form.province, form.postal)}</strong>
-                  <span style={{ fontSize: 12, fontWeight: 400, color: C.muted, marginLeft: 8 }}>after production (1–2 days)</span>
-                </div>
-              )}
+              <div style={{ background: C.brandLight, border: '1px solid #C6E6D6', borderRadius: 10,
+                padding: '10px 16px', fontSize: 13.5, color: C.brandDark, fontWeight: 600 }}>
+                📦 {getDeliveryEstimate()}
+              </div>
               </>)}
             </div>
             <div style={{ marginTop: 26 }}>
               <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 10 }}>Shipping Method</label>
               {[
-                { key: 'pickup', label: 'Free Pickup — London, ON', price: 0, disabled: false, note: "South London (Glen Cairn / Westmount area). We'll confirm the exact time by email." },
-                { key: 'local', label: localZone ? 'Local Delivery — ' + localZone.name : 'Local Delivery (London zones)', price: localZone?.price || 0, disabled: !localZone },
-                { key: 'standard', label: 'Canada Post Standard — 3–5 business days', price: nationalRates.standard, disabled: false },
-                { key: 'express', label: 'Canada Post Express — 1–2 business days', price: nationalRates.express, disabled: false },
+                { key: 'pickup', label: 'Free Pickup — London, ON', price: 0, note: "East London, ON. We'll confirm the exact time by email." },
+                { key: 'shipping', label: 'Canada Post Shipping — $9.99', price: SHIPPING_RATE },
               ].map((opt) => (
                 <label key={opt.key} style={{
                   display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 12,
                   border: shipping === opt.key ? '2.5px solid ' + C.brand : '2px solid ' + C.border,
-                  background: shipping === opt.key ? C.brandLight : opt.disabled ? '#f9fafb' : C.white, marginBottom: 8,
-                  cursor: opt.disabled ? 'not-allowed' : 'pointer', transition: 'all 0.2s', opacity: opt.disabled ? 0.5 : 1 }}>
-                  <input type="radio" name="shipping" checked={shipping === opt.key} onChange={() => { if (!opt.disabled) setShipping(opt.key); }} disabled={opt.disabled} style={{ accentColor: C.brand, width: 18, height: 18 }} />
+                  background: shipping === opt.key ? C.brandLight : C.white, marginBottom: 8,
+                  cursor: 'pointer', transition: 'all 0.2s' }}>
+                  <input type="radio" name="shipping" checked={shipping === opt.key} onChange={() => setShipping(opt.key)} style={{ accentColor: C.brand, width: 18, height: 18 }} />
                   <div style={{ flex: 1 }}>
                     <span style={{ fontSize: 14, fontWeight: 500 }}>{opt.label}</span>
-                    {opt.key === 'local' && !localZone && form.postal && (
-                      <div style={{ fontSize: 12, color: '#EF4444', marginTop: 2 }}>Not available for your postal code</div>
-                    )}
-                    {opt.key === 'local' && !form.postal && (
-                      <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>Enter your postal code above</div>
-                    )}
                     {opt.note && (
                       <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{opt.note}</div>
                     )}
                   </div>
-                  <span style={{ fontWeight: 700, fontSize: 14, color: opt.disabled ? C.muted : C.brand }}>{opt.key === 'local' && localZone ? '$' + localZone.price.toFixed(2) : opt.key === 'local' ? '—' : '$' + opt.price.toFixed(2)}</span>
+                  <span style={{ fontWeight: 700, fontSize: 14, color: C.brand }}>{'$' + opt.price.toFixed(2)}</span>
                 </label>
               ))}
             </div>

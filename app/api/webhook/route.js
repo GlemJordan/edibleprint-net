@@ -96,10 +96,7 @@ async function processOrder(session, orderId) {
   const taxAmt      = (subtotalAmt + shippingAmt) * 0.13;
   const totalAmt    = session.amount_total / 100;
 
-  const shippingLabel = meta.shippingMethod === 'express' ? 'Express (1–2 business days)'
-    : meta.shippingMethod === 'local'   ? 'Same Day Delivery — London, ON'
-    : meta.shippingMethod === 'pickup'  ? 'Pickup — South London, ON'
-    : 'Standard (3–5 business days)';
+  const shippingLabel = meta.shippingMethod === 'pickup' ? 'Pickup — East London, ON' : 'Canada Post Shipping';
 
   // 1. Build + save OrderRecord (order.json + notes.txt → Cloudinary)
   const record = buildOrderRecord(session, designs, orderId, isTest);
@@ -210,7 +207,7 @@ async function processOrder(session, orderId) {
     + '<h3 style="color:#1B6B4A;margin-top:16px;">Customer</h3>'
     + '<p><strong>' + meta.customerName + '</strong><br/>' + session.customer_email + '<br/>' + (meta.customerPhone || '—') + '</p>'
     + '<h3 style="color:#1B6B4A;">Shipping</h3>'
-    + '<p>' + (isPickup ? 'PICKUP — South London' : (meta.shippingAddress + '<br/>' + meta.shippingCity + ', ' + meta.shippingProvince + ' ' + meta.shippingPostal)) + '<br/>Method: ' + shippingLabel + '</p>'
+    + '<p>' + (isPickup ? 'PICKUP — East London' : (meta.shippingAddress + '<br/>' + meta.shippingCity + ', ' + meta.shippingProvince + ' ' + meta.shippingPostal)) + '<br/>Method: ' + shippingLabel + '</p>'
     + '<h3 style="color:#1B6B4A;">Designs</h3>'
     + '<table style="width:100%;border-collapse:collapse;">'
     + '<thead><tr style="background:#1B6B4A;color:white;"><th style="padding:8px 14px;text-align:left;">Item</th><th style="padding:8px 14px;text-align:left;">Details</th><th style="padding:8px 14px;text-align:right;">Price</th></tr></thead>'
@@ -287,7 +284,7 @@ async function processOrder(session, orderId) {
     + (isPickup
       ? '<div style="background:#FFF4EB;border-left:4px solid #E8873C;padding:14px 16px;border-radius:0 6px 6px 0;margin-bottom:20px;">'
         + '<p style="margin:0 0 6px;font-size:14px;font-weight:600;color:#374151;">Pickup Address</p>'
-        + '<p style="margin:0;font-size:14px;line-height:1.6;color:#374151;">3 Frontenac Road N5Z 3Y1 (apartments), South London, ON.<br/>Please wait for our confirmation email with pickup time and exact address.</p>'
+        + '<p style="margin:0;font-size:14px;line-height:1.6;color:#374151;">40 Burslem St, N5W 2V7, London, ON.<br/>Please wait for our confirmation email with pickup time and exact unit.</p>'
         + '</div>'
       : '')
     + '<hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;" />'

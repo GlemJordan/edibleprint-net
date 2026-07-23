@@ -69,7 +69,7 @@ export async function POST(request) {
           price_data: {
             currency: 'cad',
             product_data: {
-              name: 'Shipping (' + (shippingMethod === 'express' ? 'Express 1-2 days' : shippingMethod === 'local' ? 'Same Day Delivery' : shippingMethod === 'pickup' ? 'Pickup' : 'Standard 3-5 days') + ')',
+              name: 'Shipping (' + (shippingMethod === 'pickup' ? 'Pickup' : 'Canada Post Shipping') + ')',
             },
             unit_amount: shippingAmount,
           },
