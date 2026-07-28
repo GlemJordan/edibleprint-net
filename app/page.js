@@ -86,6 +86,12 @@ const card = {
   background: C.white, borderRadius: 14, padding: 20,
   boxShadow: '0 2px 12px rgba(0,0,0,0.04)', border: '1px solid ' + C.border,
 };
+const zoomBtnStyle = {
+  width: 34, height: 34, borderRadius: 8, border: '1px solid ' + C.border,
+  background: C.white, cursor: 'pointer', fontSize: 17, fontWeight: 700,
+  color: C.text, display: 'flex', alignItems: 'center', justifyContent: 'center',
+  fontFamily: "'Outfit', sans-serif",
+};
 
 /* ═══ LOGO ═══ */
 function Logo({ footer = false }) {
@@ -281,6 +287,290 @@ function drawShapeShadow(ctx, shape, canvasW, canvasH, isMobile) {
   ctx.restore();
 }
 
+/* PREVIEW-ONLY quality helpers. Never used by the hi-res (300 DPI) print
+   pipeline — that pipeline always draws straight from the original
+   full-resolution <img>, untouched by anything below. */
+
+/* devicePixelRatio*2, capped at 3, used to size preview canvas backing
+   stores so they aren't blurry on HiDPI screens. */
+function getPreviewRenderScale() {
+  if (typeof window === 'undefined') return 1;
+  return Math.min((window.devicePixelRatio || 1) * 2, 3);
+}
+
+/* Shrinks `img` down to ~targetW×targetH by repeatedly halving instead of
+   one steep single-step canvas resize, which avoids the aliasing/blur a
+   single big-ratio drawImage() produces (e.g. a 3000px source collapsed
+   straight into a 75px circle). Only used to build PREVIEW pixels. */
+function steppedDownscale(img, targetW, targetH) {
+  const tw = Math.max(1, Math.round(targetW));
+  const th = Math.max(1, Math.round(targetH));
+  let source = img;
+  let srcW = img.width, srcH = img.height;
+  if (!srcW || !srcH) return img;
+  while (srcW > tw * 2 && srcH > th * 2) {
+    const nextW = Math.max(tw, Math.round(srcW / 2));
+    const nextH = Math.max(th, Math.round(srcH / 2));
+    const step = document.createElement('canvas');
+    step.width = nextW;
+    step.height = nextH;
+    const sctx = step.getContext('2d');
+    sctx.imageSmoothingEnabled = true;
+    sctx.imageSmoothingQuality = 'high';
+    sctx.drawImage(source, 0, 0, srcW, srcH, 0, 0, nextW, nextH);
+    source = step;
+    srcW = nextW;
+    srcH = nextH;
+  }
+  return source;
+}
+
+/* Layout math for the multi-circle "cookie sheet" grid, factored out so
+   both the inline preview canvas and the print-preview modal (which render
+   at different pixel sizes) can compute circle size/positions consistently. */
+function computeMultiCircleLayout(cw, ch, isMultiCircle, sizeObj) {
+  if (!isMultiCircle) return { circlePx: cw, mcCols: 1, mcRows: 1, mcGapPx: 0, mcStepPx: cw, mcOffsetX: 0, mcOffsetY: 0 };
+  const circleSize = sizeObj.circleSize || 2;
+  const mcGapInches = sizeObj.gap ?? MC_GAP;
+  const previewPPI = cw / (sizeObj.w || 8);
+  const circlePx = Math.round(circleSize * previewPPI);
+  const { cols: mcCols, rows: mcRows } = (sizeObj.cols && sizeObj.rows)
+    ? { cols: sizeObj.cols, rows: sizeObj.rows }
+    : getCircleGrid(sizeObj.w || 8, sizeObj.h || 11, circleSize);
+  const mcGapPx = mcGapInches * previewPPI;
+  const mcStepPx = circlePx + mcGapPx;
+  const mcTotalW = mcCols * circlePx + Math.max(0, mcCols - 1) * mcGapPx;
+  const mcTotalH = mcRows * circlePx + Math.max(0, mcRows - 1) * mcGapPx;
+  const mcOffsetX = (cw - mcTotalW) / 2;
+  const mcOffsetY = (ch - mcTotalH) / 2;
+  return { circlePx, mcCols, mcRows, mcGapPx, mcStepPx, mcOffsetX, mcOffsetY };
+}
+
+/*
+ * Layer positions/scales (layer.x, layer.y, layer.scale) are stored relative
+ * to the inline editor's own layout — canvasW×canvasH for regular shapes, or
+ * circlePx×circlePx for multi-circle sheets (see the auto-fit logic in
+ * ImageEditor). Any renderer drawing those same layers into a differently
+ * sized destination (e.g. the print-preview modal, fit to the viewport
+ * instead of the inline container) must scale them by the ratio between the
+ * destination size and that reference size, or the layers land offset from
+ * where they appear inline. Both renderPreviewCore call sites must derive
+ * their layerScale through this one function so they can't diverge again.
+ */
+function computeLayerScale(isMultiCircle, destW, destCirclePx, refW, refCirclePx) {
+  return isMultiCircle ? destCirclePx / refCirclePx : destW / refW;
+}
+
+/*
+ * Draws the PREVIEW ONLY — never called for hi-res/print output.
+ * Pure function of its arguments so it can be reused both by the small
+ * inline editor canvas and the fullscreen print-preview modal, which
+ * render the same composition at different pixel sizes.
+ *   ctx              — 2D context of the destination canvas, already sized
+ *                       and (if HiDPI) ctx.scale()'d by the caller; this
+ *                       function draws entirely in cw×ch logical units.
+ *   layerScale       — ratio between this destination's size and the inline
+ *                       editor's own layout size, from computeLayerScale();
+ *                       applied to every layer.x/y/scale and to text size so
+ *                       the composition lands identically regardless of the
+ *                       destination canvas's pixel dimensions.
+ *   downscale(key,img,w,h) — returns a pre-shrunk drawImage-able source,
+ *                       memoized by the caller across renders.
+ *   renderScale      — the same DPR-derived scale the caller applied to
+ *                       `ctx`, used to size the offscreen multi-circle
+ *                       "source crop" canvas at matching physical density.
+ */
+function renderPreviewCore(ctx, cw, ch, {
+  shape, isBWSheet, isMultiCircle, layers, getImg, bgColor, textOverlay,
+  circlePx, mcCols, mcRows, mcOffsetX, mcOffsetY, mcStepPx, layerScale = 1,
+  downscale, renderScale, isMobile, showSelection, selectedLayer, selectedLayerImg,
+  showWatermark,
+}) {
+  ctx.clearRect(0, 0, cw, ch);
+  drawShapeShadow(ctx, shape, cw, ch, isMobile);
+
+  if (isBWSheet) {
+    const squareSize = cw * (6.5 / 8);
+    const sqX = (cw - squareSize) / 2;
+    const sqY = (ch - squareSize) / 2;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(sqX, sqY, squareSize, squareSize);
+    ctx.clip();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, cw, ch);
+    if (bgColor && bgColor !== 'transparent') {
+      ctx.filter = 'grayscale(100%)';
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, cw, ch);
+      ctx.filter = 'none';
+    }
+    layers.forEach(layer => {
+      const img = getImg(layer.id);
+      if (!img) return;
+      ctx.save();
+      ctx.filter = 'grayscale(100%)';
+      const imgW = img.width * layer.scale * layerScale;
+      const imgH = img.height * layer.scale * layerScale;
+      const lx = layer.x * layerScale, ly = layer.y * layerScale;
+      const src = downscale(`${layer.id}:bw`, img, imgW * renderScale, imgH * renderScale);
+      if (layer.rotation !== 0) {
+        ctx.translate(lx + imgW / 2, ly + imgH / 2);
+        ctx.rotate(layer.rotation * Math.PI / 180);
+        ctx.translate(-(lx + imgW / 2), -(ly + imgH / 2));
+      }
+      ctx.drawImage(src, lx, ly, imgW, imgH);
+      ctx.filter = 'none';
+      ctx.restore();
+    });
+    if (textOverlay?.text) {
+      ctx.filter = 'grayscale(100%)';
+      drawText(ctx, textOverlay, cw, ch, layerScale);
+      ctx.filter = 'none';
+    }
+    ctx.restore();
+    ctx.beginPath();
+    ctx.rect(sqX, sqY, squareSize, squareSize);
+    ctx.strokeStyle = '#C8C8C8';
+    ctx.setLineDash([3, 5]);
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.setLineDash([]);
+  } else if (isMultiCircle) {
+    /* Build a single source-crop canvas (what the user sees) then tile it.
+       Rendered at renderScale physical density so tiling it 40× onto the
+       already-scaled main canvas is a crisp ~1:1 blit, not an upscale. */
+    const sc = document.createElement('canvas');
+    const scPx = Math.max(1, Math.round(circlePx * renderScale));
+    sc.width = scPx; sc.height = scPx;
+    const sctx = sc.getContext('2d');
+    sctx.scale(renderScale, renderScale);
+    sctx.imageSmoothingEnabled = true;
+    sctx.imageSmoothingQuality = 'high';
+    sctx.beginPath();
+    sctx.arc(circlePx / 2, circlePx / 2, circlePx / 2, 0, Math.PI * 2);
+    sctx.fillStyle = '#FFFFFF';
+    sctx.fill();
+    if (bgColor && bgColor !== 'transparent') {
+      sctx.beginPath();
+      sctx.arc(circlePx / 2, circlePx / 2, circlePx / 2, 0, Math.PI * 2);
+      sctx.fillStyle = bgColor;
+      sctx.fill();
+    }
+    sctx.save();
+    sctx.beginPath();
+    sctx.arc(circlePx / 2, circlePx / 2, circlePx / 2, 0, Math.PI * 2);
+    sctx.clip();
+    layers.forEach(layer => {
+      const img = getImg(layer.id);
+      if (!img) return;
+      sctx.save();
+      const iw = img.width * layer.scale * layerScale;
+      const ih = img.height * layer.scale * layerScale;
+      const lx = layer.x * layerScale, ly = layer.y * layerScale;
+      const src = downscale(`${layer.id}:mc`, img, iw * renderScale, ih * renderScale);
+      if (layer.rotation !== 0) {
+        sctx.translate(lx + iw / 2, ly + ih / 2);
+        sctx.rotate(layer.rotation * Math.PI / 180);
+        sctx.translate(-(lx + iw / 2), -(ly + ih / 2));
+      }
+      sctx.drawImage(src, lx, ly, iw, ih);
+      sctx.restore();
+    });
+    sctx.restore();
+    drawText(sctx, textOverlay, circlePx, circlePx, layerScale);
+    /* Tile source crop into the grid — processed once above, reused for
+       every circle below (no per-circle reprocessing). */
+    for (let row = 0; row < mcRows; row++) {
+      for (let col = 0; col < mcCols; col++) {
+        const ox = mcOffsetX + col * mcStepPx;
+        const oy = mcOffsetY + row * mcStepPx;
+        ctx.drawImage(sc, ox, oy, circlePx, circlePx);
+      }
+    }
+    ctx.strokeStyle = '#C8C8C8';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 5]);
+    for (let row = 0; row < mcRows; row++) {
+      for (let col = 0; col < mcCols; col++) {
+        ctx.beginPath();
+        ctx.arc(mcOffsetX + col * mcStepPx + circlePx / 2, mcOffsetY + row * mcStepPx + circlePx / 2, circlePx / 2 - 1, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+    ctx.setLineDash([]);
+  } else {
+    ctx.save();
+    if (shape === 'circular') {
+      ctx.beginPath();
+      ctx.arc(cw / 2, ch / 2, cw / 2, 0, Math.PI * 2);
+      ctx.clip();
+    } else if (shape === 'heart') {
+      drawHeartPath(ctx, 0, 0, cw, ch);
+      ctx.clip();
+    } else {
+      ctx.beginPath();
+      ctx.rect(0, 0, cw, ch);
+      ctx.clip();
+    }
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, cw, ch);
+    if (bgColor && bgColor !== 'transparent') {
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, cw, ch);
+    }
+    layers.forEach(layer => {
+      const img = getImg(layer.id);
+      if (!img) return;
+      ctx.save();
+      const imgW = img.width * layer.scale * layerScale;
+      const imgH = img.height * layer.scale * layerScale;
+      const lx = layer.x * layerScale, ly = layer.y * layerScale;
+      const src = downscale(`${layer.id}:main`, img, imgW * renderScale, imgH * renderScale);
+      if (layer.rotation !== 0) {
+        ctx.translate(lx + imgW / 2, ly + imgH / 2);
+        ctx.rotate(layer.rotation * Math.PI / 180);
+        ctx.translate(-(lx + imgW / 2), -(ly + imgH / 2));
+      }
+      ctx.drawImage(src, lx, ly, imgW, imgH);
+      ctx.restore();
+    });
+    drawText(ctx, textOverlay, cw, ch, layerScale);
+    ctx.restore();
+    /* Selection outline for active layer — inline editor only, never shown
+       in the print-preview modal. */
+    if (showSelection && selectedLayer && selectedLayerImg) {
+      ctx.save();
+      ctx.strokeStyle = '#22C55E';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 3]);
+      ctx.strokeRect(
+        selectedLayer.x * layerScale - 1, selectedLayer.y * layerScale - 1,
+        selectedLayerImg.width * selectedLayer.scale * layerScale + 2,
+        selectedLayerImg.height * selectedLayer.scale * layerScale + 2
+      );
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+    ctx.strokeStyle = '#C8C8C8';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 5]);
+    if (shape === 'circular') {
+      ctx.beginPath();
+      ctx.arc(cw / 2, ch / 2, cw / 2 - 1, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (shape === 'heart') {
+      drawHeartPath(ctx, 1, 1, cw - 2, ch - 2);
+      ctx.stroke();
+    } else {
+      ctx.strokeRect(0.5, 0.5, cw - 1, ch - 1);
+    }
+    ctx.setLineDash([]);
+  }
+
+  if (showWatermark) drawWatermark(ctx, cw, ch);
+}
+
 async function removeWhiteBackground(img, tolerance = 30) {
   const off = document.createElement('canvas');
   off.width = img.width;
@@ -347,12 +637,31 @@ async function removeWhiteBackground(img, tolerance = 30) {
 }
 
 function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF', textOverlay = null, onTextPositionChange, removeWhiteBg = false, bgRemoveTolerance = 30, sizeLabel = '', isMobile = false }) {
+  /* Declared early: several hooks below depend on these */
+  const isMultiCircle = shape === 'multicircle';
+  const isBWSheet = shape === 'bwsheet';
+
   const canvasRef = useRef(null);
   const hiResCanvasRef = useRef(null);
   const containerRef = useRef(null);
   const imgRefs = useRef({});
   const processedImgRefs = useRef({});
   const addLayerFileRef = useRef(null);
+  /* Cache of preview-only stepped-downscale results, keyed by cache key
+     (layer id + which render pass). Invalidated automatically whenever the
+     source image or requested target size changes, so the expensive
+     downscale only re-runs when someone actually zooms/switches images —
+     not on every drag frame, and never on the hi-res print pipeline. */
+  const downscaleCacheRef = useRef(new Map());
+  const getDownscaledSource = (cacheKey, img, targetW, targetH) => {
+    const tw = Math.max(1, Math.round(targetW));
+    const th = Math.max(1, Math.round(targetH));
+    const cached = downscaleCacheRef.current.get(cacheKey);
+    if (cached && cached.img === img && cached.w === tw && cached.h === th) return cached.source;
+    const source = steppedDownscale(img, tw, th);
+    downscaleCacheRef.current.set(cacheKey, { img, w: tw, h: th, source });
+    return source;
+  };
   const onLayersChangeRef = useRef(onLayersChange);
   onLayersChangeRef.current = onLayersChange;
 
@@ -367,9 +676,169 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
   const [redrawTick, setRedrawTick] = useState(0);
   const [canvasW, setCanvasW] = useState(360);
   const [canvasH, setCanvasH] = useState(360);
+
+  /* Multi-circle layout — computed early (needs only canvasW/canvasH/sizeObj)
+     because the modal print-preview effect below needs it to derive its own
+     scale factor relative to the inline editor's layout. */
+  const circleSize = sizeObj.circleSize || 2;
+  const mcGapInches = isMultiCircle ? (sizeObj.gap ?? MC_GAP) : 0;
+  const previewPPI = canvasW / (sizeObj.w || 8);
+  const circlePx = isMultiCircle ? Math.round(circleSize * previewPPI) : canvasW;
+  const { cols: mcCols, rows: mcRows } = isMultiCircle
+    ? (sizeObj.cols && sizeObj.rows
+        ? { cols: sizeObj.cols, rows: sizeObj.rows }
+        : getCircleGrid(sizeObj.w || 8, sizeObj.h || 11, circleSize))
+    : { cols: 1, rows: 1 };
+  const mcGapPx  = isMultiCircle ? mcGapInches * previewPPI : 0;
+  const mcStepPx = circlePx + mcGapPx;
+  const mcTotalW  = isMultiCircle ? mcCols * circlePx + Math.max(0, mcCols - 1) * mcGapPx : 0;
+  const mcTotalH  = isMultiCircle ? mcRows * circlePx + Math.max(0, mcRows - 1) * mcGapPx : 0;
+  const mcOffsetX = isMultiCircle ? (canvasW - mcTotalW) / 2 : 0;
+  const mcOffsetY = isMultiCircle ? (canvasH - mcTotalH) / 2 : 0;
+
   const [viewportHeight, setViewportHeight] = useState(
     typeof window !== 'undefined' ? window.innerHeight : 800
   );
+
+  /* ── Fullscreen print-preview modal (Problem 2) ── */
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
+  const [modalBaseSize, setModalBaseSize] = useState({ w: 360, h: 360 });
+  const [modalZoom, setModalZoom] = useState(1);
+  const [modalPan, setModalPan] = useState({ x: 0, y: 0 });
+  const modalCanvasRef = useRef(null);
+  const modalViewportRef = useRef(null);
+  const modalPointers = useRef(new Map());
+  const modalPinchRef = useRef(null);
+  const modalDragRef = useRef(null);
+
+  /* Reset zoom/pan each time the modal opens */
+  useEffect(() => {
+    if (showPrintPreview) { setModalZoom(1); setModalPan({ x: 0, y: 0 }); }
+  }, [showPrintPreview]);
+
+  /* Snap pan back to center once zoomed back out to fit */
+  useEffect(() => {
+    if (modalZoom <= 1 && (modalPan.x !== 0 || modalPan.y !== 0)) setModalPan({ x: 0, y: 0 });
+  }, [modalZoom]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* Lock background scroll + close on Esc while modal is open */
+  useEffect(() => {
+    if (!showPrintPreview) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e) => { if (e.key === 'Escape') setShowPrintPreview(false); };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [showPrintPreview]);
+
+  /* Size the modal canvas to fit the viewport (same aspect-ratio rule as the inline preview) */
+  useEffect(() => {
+    if (!showPrintPreview) return;
+    const update = () => {
+      let aspect;
+      if (shape === 'circular' || shape === 'heart' || shape === 'square') aspect = 1;
+      else if (shape === 'custom') {
+        const cw = sizeObj.w || 8, ch = sizeObj.h || 11;
+        aspect = cw > 0 && ch > 0 ? cw / ch : 1;
+      } else {
+        aspect = (sizeObj.w || 8) / (sizeObj.h || 11);
+      }
+      const padX = isMobile ? 16 : 64;
+      const chrome = isMobile ? 118 : 148; /* header + zoom toolbar */
+      const availW = Math.max(120, window.innerWidth - padX * 2);
+      const availH = Math.max(120, window.innerHeight - chrome);
+      let w = availW;
+      let h = w / aspect;
+      if (h > availH) { h = availH; w = h * aspect; }
+      setModalBaseSize({ w: Math.floor(w), h: Math.floor(h) });
+    };
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, [showPrintPreview, shape, sizeObj.id, sizeObj.w, sizeObj.h, isMobile]);
+
+  /* Draw the modal canvas with the exact same high-quality preview pipeline
+     as the inline editor (Problem 1), just at a bigger fit-to-screen size.
+     Interactive zoom is a cheap CSS transform on top — see JSX below —
+     rather than re-rendering the canvas on every wheel/pinch tick. */
+  useEffect(() => {
+    if (!showPrintPreview) return;
+    const canvas = modalCanvasRef.current;
+    if (!canvas) return;
+    const cw = modalBaseSize.w, ch = modalBaseSize.h;
+    const renderScale = getPreviewRenderScale();
+    canvas.width = Math.max(1, Math.round(cw * renderScale));
+    canvas.height = Math.max(1, Math.round(ch * renderScale));
+    canvas.style.width = cw + 'px';
+    canvas.style.height = ch + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    const layout = computeMultiCircleLayout(cw, ch, isMultiCircle, sizeObj);
+    /* Layers are fit to the inline editor's own canvasW/circlePx; scale them
+       into this modal's (differently sized) layout so it's a true mirror. */
+    const layerScale = computeLayerScale(isMultiCircle, cw, layout.circlePx, canvasW, circlePx);
+    renderPreviewCore(ctx, cw, ch, {
+      shape, isBWSheet, isMultiCircle, layers, getImg, bgColor, textOverlay,
+      circlePx: layout.circlePx, mcCols: layout.mcCols, mcRows: layout.mcRows,
+      mcOffsetX: layout.mcOffsetX, mcOffsetY: layout.mcOffsetY, mcStepPx: layout.mcStepPx,
+      layerScale,
+      downscale: (key, img, w, h) => getDownscaledSource('modal:' + key, img, w, h),
+      renderScale, isMobile: false, showSelection: false, selectedLayer: null, selectedLayerImg: null,
+      showWatermark: true,
+    });
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [showPrintPreview, modalBaseSize, layers, redrawTick, shape, sizeObj, bgColor, textOverlay, isMultiCircle, isBWSheet, removeWhiteBg, canvasW, circlePx]);
+
+  const onModalPointerDown = (e) => {
+    modalPointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (modalPointers.current.size === 2) {
+      const pts = Array.from(modalPointers.current.values());
+      const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+      modalPinchRef.current = { initialDist: dist, initialZoom: modalZoom };
+      modalDragRef.current = null;
+    } else if (modalPointers.current.size === 1 && modalZoom > 1) {
+      modalDragRef.current = { startX: e.clientX, startY: e.clientY, startPan: modalPan };
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+    }
+  };
+  const onModalPointerMove = (e) => {
+    if (!modalPointers.current.has(e.pointerId)) return;
+    modalPointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (modalPointers.current.size === 2 && modalPinchRef.current) {
+      const pts = Array.from(modalPointers.current.values());
+      const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+      const { initialDist, initialZoom } = modalPinchRef.current;
+      setModalZoom(Math.min(4, Math.max(0.5, initialZoom * (dist / initialDist))));
+      return;
+    }
+    if (modalDragRef.current) {
+      const { startX, startY, startPan } = modalDragRef.current;
+      setModalPan({ x: startPan.x + (e.clientX - startX), y: startPan.y + (e.clientY - startY) });
+    }
+  };
+  const onModalPointerUp = (e) => {
+    modalPointers.current.delete(e.pointerId);
+    if (modalPointers.current.size < 2) modalPinchRef.current = null;
+    if (modalPointers.current.size === 0) modalDragRef.current = null;
+  };
+
+  /* Wheel-to-zoom on desktop (native listener so preventDefault actually stops page scroll) */
+  useEffect(() => {
+    if (!showPrintPreview) return;
+    const el = modalViewportRef.current;
+    if (!el) return;
+    const onWheel = (e) => {
+      e.preventDefault();
+      setModalZoom(z => Math.min(4, Math.max(0.5, +(z - e.deltaY * 0.0015).toFixed(3))));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [showPrintPreview]);
 
   useEffect(() => {
     const onResize = () => setViewportHeight(window.innerHeight);
@@ -418,25 +887,6 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
   const hiResW = printW * DPI;
   const hiResH = printH * DPI;
   const scaleFactor = hiResW / canvasW;
-
-  /* Multi-circle layout */
-  const isMultiCircle = shape === 'multicircle';
-  const isBWSheet = shape === 'bwsheet';
-  const circleSize = sizeObj.circleSize || 2;
-  const mcGapInches = isMultiCircle ? (sizeObj.gap ?? MC_GAP) : 0;
-  const previewPPI = canvasW / (sizeObj.w || 8);
-  const circlePx = isMultiCircle ? Math.round(circleSize * previewPPI) : canvasW;
-  const { cols: mcCols, rows: mcRows } = isMultiCircle
-    ? (sizeObj.cols && sizeObj.rows
-        ? { cols: sizeObj.cols, rows: sizeObj.rows }
-        : getCircleGrid(sizeObj.w || 8, sizeObj.h || 11, circleSize))
-    : { cols: 1, rows: 1 };
-  const mcGapPx  = isMultiCircle ? mcGapInches * previewPPI : 0;
-  const mcStepPx = circlePx + mcGapPx;
-  const mcTotalW  = isMultiCircle ? mcCols * circlePx + Math.max(0, mcCols - 1) * mcGapPx : 0;
-  const mcTotalH  = isMultiCircle ? mcRows * circlePx + Math.max(0, mcRows - 1) * mcGapPx : 0;
-  const mcOffsetX = isMultiCircle ? (canvasW - mcTotalW) / 2 : 0;
-  const mcOffsetY = isMultiCircle ? (canvasH - mcTotalH) / 2 : 0;
 
   /* Effective selected layer (handles stale selectedLayerId on design switch) */
   const effectiveSelectedId = layers.find(l => l.id === selectedLayerId)?.id
@@ -516,6 +966,9 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     const ids = new Set(layers.map(l => l.id));
     Object.keys(imgRefs.current).forEach(id => { if (!ids.has(id)) delete imgRefs.current[id]; });
     Object.keys(processedImgRefs.current).forEach(id => { if (!ids.has(id)) delete processedImgRefs.current[id]; });
+    Array.from(downscaleCacheRef.current.keys()).forEach(key => {
+      if (!ids.has(key.split(':')[0])) downscaleCacheRef.current.delete(key);
+    });
   }, [layers]);
 
   /* Re-process all loaded images when removeWhiteBg or tolerance changes */
@@ -550,180 +1003,37 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     const hiResCanvas = hiResCanvasRef.current;
     if (!canvas || !hiResCanvas) return;
 
-    /* ── Preview canvas ── */
+    /* ── Preview canvas ── (never the source of print output, see hi-res
+       section below, which draws from the original imgRefs independently) */
+    const previewRenderStart = typeof performance !== 'undefined' ? performance.now() : 0;
+    const renderScale = getPreviewRenderScale();
+    canvas.width = Math.max(1, Math.round(canvasW * renderScale));
+    canvas.height = Math.max(1, Math.round(canvasH * renderScale));
+    canvas.style.width = canvasW + 'px';
+    canvas.style.height = canvasH + 'px';
     const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvasW, canvasH);
-    drawShapeShadow(ctx, shape, canvasW, canvasH, isMobile);
+    ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
 
-    if (isBWSheet) {
-      const squareSize = canvasW * (6.5 / 8);
-      const sqX = (canvasW - squareSize) / 2;
-      const sqY = (canvasH - squareSize) / 2;
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(sqX, sqY, squareSize, squareSize);
-      ctx.clip();
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(0, 0, canvasW, canvasH);
-      if (bgColor && bgColor !== 'transparent') {
-        ctx.filter = 'grayscale(100%)';
-        ctx.fillStyle = bgColor;
-        ctx.fillRect(0, 0, canvasW, canvasH);
-        ctx.filter = 'none';
-      }
-      layers.forEach(layer => {
-        const img = getImg(layer.id);
-        if (!img) return;
-        ctx.save();
-        ctx.filter = 'grayscale(100%)';
-        const imgW = img.width * layer.scale;
-        const imgH = img.height * layer.scale;
-        if (layer.rotation !== 0) {
-          ctx.translate(layer.x + imgW / 2, layer.y + imgH / 2);
-          ctx.rotate(layer.rotation * Math.PI / 180);
-          ctx.translate(-(layer.x + imgW / 2), -(layer.y + imgH / 2));
-        }
-        ctx.drawImage(img, layer.x, layer.y, imgW, imgH);
-        ctx.filter = 'none';
-        ctx.restore();
-      });
-      if (textOverlay?.text) {
-        ctx.filter = 'grayscale(100%)';
-        drawText(ctx, textOverlay, canvasW, canvasH);
-        ctx.filter = 'none';
-      }
-      ctx.restore();
-      ctx.beginPath();
-      ctx.rect(sqX, sqY, squareSize, squareSize);
-      ctx.strokeStyle = '#C8C8C8';
-      ctx.setLineDash([3, 5]);
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      ctx.setLineDash([]);
-    } else if (isMultiCircle) {
-      /* Build a single source-crop canvas (what the user sees) then tile it */
-      const sc = document.createElement('canvas');
-      sc.width = circlePx; sc.height = circlePx;
-      const sctx = sc.getContext('2d');
-      sctx.beginPath();
-      sctx.arc(circlePx / 2, circlePx / 2, circlePx / 2, 0, Math.PI * 2);
-      sctx.fillStyle = '#FFFFFF';
-      sctx.fill();
-      if (bgColor && bgColor !== 'transparent') {
-        sctx.beginPath();
-        sctx.arc(circlePx / 2, circlePx / 2, circlePx / 2, 0, Math.PI * 2);
-        sctx.fillStyle = bgColor;
-        sctx.fill();
-      }
-      sctx.save();
-      sctx.beginPath();
-      sctx.arc(circlePx / 2, circlePx / 2, circlePx / 2, 0, Math.PI * 2);
-      sctx.clip();
-      layers.forEach(layer => {
-        const img = getImg(layer.id);
-        if (!img) return;
-        sctx.save();
-        const iw = img.width * layer.scale;
-        const ih = img.height * layer.scale;
-        if (layer.rotation !== 0) {
-          sctx.translate(layer.x + iw / 2, layer.y + ih / 2);
-          sctx.rotate(layer.rotation * Math.PI / 180);
-          sctx.translate(-(layer.x + iw / 2), -(layer.y + ih / 2));
-        }
-        sctx.drawImage(img, layer.x, layer.y, iw, ih);
-        sctx.restore();
-      });
-      sctx.restore();
-      drawText(sctx, textOverlay, circlePx, circlePx);
-      /* Tile source crop into the grid */
-      for (let row = 0; row < mcRows; row++) {
-        for (let col = 0; col < mcCols; col++) {
-          const ox = mcOffsetX + col * mcStepPx;
-          const oy = mcOffsetY + row * mcStepPx;
-          ctx.drawImage(sc, ox, oy, circlePx, circlePx);
-        }
-      }
-      ctx.strokeStyle = '#C8C8C8';
-      ctx.lineWidth = 1;
-      ctx.setLineDash([3, 5]);
-      for (let row = 0; row < mcRows; row++) {
-        for (let col = 0; col < mcCols; col++) {
-          ctx.beginPath();
-          ctx.arc(mcOffsetX + col * mcStepPx + circlePx / 2, mcOffsetY + row * mcStepPx + circlePx / 2, circlePx / 2 - 1, 0, Math.PI * 2);
-          ctx.stroke();
-        }
-      }
-      ctx.setLineDash([]);
-    } else {
-      ctx.save();
-      if (shape === 'circular') {
-        ctx.beginPath();
-        ctx.arc(canvasW / 2, canvasH / 2, canvasW / 2, 0, Math.PI * 2);
-        ctx.clip();
-      } else if (shape === 'heart') {
-        drawHeartPath(ctx, 0, 0, canvasW, canvasH);
-        ctx.clip();
-      } else {
-        ctx.beginPath();
-        ctx.rect(0, 0, canvasW, canvasH);
-        ctx.clip();
-      }
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(0, 0, canvasW, canvasH);
-      if (bgColor && bgColor !== 'transparent') {
-        ctx.fillStyle = bgColor;
-        ctx.fillRect(0, 0, canvasW, canvasH);
-      }
-      layers.forEach(layer => {
-        const img = getImg(layer.id);
-        if (!img) return;
-        ctx.save();
-        const imgW = img.width * layer.scale;
-        const imgH = img.height * layer.scale;
-        if (layer.rotation !== 0) {
-          ctx.translate(layer.x + imgW / 2, layer.y + imgH / 2);
-          ctx.rotate(layer.rotation * Math.PI / 180);
-          ctx.translate(-(layer.x + imgW / 2), -(layer.y + imgH / 2));
-        }
-        ctx.drawImage(img, layer.x, layer.y, imgW, imgH);
-        ctx.restore();
-      });
-      drawText(ctx, textOverlay, canvasW, canvasH);
-      ctx.restore();
-      /* Selection outline for active layer */
-      if (effectiveSelectedId) {
-        const sel = layers.find(l => l.id === effectiveSelectedId);
-        const selImg = sel ? imgRefs.current[sel.id] : null;
-        if (sel && selImg) {
-          ctx.save();
-          ctx.strokeStyle = '#22C55E';
-          ctx.lineWidth = 2;
-          ctx.setLineDash([5, 3]);
-          ctx.strokeRect(sel.x - 1, sel.y - 1, selImg.width * sel.scale + 2, selImg.height * sel.scale + 2);
-          ctx.setLineDash([]);
-          ctx.restore();
-        }
-      }
-      ctx.strokeStyle = '#C8C8C8';
-      ctx.lineWidth = 1;
-      ctx.setLineDash([3, 5]);
-      if (shape === 'circular') {
-        ctx.beginPath();
-        ctx.arc(canvasW / 2, canvasH / 2, canvasW / 2 - 1, 0, Math.PI * 2);
-        ctx.stroke();
-      } else if (shape === 'heart') {
-        drawHeartPath(ctx, 1, 1, canvasW - 2, canvasH - 2);
-        ctx.stroke();
-      } else {
-        ctx.strokeRect(0.5, 0.5, canvasW - 1, canvasH - 1);
-      }
-      ctx.setLineDash([]);
-    }
+    const sel = effectiveSelectedId ? layers.find(l => l.id === effectiveSelectedId) : null;
+    const selImg = sel ? imgRefs.current[sel.id] : null;
 
-    /* Watermark — preview only, never in hi-res */
-    drawWatermark(ctx, canvasW, canvasH);
+    renderPreviewCore(ctx, canvasW, canvasH, {
+      shape, isBWSheet, isMultiCircle, layers, getImg, bgColor, textOverlay,
+      circlePx, mcCols, mcRows, mcOffsetX, mcOffsetY, mcStepPx,
+      /* This *is* the layout layers are fit to, so the ratio is always 1 —
+         computed the same way the modal computes its own, non-1 ratio. */
+      layerScale: computeLayerScale(isMultiCircle, canvasW, circlePx, canvasW, circlePx),
+      downscale: getDownscaledSource, renderScale, isMobile,
+      showSelection: true, selectedLayer: sel, selectedLayerImg: selImg,
+      showWatermark: true,
+    });
 
     if (onCrop) onCrop(canvas.toDataURL());
+    if (typeof performance !== 'undefined' && process.env.NODE_ENV !== 'production') {
+      console.debug(`[preview] render ${(performance.now() - previewRenderStart).toFixed(1)}ms @ ${canvas.width}x${canvas.height}`);
+    }
 
     /* ── Hi-res canvas ── */
     hiResCanvas.width = hiResW;
@@ -969,7 +1279,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       const newScale = Math.min(mx, Math.max(mn, initialScale * (dist / initialDist)));
       if (layerId) {
         onLayersChangeRef.current(prev => prev.map(l =>
-          l.id === layerId ? { ...l, scale: newScale } : l
+          l.id === layerId ? { ...l, ...scaleLayerAround(l, newScale) } : l
         ));
       }
       return;
@@ -1060,6 +1370,19 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     onLayersChange(layers.map(l => l.id === effectiveSelectedId ? { ...l, ...patch } : l));
   };
 
+  /* Layers scale around the center of their own crop area: the circle for
+     multi-circle sheets (layers are positioned within a single circlePx×
+     circlePx crop that then gets tiled — see renderPreviewCore), the full
+     canvas for every other shape. Using canvasW/canvasH here unconditionally
+     was the bug: it scaled multi-circle layers around the sheet's center
+     instead of their circle's center, so the image drifted off-center. */
+  const scaleCx = isMultiCircle ? circlePx / 2 : canvasW / 2;
+  const scaleCy = isMultiCircle ? circlePx / 2 : canvasH / 2;
+  const scaleLayerAround = (layer, newScale) => {
+    const ratio = newScale / (layer.scale || newScale);
+    return { scale: newScale, x: scaleCx - ratio * (scaleCx - layer.x), y: scaleCy - ratio * (scaleCy - layer.y) };
+  };
+
   return (
     <div ref={containerRef} style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
 
@@ -1086,11 +1409,11 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
 
       {/* Canvas */}
       <div style={{ position: 'relative', background: '#F5F5F5', borderRadius: 12, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box' }}>
-        <canvas ref={canvasRef} width={canvasW} height={canvasH}
+        <canvas ref={canvasRef}
           onPointerDown={handlePointerDown} onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp} onPointerLeave={handlePointerUp}
           style={{ cursor: textDragging ? 'move' : dragging ? 'grabbing' : 'grab', touchAction: 'none',
-            maxWidth: '100%', display: 'block',
+            width: canvasW, height: canvasH, maxWidth: '100%', display: 'block',
             filter: 'drop-shadow(0 6px 16px rgba(0,0,0,0.12))' }}
         />
         {sizeLabel && (
@@ -1125,9 +1448,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
             onClick={() => {
               if (!effectiveSelectedId || !selectedLayer) return;
               const newScale = Math.max(minScale, currentScale - (maxScale - minScale) / 10);
-              const ratio = newScale / (selectedLayer.scale || newScale);
-              const cx = canvasW / 2, cy = canvasH / 2;
-              updateSelectedLayer({ scale: newScale, x: cx - ratio * (cx - selectedLayer.x), y: cy - ratio * (cy - selectedLayer.y) });
+              updateSelectedLayer(scaleLayerAround(selectedLayer, newScale));
             }}
             disabled={!effectiveSelectedId}
             style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid ' + C.border, background: C.white,
@@ -1138,9 +1459,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
             onChange={(e) => {
               const newScale = parseFloat(e.target.value);
               if (!effectiveSelectedId || !selectedLayer) return;
-              const ratio = newScale / (selectedLayer.scale || newScale);
-              const cx = canvasW / 2, cy = canvasH / 2;
-              updateSelectedLayer({ scale: newScale, x: cx - ratio * (cx - selectedLayer.x), y: cy - ratio * (cy - selectedLayer.y) });
+              updateSelectedLayer(scaleLayerAround(selectedLayer, newScale));
             }}
             disabled={!effectiveSelectedId}
             style={{ flex: 1, accentColor: C.brand, cursor: effectiveSelectedId ? 'pointer' : 'default' }} />
@@ -1148,9 +1467,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
             onClick={() => {
               if (!effectiveSelectedId || !selectedLayer) return;
               const newScale = Math.min(maxScale, currentScale + (maxScale - minScale) / 10);
-              const ratio = newScale / (selectedLayer.scale || newScale);
-              const cx = canvasW / 2, cy = canvasH / 2;
-              updateSelectedLayer({ scale: newScale, x: cx - ratio * (cx - selectedLayer.x), y: cy - ratio * (cy - selectedLayer.y) });
+              updateSelectedLayer(scaleLayerAround(selectedLayer, newScale));
             }}
             disabled={!effectiveSelectedId}
             style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid ' + C.border, background: C.white,
@@ -1228,6 +1545,77 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       )}
 
       <p style={{ fontSize: 11, color: '#bbb', margin: 0 }}>Print output: {hiResW}×{hiResH}px ({DPI} DPI)</p>
+
+      <button onClick={() => setShowPrintPreview(true)}
+        style={{ width: '100%', padding: '11px 14px', background: C.white, color: C.brand,
+          border: '1.5px solid ' + C.brand, borderRadius: 8, cursor: 'pointer', fontWeight: 600,
+          fontSize: 13, fontFamily: "'Outfit', sans-serif" }}>
+        🔍 See print preview
+      </button>
+
+      {/* ── Fullscreen print-preview modal ── */}
+      {showPrintPreview && (
+        <div role="dialog" aria-modal="true" aria-label="Print preview"
+          style={{ position: 'fixed', inset: 0, zIndex: 2000, background: '#F4F5F2',
+            display: 'flex', flexDirection: 'column' }}
+          onClick={() => setShowPrintPreview(false)}>
+          {/* Header */}
+          <div onClick={e => e.stopPropagation()} style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: isMobile ? '10px 14px' : '14px 24px', flexShrink: 0,
+          }}>
+            <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 600, fontSize: 14, color: C.text }}>
+              Print Preview
+            </span>
+            <button onClick={() => setShowPrintPreview(false)} aria-label="Close preview" style={{
+              width: 34, height: 34, borderRadius: '50%', border: '1px solid ' + C.border,
+              background: C.white, fontSize: 18, lineHeight: 1, cursor: 'pointer', color: C.text,
+            }}>×</button>
+          </div>
+
+          {/* Sheet viewport — zoom/pan lives here */}
+          <div ref={modalViewportRef} onClick={e => e.stopPropagation()}
+            onPointerDown={onModalPointerDown} onPointerMove={onModalPointerMove}
+            onPointerUp={onModalPointerUp} onPointerLeave={onModalPointerUp}
+            style={{
+              position: 'relative', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              overflow: 'hidden', touchAction: 'none', cursor: modalZoom > 1 ? 'grab' : 'default',
+            }}>
+            <canvas ref={modalCanvasRef} style={{
+              transform: `translate(${modalPan.x}px, ${modalPan.y}px) scale(${modalZoom})`,
+              transformOrigin: 'center center',
+              boxShadow: '0 8px 40px rgba(0,0,0,0.18)', borderRadius: 4,
+            }} />
+            {sizeLabel && (
+              <div style={{
+                position: 'absolute', top: 14, left: 14,
+                background: 'rgba(255,255,255,0.92)', padding: '6px 12px', borderRadius: 6,
+                fontSize: 11.5, fontWeight: 700, color: C.text, letterSpacing: 0.4,
+                pointerEvents: 'none', fontFamily: "'Outfit', sans-serif",
+              }}>
+                {sizeLabel}
+              </div>
+            )}
+          </div>
+
+          {/* Zoom toolbar */}
+          <div onClick={e => e.stopPropagation()} style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+            padding: isMobile ? '10px 14px 18px' : '14px 24px', flexShrink: 0,
+          }}>
+            <button onClick={() => setModalZoom(z => Math.max(0.5, +(z - 0.25).toFixed(2)))}
+              aria-label="Zoom out" style={zoomBtnStyle}>−</button>
+            <span style={{ fontSize: 12.5, color: C.muted, minWidth: 46, textAlign: 'center',
+              fontFamily: "'Outfit', sans-serif", fontWeight: 600 }}>
+              {Math.round(modalZoom * 100)}%
+            </span>
+            <button onClick={() => setModalZoom(z => Math.min(4, +(z + 0.25).toFixed(2)))}
+              aria-label="Zoom in" style={zoomBtnStyle}>+</button>
+            <button onClick={() => { setModalZoom(1); setModalPan({ x: 0, y: 0 }); }}
+              style={{ ...zoomBtnStyle, width: 'auto', padding: '0 16px' }}>Fit to screen</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
