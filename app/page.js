@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import './globals.css';
 import HeroSection from './_components/HeroSection';
+import { getShippingCost } from '../lib/shipping-config.js';
 
 /* ═══ PRICING CONFIG ═══ */
 const SIZES = {
@@ -38,9 +39,8 @@ const SIZES = {
 };
 
 /* ═══ SHIPPING ═══ */
-const SHIPPING_RATE = 9.99;
 function getDeliveryEstimate() {
-  return "Free pickup in London, ON (we'll confirm the exact time by email). Canada Post shipping available anywhere in Canada.";
+  return 'Canada Post shipping — flat rate $9.99, approx. 3–5 business days anywhere in Canada.';
 }
 
 function trackGA(event, params) {
@@ -49,8 +49,6 @@ function trackGA(event, params) {
 function trackMeta(event, params) {
   if (typeof window !== 'undefined' && window.fbq) window.fbq('track', event, params || {});
 }
-
-const TAX_RATE = 0.13;
 
 const PROVINCES = [
   'Alberta','British Columbia','Manitoba','New Brunswick',
@@ -1398,9 +1396,8 @@ export default function EdiblePrintApp() {
     return sum + dPrice * d.qty;
   }, 0);
 
-  const shippingCost = shipping === 'pickup' ? 0 : SHIPPING_RATE;
-  const tax = (designsSubtotal + shippingCost) * TAX_RATE;
-  const total = designsSubtotal + shippingCost + tax;
+  const shippingCost = getShippingCost(shipping);
+  const total = designsSubtotal + shippingCost;
 
   useEffect(() => {
     if (!activeDesignId) return;
@@ -1787,7 +1784,7 @@ export default function EdiblePrintApp() {
             {[
               { icon: '🖨️', title: '300 DPI Print Quality', sub: 'Crystal-clear results' },
               { icon: '🍰', title: '100% Food-Safe', sub: 'FDA-approved inks & sheets' },
-              { icon: '🚚', title: 'Ships in 1–2 Days', sub: 'Same-day local delivery' },
+              { icon: '🚚', title: 'Ships in 1–2 Days', sub: 'Free pickup or flat-rate shipping' },
               { icon: '✅', title: '100% Satisfaction', sub: 'We make it right, guaranteed' },
             ].map((b, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 22px',
@@ -1809,7 +1806,7 @@ export default function EdiblePrintApp() {
           <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '8px 32px', fontSize: 13.5, fontWeight: 600, color: C.brandDark }}>
             <span>📦 Production: 1–2 business days</span>
             <span style={{ color: '#C6E6D6' }}>|</span>
-            <span>🚚 Canada-wide shipping: 2–5 days</span>
+            <span>🚚 Canada-wide shipping: Approx. 3–5 business days</span>
             <span style={{ color: '#C6E6D6' }}>|</span>
             <span>🎯 Order before 2 PM EST for same-day production</span>
           </div>
@@ -1916,7 +1913,7 @@ export default function EdiblePrintApp() {
               );
             })}
           </div>
-          <p style={{ fontSize: 13, color: '#bbb', marginTop: 20 }}>Custom sizes available · Free local pickup · Shipping from $6.99 · HST calculated at checkout</p>
+          <p style={{ fontSize: 13, color: '#bbb', marginTop: 20 }}>Custom sizes available · Free local pickup · Flat-rate Canada-wide shipping $9.99 · No tax charged</p>
         </section>
 
         {/* ── PDF DOWNLOAD SECTION ── */}
@@ -2171,9 +2168,9 @@ export default function EdiblePrintApp() {
           {[
             ['What are edible prints made of?', 'Our prints use FDA-approved, food-safe edible icing sheets printed with vibrant, water-based edible inks. Every ingredient is certified safe for consumption and tasteless \u2014 so they won\u2019t affect the flavour of your baked goods.'],
             ['How do I apply the edible print?', 'Peel the backing sheet gently and lay the print directly onto a freshly frosted or fondant-covered surface. Press lightly from the centre outward to remove air bubbles. For best results, apply within 30 minutes of frosting and keep refrigerated until serving.'],
-            ['How long does shipping take?', 'Free pickup is available at our London, Ontario location. Same-day local delivery in London is available for $5–$10 depending on your postal code zone. Canada-wide shipping via Canada Post takes 3–5 business days (from $6.99), with express options available at checkout.'],
+            ['How long does shipping take?', 'Free pickup is available at our London, Ontario location. Canada Post shipping is a flat rate of $9.99 anywhere in Canada — approx. 3–5 business days, no tracking number included.'],
             ['What image resolution do I need for good quality?', 'We recommend a minimum of 1000×1000 pixels at 300 DPI. We review every order before printing — if we spot a quality issue with your file, we\'ll reach out before proceeding.'],
-            ['Do you ship to all Canadian provinces and territories?', 'Yes — we ship to all provinces and territories via Canada Post. Delivery times vary by location; remote areas may take an additional 1–2 business days.'],
+            ['Do you ship to all Canadian provinces and territories?', 'Yes — we ship to all provinces and territories via Canada Post at a flat rate of $9.99. Approx. 3–5 business days.'],
             ['Can I order multiple copies of the same design?', 'Yes — simply increase the quantity at checkout. For bulk orders (20+ units), contact us for a volume pricing quote.'],
             ['Can I include multiple different designs in one order?', 'Absolutely. Use the "Add Another Design" button to include up to 5 different designs in a single order. Each design can have its own shape, size, image, and quantity.'],
             ['How long do edible prints last?', 'Stored in the original sealed packaging in a cool, dry place, edible prints last up to 12 months. Once applied to a frosted cake, they are best consumed within 3–5 days.'],
@@ -2827,7 +2824,7 @@ export default function EdiblePrintApp() {
               <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 10 }}>Shipping Method</label>
               {[
                 { key: 'pickup', label: 'Free Pickup — London, ON', price: 0, note: "East London, ON. We'll confirm the exact time by email." },
-                { key: 'shipping', label: 'Canada Post Shipping — $9.99', price: SHIPPING_RATE },
+                { key: 'shipping', label: 'Canada Post Shipping — $9.99', price: getShippingCost('shipping'), note: 'Flat rate shipping across Canada via Canada Post — no tracking number included. Approx. 3–5 business days.' },
               ].map((opt) => (
                 <label key={opt.key} style={{
                   display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 12,
@@ -2866,16 +2863,16 @@ export default function EdiblePrintApp() {
                     <span style={{ color: C.muted }}>Subtotal</span><span style={{ fontWeight: 600 }}>{'$' + designsSubtotal.toFixed(2)}</span>
                   </div>
                 )}
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Shipping</span><span style={{ fontWeight: 600 }}>{'$' + shippingCost.toFixed(2)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: C.muted }}>
-                  <span>HST (13%)</span><span>{'$' + tax.toFixed(2)}</span>
-                </div>
+                {shipping !== 'pickup' && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Shipping</span><span style={{ fontWeight: 600 }}>{'$' + shippingCost.toFixed(2)}</span>
+                  </div>
+                )}
                 <div style={{ borderTop: '1.5px solid ' + C.border, paddingTop: 12, display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 20 }}>
                   <span>Total</span>
                   <span style={{ color: C.brand }}>{'$' + total.toFixed(2)} <span style={{ fontSize: 13, fontWeight: 400, color: C.muted }}>CAD</span></span>
                 </div>
+                <div style={{ textAlign: 'right', fontSize: 12, color: C.muted, marginTop: -4 }}>Final price — no tax charged</div>
               </div>
             </div>
             {/* ── Design Confirmation Checkbox ── */}

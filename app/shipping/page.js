@@ -31,32 +31,23 @@ export default function ShippingPage() {
 
       <h2 style={h2}>Shipping Methods and Transit Times</h2>
       <p style={p}>
-        Once your order leaves our facility in London, Ontario, estimated transit times are:
+        Once your order leaves our facility in London, Ontario, via Canada Post, estimated delivery time is
+        <strong> approx. 3–5 business days</strong>, anywhere in Canada.
       </p>
-      <ul style={ul}>
-        <li><strong>London ON (local):</strong> Same-day or next-day delivery, or free pickup.</li>
-        <li><strong>Ontario (GTA, Ottawa, etc.):</strong> 1–2 business days</li>
-        <li><strong>Quebec, Manitoba:</strong> 2–3 business days</li>
-        <li><strong>Alberta, Saskatchewan, BC:</strong> 3–5 business days</li>
-        <li><strong>Atlantic Provinces (NB, NS, PE, NL):</strong> 3–6 business days</li>
-        <li><strong>Northern territories (YT, NT, NU):</strong> 5–10 business days</li>
-      </ul>
       <p style={p}>
-        These are estimates only. Actual times depend on the carrier, destination, and external factors
-        (weather, holidays, etc.).
+        This is an estimate only. Actual times depend on the carrier, destination, and external factors
+        (weather, holidays, etc.). No tracking number is included with this shipping method.
       </p>
 
       <h2 style={h2}>Shipping Rates</h2>
       <p style={p}>
-        Shipping rates start at <strong>$6.99 CAD</strong> and are calculated at checkout based on your
-        destination. Exact rates are shown before you complete your order.
+        Shipping is a <strong>flat rate of $9.99 CAD</strong>, anywhere in Canada, via Canada Post.
       </p>
 
       <h2 style={h2}>Local London, Ontario Orders</h2>
       <p style={p}>Customers in London, Ontario qualify for:</p>
       <ul style={ul}>
         <li><strong>Free local pickup</strong> at our location</li>
-        <li><strong>Same-day local delivery</strong> in selected postal code zones (calculated automatically at checkout)</li>
       </ul>
 
       <h2 style={h2}>Order Tracking</h2>

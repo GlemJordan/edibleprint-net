@@ -67,8 +67,7 @@ export default function AboutPage() {
             <li><strong>300 DPI resolution</strong> — crystal-clear results on every print</li>
             <li><strong>FDA-approved food-safe inks & icing sheets</strong> — safe for all ages</li>
             <li><strong>Human review</strong> of every order before printing — no surprises</li>
-            <li><strong>Same-day local delivery</strong> across London, Ontario from $6.99</li>
-            <li><strong>Canada-wide shipping</strong> via Canada Post — express available</li>
+            <li><strong>Canada-wide shipping</strong> via Canada Post — flat rate $9.99, approx. 3–5 business days</li>
             <li><strong>100% satisfaction guarantee</strong> — reprints or full refund, no questions asked</li>
             <li><strong>Up to 5 designs</strong> in a single order — mix shapes, sizes, and images</li>
             <li><strong>Secure checkout</strong> powered by Stripe — Visa, MC, Apple Pay & more</li>

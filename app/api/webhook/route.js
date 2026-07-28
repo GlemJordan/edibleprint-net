@@ -93,7 +93,6 @@ async function processOrder(session, orderId) {
 
   const subtotalAmt = designs.reduce((s, d) => s + parseFloat(d.price) * parseInt(d.qty, 10), 0);
   const shippingAmt = parseFloat(meta.shippingCost) || 0;
-  const taxAmt      = (subtotalAmt + shippingAmt) * 0.13;
   const totalAmt    = session.amount_total / 100;
 
   const shippingLabel = meta.shippingMethod === 'pickup' ? 'Pickup — East London, ON' : 'Canada Post Shipping';
@@ -272,8 +271,8 @@ async function processOrder(session, orderId) {
     + '<table style="width:100%;border-collapse:collapse;margin-bottom:24px;border-top:2px solid #e5e7eb;">'
     + (designs.length > 1 ? '<tr><td style="padding:9px 14px;color:#374151;">Subtotal</td><td style="padding:9px 14px;text-align:right;">$' + subtotalAmt.toFixed(2) + '</td></tr>' : '')
     + '<tr style="background:#f9fafb;"><td style="padding:9px 14px;color:#374151;">Shipping (' + shippingLabel + ')</td><td style="padding:9px 14px;text-align:right;">' + (shippingAmt === 0 ? 'Free' : '$' + shippingAmt.toFixed(2)) + '</td></tr>'
-    + '<tr><td style="padding:9px 14px;color:#374151;">HST (13%)</td><td style="padding:9px 14px;text-align:right;">$' + taxAmt.toFixed(2) + '</td></tr>'
     + '<tr style="background:#E8F5EE;border-top:2px solid #1B6B4A;"><td style="padding:12px 14px;font-weight:700;font-size:16px;color:#1B6B4A;">Total</td><td style="padding:12px 14px;font-weight:700;font-size:16px;color:#1B6B4A;text-align:right;">$' + totalAmt.toFixed(2) + ' CAD</td></tr>'
+    + '<tr><td colspan="2" style="padding:2px 14px 0;text-align:right;font-size:11px;color:#9ca3af;">Final price — no tax charged</td></tr>'
     + '</table>'
     + (designs.some(d => d.imageUrl && d.imageUrl !== 'No image')
       ? '<div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-bottom:20px;">' + designs.map(buildImagePreviewCustomer).join('') + '</div>'
@@ -290,7 +289,7 @@ async function processOrder(session, orderId) {
     + '<hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;" />'
     + '<p style="font-size:13px;color:#6b7280;text-align:center;margin:0;">Questions? Reply to this email or contact <a href="mailto:edibleprintorders@gmail.com" style="color:#1B6B4A;">edibleprintorders@gmail.com</a></p>'
     + '<hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0;" />'
-    + '<p style="font-size:12px;color:#9ca3af;text-align:center;margin:0;line-height:1.6;">This email serves as your official receipt.<br/>EdiblePrint.net — London, Ontario. HST Registration: [pending]</p>'
+    + '<p style="font-size:12px;color:#9ca3af;text-align:center;margin:0;line-height:1.6;">This email serves as your official receipt.<br/>EdiblePrint.net — London, Ontario.</p>'
     + '</div></div>';
 
   try {

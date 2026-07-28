@@ -1,5 +1,6 @@
 import Stripe from 'stripe';
 import { NextResponse } from 'next/server';
+import { getShippingCost } from '../../../lib/shipping-config.js';
 
 const isTest = process.env.STRIPE_MODE === 'test';
 // NOTE: STRIPE_SECRET_KEY_LIVE must be sk_live_... (a full Secret Key).
@@ -22,7 +23,7 @@ export async function POST(request) {
     const {
       customerName, customerEmail, customerPhone,
       shippingAddress, shippingCity, shippingProvince, shippingPostal,
-      shippingMethod, shippingCost,
+      shippingMethod,
       designConfirmed, designConfirmedAt,
       designs,
     } = body;
@@ -30,6 +31,10 @@ export async function POST(request) {
     if (!designs || designs.length === 0) {
       return NextResponse.json({ error: 'No designs provided' }, { status: 400 });
     }
+
+    // Shipping cost is computed server-side from the flat-rate config, never
+    // trusted from the client, so the charged amount can't be tampered with.
+    const shippingCost = getShippingCost(shippingMethod);
 
     // Per-design line items
     const designLineItems = designs.map((d, i) => ({
@@ -44,9 +49,7 @@ export async function POST(request) {
       quantity: 1,
     }));
 
-    const designsSubtotal = designs.reduce((sum, d) => sum + Math.round(d.unitPrice * d.quantity * 100), 0);
-    const shippingAmount = Math.round((shippingCost || 0) * 100);
-    const taxAmount = Math.round((designsSubtotal + shippingAmount) * 0.13);
+    const shippingAmount = Math.round(shippingCost * 100);
 
     // Per-design metadata (max 5 designs × 6 keys = 30 + 9 customer keys = 39 total)
     const designMeta = { designCount: String(designs.length) };
@@ -65,24 +68,15 @@ export async function POST(request) {
       customer_email: customerEmail,
       line_items: [
         ...designLineItems,
-        {
+        // Pickup is $0 — no shipping line item shown for it at all.
+        ...(shippingMethod === 'pickup' ? [] : [{
           price_data: {
             currency: 'cad',
-            product_data: {
-              name: 'Shipping (' + (shippingMethod === 'pickup' ? 'Pickup' : 'Canada Post Shipping') + ')',
-            },
+            product_data: { name: 'Shipping (Canada Post Shipping)' },
             unit_amount: shippingAmount,
           },
           quantity: 1,
-        },
-        {
-          price_data: {
-            currency: 'cad',
-            product_data: { name: 'HST (13%)' },
-            unit_amount: taxAmount,
-          },
-          quantity: 1,
-        },
+        }]),
       ],
       metadata: {
         customerName,

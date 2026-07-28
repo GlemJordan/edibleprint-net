@@ -38,8 +38,8 @@ export default function TermsPage() {
 
       <h2 style={h2}>3. Pricing and Payment</h2>
       <p style={p}>
-        All prices are listed in Canadian Dollars (CAD) and do not include applicable taxes (HST will be
-        calculated at checkout). Payment is processed securely through Stripe at the time of order. We accept
+        All prices are listed in Canadian Dollars (CAD). No sales tax is charged — the price shown at checkout
+        is the final price. Payment is processed securely through Stripe at the time of order. We accept
         major credit cards, Apple Pay, and Google Pay.
       </p>
 

@@ -111,7 +111,7 @@ export default function HeroSection({ onOrderClick, cutoffMsg }) {
                 padding: '3px 8px', fontSize: 11, fontWeight: 800, letterSpacing: 0.5,
               }}>CA</span>
               <span style={{ color: '#1f5236' }}>
-                Free Local Pickup · Same-Day London Delivery · Canada-Wide Shipping
+                Free Local Pickup · Canada-Wide Shipping
               </span>
             </div>
 

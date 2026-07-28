@@ -50,8 +50,8 @@ export default function EdibleImagesForCakesPage() {
             lays flat and looks incredible on buttercream, fondant, or whipped cream.
           </p>
           <p>
-            We ship edible cake images to customers across every province and territory in Canada, with
-            same-day local delivery available in London, Ontario. Every order is reviewed by a human before
+            We ship edible cake images to customers across every province and territory in Canada, with free
+            local pickup available in London, Ontario. Every order is reviewed by a human before
             printing, and backed by our 100% satisfaction guarantee.
           </p>
         </div>
@@ -64,8 +64,7 @@ export default function EdibleImagesForCakesPage() {
             <li><strong>300 DPI resolution</strong> — sharp, vibrant results on every edible image</li>
             <li><strong>Food-safe inks & icing sheets</strong> — FDA-approved, tasteless, safe for all ages</li>
             <li><strong>Multiple shapes & sizes</strong> — round, square, heart, full sheet, and more</li>
-            <li><strong>Canada-wide shipping</strong> via Canada Post — express available</li>
-            <li><strong>Same-day local delivery</strong> in London, Ontario</li>
+            <li><strong>Canada-wide shipping</strong> via Canada Post — flat rate $9.99, approx. 3–5 business days</li>
             <li><strong>100% satisfaction guarantee</strong> — reprint or full refund, no questions asked</li>
           </ul>
         </div>
