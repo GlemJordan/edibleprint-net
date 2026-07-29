@@ -127,8 +127,8 @@ function getCircleGrid(sheetW, sheetH, circleSize) {
 }
 
 /* Heart clip path: x,y = top-left of bounding box, width & height */
-function drawHeartPath(ctx, x, y, width, height) {
-  ctx.beginPath();
+function drawHeartPath(ctx, x, y, width, height, asSubpath = false) {
+  if (!asSubpath) ctx.beginPath();
   const w = width;
   const h = height;
   const centerX = x + w / 2;
@@ -380,11 +380,71 @@ function computeLayerScale(isMultiCircle, destW, destCirclePx, refW, refCirclePx
  *                       `ctx`, used to size the offscreen multi-circle
  *                       "source crop" canvas at matching physical density.
  */
+/* Appends a circle as its own closed subpath (via an explicit moveTo to the
+   arc's start point) so it can be combined with a preceding rect() subpath
+   and filled with the 'evenodd' rule — see drawCropInteractionOverlay. */
+function appendCirclePath(ctx, cx, cy, r) {
+  ctx.moveTo(cx + r, cy);
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+}
+
+/* Shared per-layer paint loop, used both for the crisp clipped render and
+   (while the user is actively dragging/scaling) an unclipped full-bleed
+   pass so the crop-interaction overlay below has real pixels to darken. */
+function drawLayers(ctx, layers, getImg, layerScale, downscale, renderScale, cacheSuffix, grayscale) {
+  layers.forEach(layer => {
+    const img = getImg(layer.id);
+    if (!img) return;
+    ctx.save();
+    if (grayscale) ctx.filter = 'grayscale(100%)';
+    const imgW = img.width * layer.scale * layerScale;
+    const imgH = img.height * layer.scale * layerScale;
+    const lx = layer.x * layerScale, ly = layer.y * layerScale;
+    const src = downscale(`${layer.id}:${cacheSuffix}`, img, imgW * renderScale, imgH * renderScale);
+    if (layer.rotation !== 0) {
+      ctx.translate(lx + imgW / 2, ly + imgH / 2);
+      ctx.rotate(layer.rotation * Math.PI / 180);
+      ctx.translate(-(lx + imgW / 2), -(ly + imgH / 2));
+    }
+    ctx.drawImage(src, lx, ly, imgW, imgH);
+    if (grayscale) ctx.filter = 'none';
+    ctx.restore();
+  });
+}
+
+/* Interaction-only crop indicator: a semi-transparent dark mask over
+   everything outside the crop shape (so the overflow painted by the
+   unclipped drawLayers() pass above is visible as "what gets lost"), plus
+   a soft 1px white line tracing the crop boundary. `boundsFn` appends the
+   crop-shape subpath (no leading beginPath/rect) to whatever path is
+   already open on `ctx`. Both elements are opacity-driven by the caller so
+   they can fade in/out around a drag or scale gesture. */
+function drawCropInteractionOverlay(ctx, cw, ch, boundsFn, overlayOpacity) {
+  if (overlayOpacity <= 0.002) return;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, cw, ch);
+  boundsFn(ctx);
+  ctx.fillStyle = `rgba(0,0,0,${(0.4 * overlayOpacity).toFixed(3)})`;
+  ctx.fill('evenodd');
+  ctx.restore();
+
+  ctx.save();
+  ctx.beginPath();
+  boundsFn(ctx);
+  ctx.strokeStyle = `rgba(255,255,255,${overlayOpacity.toFixed(3)})`;
+  ctx.lineWidth = 1;
+  ctx.shadowColor = `rgba(0,0,0,${(0.35 * overlayOpacity).toFixed(3)})`;
+  ctx.shadowBlur = 3;
+  ctx.stroke();
+  ctx.restore();
+}
+
 function renderPreviewCore(ctx, cw, ch, {
   shape, isBWSheet, isMultiCircle, layers, getImg, bgColor, textOverlay,
   circlePx, mcCols, mcRows, mcOffsetX, mcOffsetY, mcStepPx, layerScale = 1,
   downscale, renderScale, isMobile, showSelection, selectedLayer, selectedLayerImg,
-  showWatermark,
+  showWatermark, overlayOpacity = 0,
 }) {
   ctx.clearRect(0, 0, cw, ch);
   drawShapeShadow(ctx, shape, cw, ch, isMobile);
@@ -393,6 +453,19 @@ function renderPreviewCore(ctx, cw, ch, {
     const squareSize = cw * (6.5 / 8);
     const sqX = (cw - squareSize) / 2;
     const sqY = (ch - squareSize) / 2;
+    const bwInteracting = showSelection && overlayOpacity > 0.002;
+
+    /* Unclipped full-bleed pass — only while actively dragging/scaling, so
+       the mask below has real (dimmed) pixels to show as "what gets lost"
+       instead of empty canvas. */
+    if (bwInteracting) {
+      ctx.save();
+      ctx.filter = 'grayscale(100%)';
+      drawLayers(ctx, layers, getImg, layerScale, downscale, renderScale, 'bw', false);
+      ctx.filter = 'none';
+      ctx.restore();
+    }
+
     ctx.save();
     ctx.beginPath();
     ctx.rect(sqX, sqY, squareSize, squareSize);
@@ -405,41 +478,34 @@ function renderPreviewCore(ctx, cw, ch, {
       ctx.fillRect(0, 0, cw, ch);
       ctx.filter = 'none';
     }
-    layers.forEach(layer => {
-      const img = getImg(layer.id);
-      if (!img) return;
-      ctx.save();
-      ctx.filter = 'grayscale(100%)';
-      const imgW = img.width * layer.scale * layerScale;
-      const imgH = img.height * layer.scale * layerScale;
-      const lx = layer.x * layerScale, ly = layer.y * layerScale;
-      const src = downscale(`${layer.id}:bw`, img, imgW * renderScale, imgH * renderScale);
-      if (layer.rotation !== 0) {
-        ctx.translate(lx + imgW / 2, ly + imgH / 2);
-        ctx.rotate(layer.rotation * Math.PI / 180);
-        ctx.translate(-(lx + imgW / 2), -(ly + imgH / 2));
-      }
-      ctx.drawImage(src, lx, ly, imgW, imgH);
-      ctx.filter = 'none';
-      ctx.restore();
-    });
+    ctx.filter = 'grayscale(100%)';
+    drawLayers(ctx, layers, getImg, layerScale, downscale, renderScale, 'bw', false);
+    ctx.filter = 'none';
     if (textOverlay?.text) {
       ctx.filter = 'grayscale(100%)';
       drawText(ctx, textOverlay, cw, ch, layerScale);
       ctx.filter = 'none';
     }
     ctx.restore();
-    ctx.beginPath();
-    ctx.rect(sqX, sqY, squareSize, squareSize);
-    ctx.strokeStyle = '#C8C8C8';
-    ctx.setLineDash([3, 5]);
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    ctx.setLineDash([]);
+
+    if (showSelection) {
+      if (bwInteracting) {
+        drawCropInteractionOverlay(ctx, cw, ch, (c) => c.rect(sqX, sqY, squareSize, squareSize), overlayOpacity);
+      }
+    } else {
+      ctx.beginPath();
+      ctx.rect(sqX, sqY, squareSize, squareSize);
+      ctx.strokeStyle = '#C8C8C8';
+      ctx.setLineDash([3, 5]);
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
   } else if (isMultiCircle) {
     /* Build a single source-crop canvas (what the user sees) then tile it.
        Rendered at renderScale physical density so tiling it 40× onto the
        already-scaled main canvas is a crisp ~1:1 blit, not an upscale. */
+    const mcInteracting = showSelection && overlayOpacity > 0.002;
     const sc = document.createElement('canvas');
     const scPx = Math.max(1, Math.round(circlePx * renderScale));
     sc.width = scPx; sc.height = scPx;
@@ -447,6 +513,15 @@ function renderPreviewCore(ctx, cw, ch, {
     sctx.scale(renderScale, renderScale);
     sctx.imageSmoothingEnabled = true;
     sctx.imageSmoothingQuality = 'high';
+
+    /* Unclipped full-bleed pass onto the source-crop canvas — only while
+       interacting — so the mask below has the real overflow to darken. */
+    if (mcInteracting) {
+      sctx.save();
+      drawLayers(sctx, layers, getImg, layerScale, downscale, renderScale, 'mc', false);
+      sctx.restore();
+    }
+
     sctx.beginPath();
     sctx.arc(circlePx / 2, circlePx / 2, circlePx / 2, 0, Math.PI * 2);
     sctx.fillStyle = '#FFFFFF';
@@ -461,24 +536,15 @@ function renderPreviewCore(ctx, cw, ch, {
     sctx.beginPath();
     sctx.arc(circlePx / 2, circlePx / 2, circlePx / 2, 0, Math.PI * 2);
     sctx.clip();
-    layers.forEach(layer => {
-      const img = getImg(layer.id);
-      if (!img) return;
-      sctx.save();
-      const iw = img.width * layer.scale * layerScale;
-      const ih = img.height * layer.scale * layerScale;
-      const lx = layer.x * layerScale, ly = layer.y * layerScale;
-      const src = downscale(`${layer.id}:mc`, img, iw * renderScale, ih * renderScale);
-      if (layer.rotation !== 0) {
-        sctx.translate(lx + iw / 2, ly + ih / 2);
-        sctx.rotate(layer.rotation * Math.PI / 180);
-        sctx.translate(-(lx + iw / 2), -(ly + ih / 2));
-      }
-      sctx.drawImage(src, lx, ly, iw, ih);
-      sctx.restore();
-    });
+    drawLayers(sctx, layers, getImg, layerScale, downscale, renderScale, 'mc', false);
     sctx.restore();
     drawText(sctx, textOverlay, circlePx, circlePx, layerScale);
+
+    if (mcInteracting) {
+      drawCropInteractionOverlay(sctx, circlePx, circlePx,
+        (c) => appendCirclePath(c, circlePx / 2, circlePx / 2, circlePx / 2), overlayOpacity);
+    }
+
     /* Tile source crop into the grid — processed once above, reused for
        every circle below (no per-circle reprocessing). */
     for (let row = 0; row < mcRows; row++) {
@@ -488,18 +554,36 @@ function renderPreviewCore(ctx, cw, ch, {
         ctx.drawImage(sc, ox, oy, circlePx, circlePx);
       }
     }
-    ctx.strokeStyle = '#C8C8C8';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([3, 5]);
-    for (let row = 0; row < mcRows; row++) {
-      for (let col = 0; col < mcCols; col++) {
-        ctx.beginPath();
-        ctx.arc(mcOffsetX + col * mcStepPx + circlePx / 2, mcOffsetY + row * mcStepPx + circlePx / 2, circlePx / 2 - 1, 0, Math.PI * 2);
-        ctx.stroke();
+    if (!showSelection) {
+      ctx.strokeStyle = '#C8C8C8';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 5]);
+      for (let row = 0; row < mcRows; row++) {
+        for (let col = 0; col < mcCols; col++) {
+          ctx.beginPath();
+          ctx.arc(mcOffsetX + col * mcStepPx + circlePx / 2, mcOffsetY + row * mcStepPx + circlePx / 2, circlePx / 2 - 1, 0, Math.PI * 2);
+          ctx.stroke();
+        }
       }
+      ctx.setLineDash([]);
     }
-    ctx.setLineDash([]);
   } else {
+    /* Circle/heart have a real "outside the shape but inside the canvas"
+       region to mask; a full-bleed rect crop doesn't (the shape already
+       covers the whole canvas), so it gets a boundary line only. */
+    const boundsFn = shape === 'circular'
+      ? (c) => appendCirclePath(c, cw / 2, ch / 2, cw / 2)
+      : shape === 'heart'
+        ? (c) => drawHeartPath(c, 0, 0, cw, ch, true)
+        : null;
+    const interacting = showSelection && overlayOpacity > 0.002;
+
+    if (interacting && boundsFn) {
+      ctx.save();
+      drawLayers(ctx, layers, getImg, layerScale, downscale, renderScale, 'main', false);
+      ctx.restore();
+    }
+
     ctx.save();
     if (shape === 'circular') {
       ctx.beginPath();
@@ -519,53 +603,40 @@ function renderPreviewCore(ctx, cw, ch, {
       ctx.fillStyle = bgColor;
       ctx.fillRect(0, 0, cw, ch);
     }
-    layers.forEach(layer => {
-      const img = getImg(layer.id);
-      if (!img) return;
-      ctx.save();
-      const imgW = img.width * layer.scale * layerScale;
-      const imgH = img.height * layer.scale * layerScale;
-      const lx = layer.x * layerScale, ly = layer.y * layerScale;
-      const src = downscale(`${layer.id}:main`, img, imgW * renderScale, imgH * renderScale);
-      if (layer.rotation !== 0) {
-        ctx.translate(lx + imgW / 2, ly + imgH / 2);
-        ctx.rotate(layer.rotation * Math.PI / 180);
-        ctx.translate(-(lx + imgW / 2), -(ly + imgH / 2));
-      }
-      ctx.drawImage(src, lx, ly, imgW, imgH);
-      ctx.restore();
-    });
+    drawLayers(ctx, layers, getImg, layerScale, downscale, renderScale, 'main', false);
     drawText(ctx, textOverlay, cw, ch, layerScale);
     ctx.restore();
-    /* Selection outline for active layer — inline editor only, never shown
-       in the print-preview modal. */
-    if (showSelection && selectedLayer && selectedLayerImg) {
-      ctx.save();
-      ctx.strokeStyle = '#22C55E';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([5, 3]);
-      ctx.strokeRect(
-        selectedLayer.x * layerScale - 1, selectedLayer.y * layerScale - 1,
-        selectedLayerImg.width * selectedLayer.scale * layerScale + 2,
-        selectedLayerImg.height * selectedLayer.scale * layerScale + 2
-      );
-      ctx.setLineDash([]);
-      ctx.restore();
-    }
-    ctx.strokeStyle = '#C8C8C8';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([3, 5]);
-    if (shape === 'circular') {
-      ctx.beginPath();
-      ctx.arc(cw / 2, ch / 2, cw / 2 - 1, 0, Math.PI * 2);
-      ctx.stroke();
-    } else if (shape === 'heart') {
-      drawHeartPath(ctx, 1, 1, cw - 2, ch - 2);
-      ctx.stroke();
+
+    /* Crop-interaction mask + boundary line — inline editor only, and only
+       while the user is actively dragging/scaling (see overlayOpacity). */
+    if (showSelection) {
+      if (interacting && boundsFn) {
+        drawCropInteractionOverlay(ctx, cw, ch, boundsFn, overlayOpacity);
+      } else if (interacting) {
+        ctx.save();
+        ctx.strokeStyle = `rgba(255,255,255,${overlayOpacity.toFixed(3)})`;
+        ctx.lineWidth = 1;
+        ctx.shadowColor = `rgba(0,0,0,${(0.35 * overlayOpacity).toFixed(3)})`;
+        ctx.shadowBlur = 3;
+        ctx.strokeRect(0.5, 0.5, cw - 1, ch - 1);
+        ctx.restore();
+      }
     } else {
-      ctx.strokeRect(0.5, 0.5, cw - 1, ch - 1);
+      ctx.strokeStyle = '#C8C8C8';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 5]);
+      if (shape === 'circular') {
+        ctx.beginPath();
+        ctx.arc(cw / 2, ch / 2, cw / 2 - 1, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (shape === 'heart') {
+        drawHeartPath(ctx, 1, 1, cw - 2, ch - 2);
+        ctx.stroke();
+      } else {
+        ctx.strokeRect(0.5, 0.5, cw - 1, ch - 1);
+      }
+      ctx.setLineDash([]);
     }
-    ctx.setLineDash([]);
   }
 
   if (showWatermark) drawWatermark(ctx, cw, ch);
@@ -673,6 +744,48 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
   const textDragOffset = useRef({ dx: 0, dy: 0 });
   const activePointers = useRef(new Map());
   const pinchStateRef = useRef(null);
+
+  /* Crop-interaction overlay (mask + boundary line, see renderPreviewCore):
+     shown at full opacity while actively dragging/scaling, then faded out
+     over ~400ms after release. Driven by a raw rAF loop rather than React
+     state so the fade doesn't re-trigger the (expensive) hi-res print pass
+     on every animation frame — it only repaints the visible low-res canvas,
+     reusing the last args the main draw effect computed. */
+  const overlayOpacityRef = useRef(0);
+  const overlayFadeRafRef = useRef(null);
+  const lastPreviewDrawRef = useRef(null);
+  const setCropInteracting = (active) => {
+    if (active) {
+      if (overlayFadeRafRef.current) {
+        cancelAnimationFrame(overlayFadeRafRef.current);
+        overlayFadeRafRef.current = null;
+      }
+      overlayOpacityRef.current = 1;
+      const last = lastPreviewDrawRef.current;
+      if (last) renderPreviewCore(last.ctx, last.cw, last.ch, { ...last.args, overlayOpacity: 1 });
+      return;
+    }
+    if (overlayOpacityRef.current <= 0 || overlayFadeRafRef.current) return;
+    const FADE_MS = 400;
+    const fadeFrom = overlayOpacityRef.current;
+    const start = performance.now();
+    const step = (now) => {
+      const t = Math.min(1, (now - start) / FADE_MS);
+      overlayOpacityRef.current = fadeFrom * (1 - t);
+      const last = lastPreviewDrawRef.current;
+      if (last) renderPreviewCore(last.ctx, last.cw, last.ch, { ...last.args, overlayOpacity: overlayOpacityRef.current });
+      if (t < 1) {
+        overlayFadeRafRef.current = requestAnimationFrame(step);
+      } else {
+        overlayFadeRafRef.current = null;
+      }
+    };
+    overlayFadeRafRef.current = requestAnimationFrame(step);
+  };
+  useEffect(() => () => {
+    if (overlayFadeRafRef.current) cancelAnimationFrame(overlayFadeRafRef.current);
+  }, []);
+
   const [redrawTick, setRedrawTick] = useState(0);
   const [canvasW, setCanvasW] = useState(360);
   const [canvasH, setCanvasH] = useState(360);
@@ -1019,7 +1132,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     const sel = effectiveSelectedId ? layers.find(l => l.id === effectiveSelectedId) : null;
     const selImg = sel ? imgRefs.current[sel.id] : null;
 
-    renderPreviewCore(ctx, canvasW, canvasH, {
+    const previewArgs = {
       shape, isBWSheet, isMultiCircle, layers, getImg, bgColor, textOverlay,
       circlePx, mcCols, mcRows, mcOffsetX, mcOffsetY, mcStepPx,
       /* This *is* the layout layers are fit to, so the ratio is always 1 —
@@ -1028,7 +1141,12 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       downscale: getDownscaledSource, renderScale, isMobile,
       showSelection: true, selectedLayer: sel, selectedLayerImg: selImg,
       showWatermark: true,
-    });
+    };
+    /* Snapshot for the crop-interaction fade loop, which redraws the
+       low-res canvas directly (bypassing this effect and the hi-res pass
+       below) on every animation frame — see setCropInteracting. */
+    lastPreviewDrawRef.current = { ctx, cw: canvasW, ch: canvasH, args: previewArgs };
+    renderPreviewCore(ctx, canvasW, canvasH, { ...previewArgs, overlayOpacity: overlayOpacityRef.current });
 
     if (onCrop) onCrop(canvas.toDataURL());
     if (typeof performance !== 'undefined' && process.env.NODE_ENV !== 'production') {
@@ -1206,15 +1324,19 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     if (activePointers.current.size >= 2) {
       const pts = Array.from(activePointers.current.values());
       const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+      const angle = Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x) * 180 / Math.PI;
       const selLayer = layers.find(l => l.id === effectiveSelectedId);
       pinchStateRef.current = {
         initialDist: dist,
+        initialAngle: angle,
         initialScale: selLayer?.scale ?? 1,
+        initialRotation: selLayer?.rotation ?? 0,
         layerId: effectiveSelectedId,
       };
       setDragging(false);
       setDragLayerId(null);
       setTextDragging(false);
+      setCropInteracting(true);
       return;
     }
 
@@ -1248,6 +1370,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
         setDragLayerId(layer.id);
         setDragStart({ clientX: e.clientX, clientY: e.clientY, layerX: layer.x, layerY: layer.y });
         e.currentTarget.setPointerCapture(e.pointerId);
+        setCropInteracting(true);
         return;
       }
     }
@@ -1259,6 +1382,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
         setDragLayerId(effectiveSelectedId);
         setDragStart({ clientX: e.clientX, clientY: e.clientY, layerX: layer.x, layerY: layer.y });
         e.currentTarget.setPointerCapture(e.pointerId);
+        setCropInteracting(true);
       }
     }
   };
@@ -1272,14 +1396,16 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     if (activePointers.current.size >= 2 && pinchStateRef.current) {
       const pts = Array.from(activePointers.current.values());
       const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
-      const { initialDist, initialScale, layerId } = pinchStateRef.current;
+      const angle = Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x) * 180 / Math.PI;
+      const { initialDist, initialAngle, initialScale, initialRotation, layerId } = pinchStateRef.current;
       const selImg = layerId ? imgRefs.current[layerId] : null;
       const mn = selImg ? Math.max(20 / selImg.width, 20 / selImg.height) : 0.05;
       const mx = selImg ? Math.max(canvasW * 4 / selImg.width, canvasH * 4 / selImg.height) : 8;
       const newScale = Math.min(mx, Math.max(mn, initialScale * (dist / initialDist)));
+      const newRotation = applyRotationSnap(normalizeRotation(initialRotation + (angle - initialAngle)));
       if (layerId) {
         onLayersChangeRef.current(prev => prev.map(l =>
-          l.id === layerId ? { ...l, ...scaleLayerAround(l, newScale) } : l
+          l.id === layerId ? { ...l, ...scaleLayerAround(l, newScale), rotation: newRotation } : l
         ));
       }
       return;
@@ -1321,6 +1447,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     setDragging(false);
     setDragLayerId(null);
     setTextDragging(false);
+    setCropInteracting(false);
   };
 
   const moveLayerUp = (id) => {
@@ -1369,6 +1496,75 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     if (!effectiveSelectedId) return;
     onLayersChange(layers.map(l => l.id === effectiveSelectedId ? { ...l, ...patch } : l));
   };
+
+  /* Rotation handle (drag-to-rotate on the crop boundary) + magnetic snap.
+     Rotation is stored in degrees exactly as before (-180..180) — only the
+     input method changes, not the value or how it's applied downstream. */
+  const [rotationDragging, setRotationDragging] = useState(false);
+  const rotationDragRef = useRef(null);
+  const normalizeRotation = (deg) => {
+    let d = ((deg + 180) % 360 + 360) % 360 - 180;
+    if (d === -180) d = 180;
+    return d;
+  };
+  const angleDiff = (a, b) => {
+    let d = (a - b) % 360;
+    if (d > 180) d -= 360;
+    if (d < -180) d += 360;
+    return d;
+  };
+  const applyRotationSnap = (deg) => {
+    const norm = normalizeRotation(deg);
+    for (const c of [-180, -90, 0, 90, 180]) {
+      if (Math.abs(angleDiff(norm, c)) <= 6) return normalizeRotation(c);
+    }
+    const nearest15 = Math.round(norm / 15) * 15;
+    if (Math.abs(angleDiff(norm, nearest15)) <= 4) return normalizeRotation(nearest15);
+    return Math.round(norm);
+  };
+  const handleRotationPointerDown = (e) => {
+    if (!effectiveSelectedId) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    rotationDragRef.current = { rectLeft: rect.left, rectTop: rect.top, rectW: rect.width, rectH: rect.height };
+    setRotationDragging(true);
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    e.preventDefault();
+  };
+  const handleRotationPointerMove = (e) => {
+    const drag = rotationDragRef.current;
+    if (!drag || !effectiveSelectedId) return;
+    const scaleX = canvasW / drag.rectW, scaleY = canvasH / drag.rectH;
+    const cx = (e.clientX - drag.rectLeft) * scaleX;
+    const cy = (e.clientY - drag.rectTop) * scaleY;
+    const dx = cx - canvasW / 2, dy = cy - canvasH / 2;
+    const angleDeg = Math.atan2(dy, dx) * 180 / Math.PI;
+    updateSelectedLayer({ rotation: applyRotationSnap(angleDeg + 90) });
+  };
+  const handleRotationPointerUp = () => {
+    rotationDragRef.current = null;
+    setRotationDragging(false);
+  };
+  const handleRotationKeyDown = (e) => {
+    if (!effectiveSelectedId) return;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      updateSelectedLayer({ rotation: normalizeRotation(currentRotation - (e.shiftKey ? 15 : 1)) });
+    } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      updateSelectedLayer({ rotation: normalizeRotation(currentRotation + (e.shiftKey ? 15 : 1)) });
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      updateSelectedLayer({ rotation: 0 });
+    }
+  };
+  /* Handle position on the crop boundary, in percentage offsets from the
+     canvas center so it tracks correctly at any rendered (CSS-scaled) size. */
+  const rotationHandleRadius = Math.min(canvasW, canvasH) / 2;
+  const rotationHandleAngleRad = (currentRotation - 90) * Math.PI / 180;
+  const rotationHandleLeftPct = 50 + (Math.cos(rotationHandleAngleRad) * rotationHandleRadius / canvasW) * 100;
+  const rotationHandleTopPct = 50 + (Math.sin(rotationHandleAngleRad) * rotationHandleRadius / canvasH) * 100;
 
   /* Layers scale around the center of their own crop area: the circle for
      multi-circle sheets (layers are positioned within a single circlePx×
@@ -1427,6 +1623,35 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
             {sizeLabel}
           </div>
         )}
+        {/* Rotation handle — drag directly on the crop boundary to rotate */}
+        <div
+          role="slider"
+          aria-label="Rotate image"
+          aria-valuemin={-180}
+          aria-valuemax={180}
+          aria-valuenow={currentRotation}
+          tabIndex={effectiveSelectedId ? 0 : -1}
+          onPointerDown={handleRotationPointerDown}
+          onPointerMove={handleRotationPointerMove}
+          onPointerUp={handleRotationPointerUp}
+          onKeyDown={handleRotationKeyDown}
+          title="Drag to rotate"
+          style={{
+            position: 'absolute',
+            left: `${rotationHandleLeftPct}%`,
+            top: `${rotationHandleTopPct}%`,
+            transform: 'translate(-50%, -50%)',
+            width: 24, height: 24, borderRadius: '50%',
+            background: C.white, border: '2px solid ' + C.brand,
+            boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
+            display: effectiveSelectedId ? 'flex' : 'none',
+            alignItems: 'center', justifyContent: 'center',
+            cursor: rotationDragging ? 'grabbing' : 'grab',
+            touchAction: 'none', userSelect: 'none',
+            fontSize: 11, color: C.brand, outline: 'none',
+          }}>
+          ⟳
+        </div>
       </div>
       <canvas ref={hiResCanvasRef} style={{ display: 'none' }} />
       <div style={{
@@ -1450,6 +1675,9 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
               const newScale = Math.max(minScale, currentScale - (maxScale - minScale) / 10);
               updateSelectedLayer(scaleLayerAround(selectedLayer, newScale));
             }}
+            onPointerDown={() => setCropInteracting(true)}
+            onPointerUp={() => setCropInteracting(false)}
+            onPointerLeave={() => setCropInteracting(false)}
             disabled={!effectiveSelectedId}
             style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid ' + C.border, background: C.white,
               cursor: effectiveSelectedId ? 'pointer' : 'default', fontSize: 15, fontWeight: 700,
@@ -1461,6 +1689,8 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
               if (!effectiveSelectedId || !selectedLayer) return;
               updateSelectedLayer(scaleLayerAround(selectedLayer, newScale));
             }}
+            onPointerDown={() => setCropInteracting(true)}
+            onPointerUp={() => setCropInteracting(false)}
             disabled={!effectiveSelectedId}
             style={{ flex: 1, accentColor: C.brand, cursor: effectiveSelectedId ? 'pointer' : 'default' }} />
           <button
@@ -1469,6 +1699,9 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
               const newScale = Math.min(maxScale, currentScale + (maxScale - minScale) / 10);
               updateSelectedLayer(scaleLayerAround(selectedLayer, newScale));
             }}
+            onPointerDown={() => setCropInteracting(true)}
+            onPointerUp={() => setCropInteracting(false)}
+            onPointerLeave={() => setCropInteracting(false)}
             disabled={!effectiveSelectedId}
             style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid ' + C.border, background: C.white,
               cursor: effectiveSelectedId ? 'pointer' : 'default', fontSize: 15, fontWeight: 700,
@@ -1478,17 +1711,37 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
             {Math.round(currentScale * 100)}%
           </span>
         </div>
-        {/* Rotation row */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 10, color: C.muted, minWidth: 28, textAlign: 'right', fontFamily: "'Outfit', sans-serif" }}>−180°</span>
-          <input type="range" min={-180} max={180} step={1} value={currentRotation}
-            onChange={(e) => updateSelectedLayer({ rotation: parseInt(e.target.value) })}
+        {/* Rotation row — drag the ⟳ handle on the crop edge, or use these */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button
+            onClick={() => updateSelectedLayer({ rotation: normalizeRotation(currentRotation - 90) })}
             disabled={!effectiveSelectedId}
-            style={{ flex: 1, accentColor: C.brand, cursor: effectiveSelectedId ? 'pointer' : 'default' }} />
-          <span style={{ fontSize: 10, color: C.muted, minWidth: 28, fontFamily: "'Outfit', sans-serif" }}>+180°</span>
-          <span style={{ fontSize: 10.5, color: C.muted, minWidth: 36, textAlign: 'right', fontWeight: 600, fontFamily: "'Outfit', sans-serif" }}>
-            {currentRotation}°
-          </span>
+            title="Rotate -90°"
+            style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid ' + C.border, background: C.white,
+              cursor: effectiveSelectedId ? 'pointer' : 'default', fontSize: 13, fontWeight: 700,
+              color: C.text, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              opacity: effectiveSelectedId ? 1 : 0.4, fontFamily: "'Outfit', sans-serif" }}>−90°</button>
+          <button
+            onClick={() => updateSelectedLayer({ rotation: normalizeRotation(currentRotation + 90) })}
+            disabled={!effectiveSelectedId}
+            title="Rotate +90°"
+            style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid ' + C.border, background: C.white,
+              cursor: effectiveSelectedId ? 'pointer' : 'default', fontSize: 13, fontWeight: 700,
+              color: C.text, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              opacity: effectiveSelectedId ? 1 : 0.4, fontFamily: "'Outfit', sans-serif" }}>+90°</button>
+          <input type="number" min={-180} max={180} step={1} value={currentRotation}
+            onChange={(e) => {
+              if (e.target.value === '') return;
+              const v = Math.min(180, Math.max(-180, Math.round(Number(e.target.value))));
+              if (!Number.isNaN(v)) updateSelectedLayer({ rotation: v });
+            }}
+            disabled={!effectiveSelectedId}
+            aria-label="Rotation in degrees"
+            style={{ width: 52, fontSize: 12, padding: '4px 6px', borderRadius: 6,
+              border: '1px solid ' + C.border, color: C.text, textAlign: 'center',
+              fontFamily: "'Outfit', sans-serif" }} />
+          <span style={{ fontSize: 11, color: C.muted, fontFamily: "'Outfit', sans-serif" }}>degrees</span>
+          <div style={{ flex: 1 }} />
           {currentRotation !== 0 && (
             <button onClick={() => updateSelectedLayer({ rotation: 0 })}
               style={{ fontSize: 10, color: C.brand, background: 'none', border: '1px solid ' + C.brand,
