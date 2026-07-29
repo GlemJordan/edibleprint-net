@@ -390,7 +390,7 @@ export default function HeroSection({ onOrderClick, cutoffMsg }) {
               fontSize: 13.5, marginTop: 14, lineHeight: 1.5,
               fontStyle: 'italic',
             }}>
-              De tu foto al producto final — desliza para ver más ejemplos
+              From your photo to the final product — swipe to see more examples
             </p>
 
           </div>

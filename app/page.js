@@ -2172,7 +2172,7 @@ export default function EdiblePrintApp() {
             {[
               { icon: '🖨️', title: '300 DPI Print Quality', sub: 'Crystal-clear results' },
               { icon: '🍰', title: '100% Food-Safe', sub: 'FDA-approved inks & sheets' },
-              { icon: '🚚', title: 'Ships in 1–2 Days', sub: 'Free pickup or flat-rate shipping' },
+              { icon: '🚚', title: '1–2 Day Production', sub: 'Ships in approx. 3–5 days' },
               { icon: '✅', title: '100% Satisfaction', sub: 'We make it right, guaranteed' },
             ].map((b, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 22px',
@@ -2295,7 +2295,7 @@ export default function EdiblePrintApp() {
                   <div style={{ fontSize: 32, fontWeight: 700, color: C.brand, marginBottom: 4 }}>{'$' + sz.price.toFixed(2)}</div>
                   <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 6 }}>{sz.label}</div>
                   <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5, marginBottom: 6 }}>{descriptions[sz.id] || ''}</div>
-                  <div style={{ fontSize: 12, color: '#059669', fontWeight: 600, marginBottom: 10 }}>🚀 Ships in 1–2 business days</div>
+                  <div style={{ fontSize: 12, color: '#059669', fontWeight: 600, marginBottom: 10 }}>🚀 Production: 1–2 days · Ships in ~3–5 days</div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: isHovered ? C.brand : C.muted, opacity: isHovered ? 1 : 0.6 }}>Order this size →</div>
                 </div>
               );

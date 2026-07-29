@@ -50,22 +50,21 @@ export default function ShippingPage() {
         <li><strong>Free local pickup</strong> at our location</li>
       </ul>
 
-      <h2 style={h2}>Order Tracking</h2>
+      <h2 style={h2}>Order Updates</h2>
       <p style={p}>
-        Once your order ships, you'll receive an email with a tracking number. You can use it to follow your
-        package until delivery.
+        You'll receive a confirmation email as soon as your order ships. Canada Post Lettermail does not
+        include a tracking number, so we're unable to provide delivery status updates after that point.
       </p>
 
       <h2 style={h2}>Lost or Damaged Packages</h2>
       <p style={p}>
-        If your package is marked as delivered but you did not receive it, please:
+        If your package hasn't arrived within <strong>10 business days</strong> of shipping, please:
       </p>
       <ol style={ol}>
         <li>Check with neighbors or household members.</li>
-        <li>Contact the shipping carrier with your tracking number.</li>
         <li>
-          If still not found after 48 hours, contact us at{' '}
-          <a href={`mailto:${EMAIL}`} style={{ color: C.brand }}>{EMAIL}</a> and
+          Still missing? Email us at{' '}
+          <a href={`mailto:${EMAIL}`} style={{ color: C.brand }}>{EMAIL}</a> with your order number, and
           we'll work with you to resolve it.
         </li>
       </ol>
