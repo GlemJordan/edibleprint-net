@@ -1,7 +1,7 @@
 import Stripe from 'stripe';
 import { NextResponse, after } from 'next/server';
 import { buildOrderRecord, saveOrderRecord } from '../../../lib/order-record.js';
-import { generateProductionSlip, generatePrintPdf } from '../../../lib/generate-pdf.js';
+import { generateProductionSlip, generatePrintPdf, extractPdfPage } from '../../../lib/generate-pdf.js';
 import { uploadRaw, orderFolderPath } from '../../../lib/cloudinary-ops.js';
 
 export const maxDuration = 60;
@@ -43,14 +43,28 @@ function parseDesigns(meta) {
   const designs = [];
   for (let i = 0; i < designCount; i++) {
     if (meta['d' + i + '_shape']) {
-      designs.push({
+      const design = {
         shape:    meta['d' + i + '_shape'],
         size:     meta['d' + i + '_size']     || '',
         qty:      meta['d' + i + '_qty']      || '1',
         price:    meta['d' + i + '_price']    || '0',
         notes:    meta['d' + i + '_notes']    || 'None',
         imageUrl: meta['d' + i + '_imageUrl'] || 'No image',
-      });
+      };
+      // d{i}_uploadMeta's mere presence marks this as an "I already have my
+      // design" order — see app/api/create-checkout/route.js for why there's
+      // no separate d{i}_sourceType key.
+      const uploadMetaRaw = meta['d' + i + '_uploadMeta'];
+      if (uploadMetaRaw) {
+        const parts = Object.fromEntries(
+          uploadMetaRaw.split(';').filter(Boolean).map((kv) => kv.split('='))
+        );
+        design.sourceType   = 'upload';
+        design.selectedPage = parseInt(parts.page, 10) || 1;
+        design.pageCount    = parseInt(parts.pages, 10) || 1;
+        design.approvedAt   = parts.approvedAt || '';
+      }
+      designs.push(design);
     } else {
       designs.push({
         shape:    meta.shape     || 'circular',
@@ -140,6 +154,35 @@ async function processOrder(session, orderId) {
   for (let i = 0; i < designs.length; i++) {
     const d = designs[i];
     if (!d.imageUrl || d.imageUrl === 'No image') continue;
+    const baseLabel = designs.length > 1 ? 'Design ' + (i + 1) : 'Print-Ready';
+
+    if (d.sourceType === 'upload') {
+      // Customer-supplied file: the ORIGINAL is always the print-ready asset
+      // (byte-for-byte, no re-encoding) unless it's a multi-page PDF, in
+      // which case the one selected page gets structurally extracted — see
+      // extractPdfPage(). Never routed through generatePrintPdf's
+      // image-embedding path, which is for editor-generated crops only.
+      try {
+        if (d.pageCount > 1) {
+          const extractedBytes = await withRetry(
+            () => extractPdfPage(d.imageUrl, d.selectedPage),
+            'extractPdfPage:' + orderId + ':' + i,
+          );
+          const printPublicId = `${folder}/print-design${designs.length > 1 ? '-' + (i + 1) : ''}.pdf`;
+          const printUrl = await withRetry(
+            () => uploadRaw(extractedBytes, printPublicId),
+            'uploadExtractedPage:' + orderId + ':' + i,
+          );
+          printPdfUrls.push({ url: printUrl, label: baseLabel + ' (page ' + d.selectedPage + ' of ' + d.pageCount + ', extracted)' });
+        } else {
+          printPdfUrls.push({ url: d.imageUrl, label: baseLabel + ' (customer’s original file)' });
+        }
+      } catch (printErr) {
+        console.error('[webhook] page extraction failed for design', i, printErr.message);
+      }
+      continue;
+    }
+
     const sizeInches = parseFloat(d.size) || 6;
     const customW = d.shape === 'custom' ? parseFloat(d.size.split('"x')[0]) : undefined;
     const customH = d.shape === 'custom' ? parseFloat(d.size.split('"x')[1]) : undefined;
@@ -153,7 +196,7 @@ async function processOrder(session, orderId) {
         () => uploadRaw(printBytes, printPublicId),
         'uploadPrintPdf:' + orderId + ':' + i,
       );
-      printPdfUrls.push({ url: printUrl, label: designs.length > 1 ? 'Design ' + (i + 1) : 'Print-Ready' });
+      printPdfUrls.push({ url: printUrl, label: baseLabel });
     } catch (printErr) {
       console.error('[webhook] print PDF failed for design', i, printErr.message);
     }
@@ -175,13 +218,17 @@ async function processOrder(session, orderId) {
     if (!d.imageUrl || d.imageUrl === 'No image') {
       return '<p style="color:red;">Design ' + (i + 1) + ': No image uploaded</p>';
     }
+    // A PDF can't render via <img> — email clients just show a broken icon —
+    // so link-only for those (all upload-flow PDFs) instead of also embedding.
+    const isPdfFile = d.imageUrl.toLowerCase().endsWith('.pdf');
     return '<div style="margin-bottom:16px;">'
       + (designs.length > 1 ? '<p style="font-weight:600;margin:0 0 6px;">Design ' + (i + 1) + ':</p>' : '')
-      + '<p><a href="' + d.imageUrl + '" style="background:#1B6B4A;color:white;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;font-size:13px;">Download Image' + (designs.length > 1 ? ' ' + (i + 1) : '') + '</a></p>'
-      + '<img src="' + d.imageUrl + '" style="max-width:240px;border-radius:8px;border:1px solid #e5e7eb;" />'
+      + '<p><a href="' + d.imageUrl + '" style="background:#1B6B4A;color:white;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;font-size:13px;">Download ' + (isPdfFile ? 'PDF' : 'Image') + (designs.length > 1 ? ' ' + (i + 1) : '') + '</a></p>'
+      + (isPdfFile ? '' : '<img src="' + d.imageUrl + '" style="max-width:240px;border-radius:8px;border:1px solid #e5e7eb;" />')
       + (d.notes && d.notes !== 'None' ? '<p style="margin:8px 0 0;font-size:13px;color:#6b7280;"><em>Note: ' + d.notes + '</em></p>' : '')
       + (d.shape === 'bwsheet' ? '<p style="margin:8px 0 0;font-size:13px;font-weight:bold;color:#B45309;background:#FEF3C7;padding:6px 10px;border-radius:4px;">⚠️ Product: B&W Half Sheet (GRAYSCALE — print in black and white)</p>' : '')
       + (d.shape === 'waferletter' ? '<p style="margin:8px 0 0;font-size:13px;font-weight:bold;color:#B45309;background:#FEF3C7;padding:6px 10px;border-radius:4px;">⚠️ Product: Wafer Paper — Letter Sheet (NOT icing sheet — do not substitute)</p>' : '')
+      + (d.sourceType === 'upload' ? '<p style="margin:8px 0 0;font-size:13px;font-weight:bold;color:#B45309;background:#FEF3C7;padding:6px 10px;border-radius:4px;">⚠️ CUSTOMER-SUPPLIED FILE — print exactly as provided, no adjustments' + (d.pageCount > 1 ? ' (page ' + d.selectedPage + ' of ' + d.pageCount + ')' : '') + '.</p>' : '')
       + '</div>';
   };
 
@@ -254,6 +301,13 @@ async function processOrder(session, orderId) {
 
   const buildImagePreviewCustomer = (d, i) => {
     if (!d.imageUrl || d.imageUrl === 'No image') return '';
+    if (d.imageUrl.toLowerCase().endsWith('.pdf')) {
+      // A PDF can't render via <img> in an email client — link instead.
+      return '<div style="text-align:center;margin-bottom:12px;">'
+        + (designs.length > 1 ? '<p style="margin:0 0 4px;font-size:13px;font-weight:600;color:#374151;">Design ' + (i + 1) + '</p>' : '')
+        + '<a href="' + d.imageUrl + '" style="font-size:13px;color:#1B6B4A;">📄 View your PDF</a>'
+        + '</div>';
+    }
     return '<div style="text-align:center;margin-bottom:12px;">'
       + (designs.length > 1 ? '<p style="margin:0 0 4px;font-size:13px;font-weight:600;color:#374151;">Design ' + (i + 1) + '</p>' : '')
       + '<img src="' + d.imageUrl + '" style="max-width:160px;border-radius:8px;border:1px solid #e5e7eb;" alt="Design ' + (i + 1) + '" />'
@@ -280,7 +334,12 @@ async function processOrder(session, orderId) {
       ? '<div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-bottom:20px;">' + designs.map(buildImagePreviewCustomer).join('') + '</div>'
       : '')
     + '<div style="background:#f9fafb;border-left:4px solid #1B6B4A;padding:14px 16px;border-radius:0 6px 6px 0;margin-bottom:20px;">'
-    + '<p style="margin:0;font-size:14px;line-height:1.6;color:#374151;">We\'ll review your image' + (designs.length > 1 ? 's' : '') + ' within 24 hours and contact you if any adjustments are needed.</p>'
+    + '<p style="margin:0;font-size:14px;line-height:1.6;color:#374151;">'
+    + (designs.every(d => d.sourceType === 'upload')
+        ? 'Your file' + (designs.length > 1 ? 's' : '') + ' will be printed exactly as you approved — no review or changes needed.'
+        : 'We\'ll review your image' + (designs.length > 1 ? 's' : '') + ' within 24 hours and contact you if any adjustments are needed.'
+          + (designs.some(d => d.sourceType === 'upload') ? ' (Files uploaded through "I already have my design" print exactly as approved, without review.)' : ''))
+    + '</p>'
     + '</div>'
     + (isPickup
       ? '<div style="background:#FFF4EB;border-left:4px solid #E8873C;padding:14px 16px;border-radius:0 6px 6px 0;margin-bottom:20px;">'

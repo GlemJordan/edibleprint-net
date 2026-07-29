@@ -13,6 +13,10 @@
  *   unitPrice: number,
  *   notes?: string,
  *   imageUrl?: string,
+ *   sourceType?: 'upload',
+ *   selectedPage?: number,
+ *   pageCount?: number,
+ *   approvedAt?: string,
  * }} DesignRecord
  *
  * @typedef {{
