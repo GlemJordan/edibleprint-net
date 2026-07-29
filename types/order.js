@@ -1,5 +1,5 @@
 /**
- * @typedef {'round' | 'heart' | 'square' | 'cookie_sheet' | 'full_sheet' | 'custom'} ProductShape
+ * @typedef {'round' | 'heart' | 'square' | 'cookie_sheet' | 'full_sheet' | 'custom' | 'waferletter'} ProductShape
  *
  * @typedef {'paid' | 'file_received' | 'ready_to_print' | 'printed' | 'packed' | 'shipped' | 'pickup_ready'} ProductionStatus
  *

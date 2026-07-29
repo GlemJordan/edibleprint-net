@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import './globals.css';
 import HeroSection from './_components/HeroSection';
 import { getShippingCost } from '../lib/shipping-config.js';
+import { WAFER_PAPER_PRICE } from '../lib/wafer-paper-config.js';
 
 /* ═══ PRICING CONFIG ═══ */
 const SIZES = {
@@ -34,6 +35,9 @@ const SIZES = {
   ],
   bwsheet: [
     { id: 'bw1', label: '6.5"×6.5" B&W Square', sublabel: 'Centered on A4 sheet', w: 8, h: 11, printW: 6.5, printH: 6.5, price: 9.99, grayscale: true },
+  ],
+  waferletter: [
+    { id: 'wl1', label: 'Wafer Paper — Letter Sheet (8.5"×11")', w: 8.5, h: 11, price: WAFER_PAPER_PRICE },
   ],
   custom: [{ id: 'custom', label: 'Custom Size', w: 0, h: 0, price: 0 }],
 };
@@ -223,7 +227,7 @@ function computeCanvasSize(containerWidth, shape, sizeObj, viewportH = 800) {
   let aspectRatio;
   if (shape === 'circular' || shape === 'heart' || shape === 'square') {
     aspectRatio = 1;
-  } else if (shape === 'multicircle' || shape === 'fullsheet' || shape === 'bwsheet') {
+  } else if (shape === 'multicircle' || shape === 'fullsheet' || shape === 'bwsheet' || shape === 'waferletter') {
     const w = (sizeObj && sizeObj.w) || 8;
     const h = (sizeObj && sizeObj.h) || 11;
     aspectRatio = w / h;
@@ -2097,6 +2101,7 @@ export default function EdiblePrintApp() {
 
   const sizeLabel = shape === 'fullsheet' ? 'FULL SHEET 8" × 11"'
     : shape === 'bwsheet' ? 'B&W 6.5" × 6.5"'
+    : shape === 'waferletter' ? 'WAFER PAPER 8.5" × 11"'
     : shape === 'custom' ? `${customW || '?'}" × ${customH || '?'}"`
     : shape === 'multicircle' ? (selectedSize?.sublabel || '').toUpperCase()
     : shape === 'circular' ? `${(selectedSize?.label || '').split(' ')[0]} ROUND`
@@ -2571,6 +2576,7 @@ export default function EdiblePrintApp() {
               { key: 'multicircle', label: 'Cookie Sheets' },
               { key: 'fullsheet', label: 'Full Sheet' },
               { key: 'bwsheet', label: 'B&W Sheet' },
+              { key: 'waferletter', label: 'Wafer Paper' },
             ].map(tab => (
               <button key={tab.key} onClick={() => setPricingTab(tab.key)} style={{
                 padding: '10px 20px', fontSize: 14, cursor: 'pointer',
@@ -2598,6 +2604,7 @@ export default function EdiblePrintApp() {
                 mc3: '6 large cookies per sheet',
                 a4: 'Covers the full 8″×11″ sheet',
                 bw1: 'Economy grayscale — text, logos & portraits',
+                wl1: 'A lighter, more economical alternative to icing sheets',
               };
               const isBestValue = sz.id === 'bw1';
               const isHovered = hoveredCardId === sz.id;
@@ -2731,7 +2738,7 @@ export default function EdiblePrintApp() {
                 Our Quality Guarantee
               </h2>
               <p style={{ fontSize: 15.5, lineHeight: 1.7, color: C.text, margin: '0 0 18px' }}>
-                Every edible print is produced with <strong>300 DPI resolution</strong>, <strong>FDA-approved food-safe inks</strong>, and <strong>premium icing sheets</strong> that lay flat and taste great.
+                Every edible print is produced with <strong>300 DPI resolution</strong> and <strong>FDA-approved food-safe inks</strong>, on <strong>premium icing sheets or wafer paper</strong> depending on the format you choose — both lay flat and taste great.
                 If your order arrives damaged or the print quality doesn't meet your expectations, we'll reprint or refund — no questions asked.
               </p>
               <ul style={{ margin: '0 0 20px', padding: '0 0 0 20px', fontSize: 14.5, lineHeight: 1.85, color: C.text }}>
@@ -2883,7 +2890,7 @@ export default function EdiblePrintApp() {
           <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, textAlign: 'center', marginBottom: 8, fontWeight: 700 }}>Frequently Asked Questions</h2>
           <p style={{ textAlign: 'center', color: C.muted, marginBottom: 36, fontSize: 15 }}>Everything you need to know about edible printing</p>
           {[
-            ['What are edible prints made of?', 'Our prints use FDA-approved, food-safe edible icing sheets printed with vibrant, water-based edible inks. Every ingredient is certified safe for consumption and tasteless \u2014 so they won\u2019t affect the flavour of your baked goods.'],
+            ['What are edible prints made of?', 'We print on two food-safe materials: edible icing sheets (frosting sheets) for our Round, Heart, Square, Cookie Sheet, Full Sheet, and B&W Sheet formats, and wafer paper for our Wafer Paper Letter Sheet option. Both use vibrant, water-based edible inks, are FDA-approved, and are tasteless \u2014 so they won\u2019t affect the flavour of your baked goods. Wafer paper is thinner and more delicate, with slightly softer colour, but it\u2019s a lighter, more economical option.'],
             ['How do I apply the edible print?', 'Peel the backing sheet gently and lay the print directly onto a freshly frosted or fondant-covered surface. Press lightly from the centre outward to remove air bubbles. For best results, apply within 30 minutes of frosting and keep refrigerated until serving.'],
             ['How long does shipping take?', 'Free pickup is available at our London, Ontario location. Canada Post shipping is a flat rate of $9.99 anywhere in Canada — approx. 3–5 business days, no tracking number included.'],
             ['What image resolution do I need for good quality?', 'We recommend a minimum of 1000×1000 pixels at 300 DPI. We review every order before printing — if we spot a quality issue with your file, we\'ll reach out before proceeding.'],
@@ -2932,6 +2939,7 @@ export default function EdiblePrintApp() {
                 ['Square Prints', () => handlePricingCardClick('square', 's8')],
                 ['Cookie Sheets', () => handlePricingCardClick('multicircle', 'mc3')],
                 ['Full Sheet Prints', () => handlePricingCardClick('fullsheet', 'a4')],
+                ['Wafer Paper Prints', () => handlePricingCardClick('waferletter', 'wl1')],
               ].map(([label, action]) => (
                 <div key={label} style={{ marginBottom: 10 }}>
                   <button onClick={action} style={{ background: 'none', border: 'none', cursor: 'pointer',
@@ -3039,7 +3047,7 @@ export default function EdiblePrintApp() {
             {pendingShape && pendingSizeId && (() => {
               const pSizes = SIZES[pendingShape] || [];
               const pSel = pSizes.find(s => s.id === pendingSizeId);
-              const shapeLabels = { circular: 'Round', heart: 'Heart', square: 'Square', multicircle: 'Cookie Sheet', fullsheet: 'Full Sheet', bwsheet: 'B&W Sheet' };
+              const shapeLabels = { circular: 'Round', heart: 'Heart', square: 'Square', multicircle: 'Cookie Sheet', fullsheet: 'Full Sheet', bwsheet: 'B&W Sheet', waferletter: 'Wafer Paper' };
               return (
                 <div style={{ background: C.brandLight, border: '1.5px solid ' + C.brand, borderRadius: 12,
                   padding: '10px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
@@ -3171,6 +3179,15 @@ export default function EdiblePrintApp() {
                   ℹ️ B&W Sheet prints in grayscale for $9.99 — perfect for text, logos, and portraits.
                 </div>
               )}
+              {shape === 'waferletter' && (
+                <div style={{
+                  background: '#F5F5F5', borderLeft: '3px solid ' + C.accent,
+                  padding: '10px 14px', borderRadius: 6, fontSize: 13,
+                  marginBottom: 16, color: C.text,
+                }}>
+                  ℹ️ Wafer paper is thinner and more brittle than icing sheets, absorbs moisture more easily, and prints slightly less vivid colour — but it's more economical and needs no transfer step.
+                </div>
+              )}
               <ImageEditor
                 layers={layers}
                 onLayersChange={setLayers}
@@ -3227,8 +3244,9 @@ export default function EdiblePrintApp() {
                   { key: 'square', icon: '⬜', label: 'Square' },
                   { key: 'fullsheet', icon: '▬', label: 'Full Sheet' },
                   { key: 'bwsheet', icon: '⬛', label: 'B&W Sheet' },
+                  { key: 'waferletter', icon: '📄', label: 'Wafer Paper', title: "Wafer paper is thinner and more brittle than icing sheets, absorbs moisture more easily, and prints slightly less vivid colour — but it's more economical and needs no transfer step." },
                   { key: 'custom', icon: '✏️', label: 'Custom' }].map((sh) => (
-                  <button key={sh.key} onClick={() => {
+                  <button key={sh.key} title={sh.title} onClick={() => {
                     setShape(sh.key);
                     const newSizes = SIZES[sh.key] || [];
                     if (newSizes.length > 0 && !newSizes.find(sz => sz.id === sizeId)) setSizeId(newSizes[0].id);

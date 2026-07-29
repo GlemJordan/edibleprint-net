@@ -1,6 +1,7 @@
 import Stripe from 'stripe';
 import { NextResponse } from 'next/server';
 import { getShippingCost } from '../../../lib/shipping-config.js';
+import { WAFER_PAPER_PRICE } from '../../../lib/wafer-paper-config.js';
 
 const isTest = process.env.STRIPE_MODE === 'test';
 // NOTE: STRIPE_SECRET_KEY_LIVE must be sk_live_... (a full Secret Key).
@@ -36,13 +37,21 @@ export async function POST(request) {
     // trusted from the client, so the charged amount can't be tampered with.
     const shippingCost = getShippingCost(shippingMethod);
 
+    // Wafer paper is a flat rate — like shipping, its price is enforced
+    // server-side from the shared config rather than trusted from the client.
+    const designsSafe = designs.map((d) =>
+      d.shape === 'waferletter' ? { ...d, unitPrice: WAFER_PAPER_PRICE } : d
+    );
+
     // Per-design line items
-    const designLineItems = designs.map((d, i) => ({
+    const designLineItems = designsSafe.map((d, i) => ({
       price_data: {
         currency: 'cad',
         product_data: {
           name: (designs.length > 1 ? 'Design ' + (i + 1) + ': ' : 'Edible Print: ') + d.quantity + 'x ' + d.size + ' (' + d.shape + ')',
-          description: 'Custom edible image print on premium icing sheet',
+          description: d.shape === 'waferletter'
+            ? 'Custom edible image print on wafer paper'
+            : 'Custom edible image print on premium icing sheet',
         },
         unit_amount: Math.round(d.unitPrice * d.quantity * 100),
       },
@@ -53,7 +62,7 @@ export async function POST(request) {
 
     // Per-design metadata (max 5 designs × 6 keys = 30 + 9 customer keys = 39 total)
     const designMeta = { designCount: String(designs.length) };
-    designs.slice(0, 5).forEach((d, i) => {
+    designsSafe.slice(0, 5).forEach((d, i) => {
       designMeta['d' + i + '_shape']    = String(d.shape || '').slice(0, 500);
       designMeta['d' + i + '_size']     = String(d.size  || '').slice(0, 500);
       designMeta['d' + i + '_qty']      = String(d.quantity);

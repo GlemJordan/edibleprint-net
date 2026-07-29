@@ -47,6 +47,9 @@ export async function POST(request) {
   if (shape === 'fullsheet' || shape === 'bwsheet' || shape === 'multicircle') {
     imgWidthPt = 8 * 72;
     imgHeightPt = 11 * 72;
+  } else if (shape === 'waferletter') {
+    imgWidthPt = 8.5 * 72;
+    imgHeightPt = 11 * 72;
   } else if (shape === 'custom') {
     imgWidthPt = (parseFloat(customW) || 6) * 72;
     imgHeightPt = (parseFloat(customH) || 6) * 72;
@@ -105,7 +108,7 @@ export async function POST(request) {
               Shape: ${shape}${sizeLabel ? `<br>Size: ${sizeLabel}` : ''}
             </div>
             <p style="font-size: 13px; color: #666;">
-              <strong>How to print:</strong> Open the attached PDF and print at 100% scale (no fit-to-page) on edible icing sheets using a food-safe printer.
+              <strong>How to print:</strong> Open the attached PDF and print at 100% scale (no fit-to-page) on ${shape === 'waferletter' ? 'edible wafer paper' : 'edible icing sheets'} using a food-safe printer.
             </p>
             <p style="font-size: 12px; color: #888; margin-top: 24px;">
               Need help? Reply to this email.<br>
