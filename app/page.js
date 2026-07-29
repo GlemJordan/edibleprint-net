@@ -329,6 +329,46 @@ function steppedDownscale(img, targetW, targetH) {
   return source;
 }
 
+/* Cheap heuristic powering the "remove background?" suggestion — never
+   scans full-resolution pixels. Downscales the image to a small fixed grid
+   (one drawImage call, browser-accelerated) and runs the same border
+   flood-fill the real removal uses, but only over that tiny grid, then
+   reports what fraction of it is a white/near-white region connected to
+   the edge. The actual removal (if the user opts in) still samples at
+   preview/full resolution separately — this is purely a fast estimate. */
+const WHITE_DETECT_GRID = 48;
+const WHITE_DETECT_TOLERANCE = 15; // matches the default flood-fill tolerance
+function detectBorderWhiteRatio(img) {
+  const size = WHITE_DETECT_GRID;
+  const c = document.createElement('canvas');
+  c.width = size;
+  c.height = size;
+  const ctx = c.getContext('2d');
+  ctx.drawImage(img, 0, 0, size, size);
+  const data = ctx.getImageData(0, 0, size, size).data;
+  const isWhiteish = (idx) => Math.min(data[idx], data[idx + 1], data[idx + 2]) >= 255 - WHITE_DETECT_TOLERANCE;
+  const visited = new Uint8Array(size * size);
+  const queue = [];
+  for (let x = 0; x < size; x++) { queue.push(x, 0); queue.push(x, size - 1); }
+  for (let y = 0; y < size; y++) { queue.push(0, y); queue.push(size - 1, y); }
+  let count = 0;
+  while (queue.length > 0) {
+    const y = queue.pop();
+    const x = queue.pop();
+    if (x < 0 || x >= size || y < 0 || y >= size) continue;
+    const pixelIdx = y * size + x;
+    if (visited[pixelIdx]) continue;
+    const dataIdx = pixelIdx * 4;
+    if (!isWhiteish(dataIdx)) continue;
+    visited[pixelIdx] = 1;
+    count++;
+    queue.push(x + 1, y); queue.push(x - 1, y);
+    queue.push(x, y + 1); queue.push(x, y - 1);
+  }
+  return count / (size * size);
+}
+const WHITE_DETECT_SUGGEST_RATIO = 0.15;
+
 /* Layout math for the multi-circle "cookie sheet" grid, factored out so
    both the inline preview canvas and the print-preview modal (which render
    at different pixel sizes) can compute circle size/positions consistently. */
@@ -664,7 +704,7 @@ function renderPreviewCore(ctx, cw, ch, {
    public/bg-remove-worker.js (same flood-fill + feather algorithm, moved
    verbatim) and removeWhiteBackgroundViaWorker() inside ImageEditor below. */
 
-function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF', textOverlay = null, onTextPositionChange, removeWhiteBg = false, bgRemoveTolerance = 30, onBgProcessingChange, sizeLabel = '', isMobile = false }) {
+function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF', textOverlay = null, onTextPositionChange, removeWhiteBg = false, bgRemoveTolerance = 30, onBgProcessingChange, onWhiteBgSuggestion, sizeLabel = '', isMobile = false }) {
   /* Declared early: several hooks below depend on these */
   const isMultiCircle = shape === 'multicircle';
   const isBWSheet = shape === 'bwsheet';
@@ -1090,6 +1130,12 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       const img = new Image();
       img.onload = async () => {
         imgRefs.current[layer.id] = img;
+        try {
+          const ratio = detectBorderWhiteRatio(img);
+          onWhiteBgSuggestion?.(layer.id, ratio >= WHITE_DETECT_SUGGEST_RATIO);
+        } catch (e) {
+          /* Detection is a soft suggestion — never block the upload over it. */
+        }
         if (removeWhiteBg) {
           beginBgProcessing();
           try {
@@ -2268,7 +2314,7 @@ export default function EdiblePrintApp() {
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  const [removeWhiteBg, setRemoveWhiteBg] = useState(true);
+  const [removeWhiteBg, setRemoveWhiteBg] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
@@ -2282,6 +2328,28 @@ export default function EdiblePrintApp() {
   }, []);
   const [bgRemoveTolerance, setBgRemoveTolerance] = useState(15);
   const [bgProcessing, setBgProcessing] = useState(false);
+  /* Per-layer "does this image look like it has a white background?" flags
+     (see detectBorderWhiteRatio), keyed by layer id. Reset whenever the
+     active design changes so a suggestion from a previously-edited design
+     can't linger on a different one. */
+  const [whiteBgLayerFlags, setWhiteBgLayerFlags] = useState({});
+  const whiteBgSuggestion = Object.values(whiteBgLayerFlags).some(Boolean);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  useEffect(() => { setWhiteBgLayerFlags({}); }, [activeDesignId]);
+  /* Also prune flags for layers removed within the same design (e.g. the
+     flagged image gets deleted), so the suggestion doesn't linger stale. */
+  useEffect(() => {
+    const ids = new Set(layers.map(l => l.id));
+    setWhiteBgLayerFlags(prev => {
+      let changed = false;
+      const next = {};
+      Object.keys(prev).forEach(id => {
+        if (ids.has(id)) next[id] = prev[id];
+        else changed = true;
+      });
+      return changed ? next : prev;
+    });
+  }, [layers]);
 
   /* ── Accordion state for Step 2 ── */
   const [accordionText, setAccordionText] = useState(false);
@@ -3215,9 +3283,30 @@ export default function EdiblePrintApp() {
                 removeWhiteBg={removeWhiteBg}
                 bgRemoveTolerance={bgRemoveTolerance}
                 onBgProcessingChange={setBgProcessing}
+                onWhiteBgSuggestion={(layerId, detected) => setWhiteBgLayerFlags(prev => ({ ...prev, [layerId]: detected }))}
                 sizeLabel={sizeLabel}
                 isMobile={isMobile}
               />
+              {whiteBgSuggestion && !removeWhiteBg && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                  flexWrap: 'wrap', background: '#F5F5F5', borderLeft: '3px solid ' + C.accent,
+                  padding: '10px 14px', borderRadius: 6, fontSize: 12.5,
+                  marginTop: 10, color: C.text,
+                }}>
+                  <span>💡 This image has a white background — you can remove it in Advanced options.</span>
+                  <button
+                    onClick={() => { setRemoveWhiteBg(true); setAdvancedOpen(true); }}
+                    style={{
+                      flexShrink: 0, background: C.brand, color: '#fff', border: 'none',
+                      borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600,
+                      cursor: 'pointer', fontFamily: "'Outfit', sans-serif",
+                    }}
+                  >
+                    Remove it →
+                  </button>
+                </div>
+              )}
               <div style={{
                 marginTop: 12, width: '100%',
                 padding: '10px 12px',
@@ -3341,7 +3430,7 @@ export default function EdiblePrintApp() {
                   <ColorPickerDropdown value={bgColor} onChange={setBgColor} colors={shape === 'bwsheet' ? BW_PALETTE : PALETTE} label="Fill" allowCustom={shape !== 'bwsheet'} />
                 </div>
 
-                <details style={{ marginTop: 14 }}>
+                <details open={advancedOpen} onToggle={(e) => setAdvancedOpen(e.currentTarget.open)} style={{ marginTop: 14 }}>
                   <summary style={{ fontSize: 13, fontWeight: 600, color: C.muted, cursor: 'pointer',
                     padding: '4px 0', fontFamily: "'Outfit', sans-serif", listStyle: 'none',
                     display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -3369,6 +3458,14 @@ export default function EdiblePrintApp() {
                     </div>
                     {removeWhiteBg && (
                       <div style={{ padding: '8px 10px', background: '#FAFBF9', borderRadius: 6, fontSize: 11.5 }}>
+                        <div style={{
+                          display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 8,
+                          padding: '6px 8px', background: '#FEF3C7', borderRadius: 4,
+                          color: '#B45309', fontWeight: 600,
+                        }}>
+                          <span>⚠️</span>
+                          <span>Light areas touching the edge of your image may also be removed.</span>
+                        </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, color: C.muted }}>
                           <span>Edge tolerance</span>
                           <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
