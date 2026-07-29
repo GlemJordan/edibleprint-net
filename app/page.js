@@ -47,6 +47,32 @@ const SIZES = {
    formats above, at the price each already has. */
 const UPLOAD_FLOW_SHAPES = ['fullsheet', 'bwsheet', 'waferletter'];
 const UPLOAD_MAX_FILE_MB = 25;
+const UPLOAD_MARGIN_MM = 3;
+const UPLOAD_MIN_DPI = 300;
+/* Sizing policy for a customer-supplied file that doesn't exactly match its
+   sheet's dimensions: always scale to fit within the sheet (never crop —
+   cropping customer content they haven't explicitly seen cropped is the
+   riskier failure mode of the two). A mismatch shows as an even margin on
+   whichever axis isn't the constraining one, never as lost content. */
+function getUploadTargetSizeIn(shape) {
+  const sz = (SIZES[shape] || [])[0];
+  if (!sz) return { w: 8.5, h: 11 };
+  if (shape === 'bwsheet') return { w: sz.printW || 6.5, h: sz.printH || 6.5 };
+  return { w: sz.w, h: sz.h };
+}
+function computeContainFit(sourceW, sourceH, targetW, targetH) {
+  const sourceRatio = sourceW / sourceH;
+  const targetRatio = targetW / targetH;
+  let printedW, printedH;
+  if (sourceRatio > targetRatio) {
+    printedW = targetW;
+    printedH = targetW / sourceRatio;
+  } else {
+    printedH = targetH;
+    printedW = targetH * sourceRatio;
+  }
+  return { printedW, printedH, exact: Math.abs(sourceRatio - targetRatio) < 0.01 };
+}
 
 /* ═══ SHIPPING ═══ */
 function getDeliveryEstimate() {
@@ -374,6 +400,153 @@ function detectBorderWhiteRatio(img) {
   return count / (size * size);
 }
 const WHITE_DETECT_SUGGEST_RATIO = 0.15;
+
+/* ═══ "I already have my design" — print-ready file validation ═══
+   pdf.js is only needed for PDF uploads in this flow, so it's dynamically
+   imported on first use rather than bundled into the main app chunk. The
+   worker script is vendored into /public (same pattern as
+   bg-remove-worker.js) so it works with Turbopack with zero bundler config. */
+let pdfjsLibPromise = null;
+function getPdfjsLib() {
+  if (!pdfjsLibPromise) {
+    pdfjsLibPromise = import('pdfjs-dist').then((lib) => {
+      lib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+      return lib;
+    });
+  }
+  return pdfjsLibPromise;
+}
+
+function loadImageFromFile(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
+    img.src = url;
+  });
+}
+
+async function getPdfPageCount(file) {
+  const pdfjsLib = await getPdfjsLib();
+  const buf = await file.arrayBuffer();
+  const pdfDoc = await pdfjsLib.getDocument({ data: buf }).promise;
+  return pdfDoc.numPages;
+}
+
+async function renderPdfPageToCanvas(file, pageNumber, targetWidthPx) {
+  const pdfjsLib = await getPdfjsLib();
+  const buf = await file.arrayBuffer();
+  const pdfDoc = await pdfjsLib.getDocument({ data: buf }).promise;
+  const page = await pdfDoc.getPage(pageNumber);
+  const viewport1 = page.getViewport({ scale: 1 });
+  const scale = targetWidthPx / viewport1.width;
+  const viewport = page.getViewport({ scale });
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.ceil(viewport.width));
+  canvas.height = Math.max(1, Math.ceil(viewport.height));
+  const ctx = canvas.getContext('2d');
+  await page.render({ canvasContext: ctx, viewport }).promise;
+  return { canvas, pageWidthIn: viewport1.width / 72, pageHeightIn: viewport1.height / 72, numPages: pdfDoc.numPages };
+}
+
+/* Thin-band edge scan for the "content too close to the trim edge" warning.
+   Deliberately NOT the flood-fill from detectBorderWhiteRatio above — that
+   answers "how much of the background is white", this answers "is there any
+   non-background content within N px of each edge", a different question
+   that doesn't care about connectivity. */
+function hasContentNearEdge(canvas, bandPx) {
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  const band = Math.max(1, Math.round(bandPx));
+  const tolerance = 12;
+  const isContent = (data, idx) => {
+    if (data[idx + 3] < 40) return false; // effectively transparent
+    return Math.min(data[idx], data[idx + 1], data[idx + 2]) < 255 - tolerance;
+  };
+  const regions = [
+    { x: 0, y: 0, w, h: Math.min(band, h) },
+    { x: 0, y: Math.max(0, h - band), w, h: Math.min(band, h) },
+    { x: 0, y: 0, w: Math.min(band, w), h },
+    { x: Math.max(0, w - band), y: 0, w: Math.min(band, w), h },
+  ];
+  for (const r of regions) {
+    if (r.w <= 0 || r.h <= 0) continue;
+    const data = ctx.getImageData(r.x, r.y, r.w, r.h).data;
+    for (let i = 0; i < data.length; i += 4) {
+      if (isContent(data, i)) return true;
+    }
+  }
+  return false;
+}
+
+/* Runs the full Change-2 validation suite for one customer-supplied design
+   against its currently selected sheet type + (for PDFs) selected page.
+   Never mutates or re-encodes the file — only reads it to measure. */
+async function validateUploadDesignFile(design) {
+  const target = getUploadTargetSizeIn(design.shape);
+  const isPdf = design.fileMimeType === 'application/pdf';
+
+  if (isPdf) {
+    const pageNumber = Math.max(1, design.selectedPage || 1);
+    const RENDER_DPI = 150;
+    const pdfjsLib = await getPdfjsLib();
+    const buf = await design.file.arrayBuffer();
+    const pdfDoc = await pdfjsLib.getDocument({ data: buf }).promise;
+    const numPagesReal = pdfDoc.numPages;
+    const clampedPage = Math.min(pageNumber, numPagesReal);
+    const page = await pdfDoc.getPage(clampedPage);
+    const viewport1 = page.getViewport({ scale: 1 });
+    const fileWidthIn = viewport1.width / 72;
+    const fileHeightIn = viewport1.height / 72;
+    const renderScale = RENDER_DPI / 72;
+    const viewport = page.getViewport({ scale: renderScale });
+    const renderCanvas = document.createElement('canvas');
+    renderCanvas.width = Math.max(1, Math.ceil(viewport.width));
+    renderCanvas.height = Math.max(1, Math.ceil(viewport.height));
+    const ctx = renderCanvas.getContext('2d');
+    await page.render({ canvasContext: ctx, viewport }).promise;
+
+    const fit = computeContainFit(fileWidthIn, fileHeightIn, target.w, target.h);
+    const bandPx = (UPLOAD_MARGIN_MM / 25.4) * RENDER_DPI;
+    const marginWarning = hasContentNearEdge(renderCanvas, bandPx);
+
+    return {
+      computedAt: new Date().toISOString(),
+      numPages: numPagesReal,
+      selectedPage: clampedPage,
+      fileWidthIn, fileHeightIn,
+      targetWidthIn: target.w, targetHeightIn: target.h,
+      sizeExact: fit.exact,
+      printedWidthIn: fit.printedW, printedHeightIn: fit.printedH,
+      dpiKnown: false, dpi: null, dpiOk: null,
+      marginWarning,
+    };
+  }
+
+  const img = await loadImageFromFile(design.file);
+  const fit = computeContainFit(img.naturalWidth, img.naturalHeight, target.w, target.h);
+  const effectiveDpi = img.naturalWidth / fit.printedW;
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+  const bandPx = (UPLOAD_MARGIN_MM / 25.4) * effectiveDpi;
+  const marginWarning = hasContentNearEdge(canvas, bandPx);
+
+  return {
+    computedAt: new Date().toISOString(),
+    numPages: 1,
+    selectedPage: 1,
+    pixelWidth: img.naturalWidth, pixelHeight: img.naturalHeight,
+    targetWidthIn: target.w, targetHeightIn: target.h,
+    sizeExact: fit.exact,
+    printedWidthIn: fit.printedW, printedHeightIn: fit.printedH,
+    dpiKnown: true, dpi: effectiveDpi, dpiOk: effectiveDpi >= UPLOAD_MIN_DPI,
+    marginWarning,
+  };
+}
 
 /* Layout math for the multi-circle "cookie sheet" grid, factored out so
    both the inline preview canvas and the print-preview modal (which render
@@ -2149,6 +2322,10 @@ export default function EdiblePrintApp() {
     if (!activeDesignId) return;
     setDesigns(ds => ds.map(d => d.id === activeDesignId ? { ...d, ...patch } : d));
   };
+  /* Explicit-id variant used by the upload-flow's async validation effect
+     below, so a slow validation run can never accidentally patch whichever
+     design happens to be active by the time it resolves. */
+  const patchDesign = (id, patch) => setDesigns(ds => ds.map(d => d.id === id ? { ...d, ...patch } : d));
   const setLayers      = (v) => updateActive({ layers: typeof v === 'function' ? v(layers) : v });
   const setShape       = (v) => updateActive({ shape: v });
   const setSizeId      = (v) => updateActive({ sizeId: v });
@@ -2308,6 +2485,53 @@ export default function EdiblePrintApp() {
   const [pendingUploadShape, setPendingUploadShape] = useState('fullsheet');
   const [uploadFileError, setUploadFileError] = useState('');
   const activeIsUpload = activeDesign?.sourceType === 'upload';
+
+  /* Change-2 validation state — keyed by design id so it survives switching
+     between designs and never gets confused about which file it belongs to.
+     Page thumbnails are kept OUT of the designs[] array on purpose: they're
+     only for the in-browser page picker and shouldn't ride along with the
+     design object into checkout metadata. */
+  const [uploadValidationStatus, setUploadValidationStatus] = useState({});
+  const [uploadPageThumbs, setUploadPageThumbs] = useState({});
+  const activeUploadValidation = activeDesign?.validation ?? null;
+  const activeUploadNeedsConfirm = !!activeUploadValidation && (
+    !activeUploadValidation.sizeExact || (activeUploadValidation.dpiKnown && !activeUploadValidation.dpiOk)
+  );
+
+  useEffect(() => {
+    if (step !== 2 || !activeDesign || activeDesign.sourceType !== 'upload' || !activeDesign.file) return;
+    const designId = activeDesign.id;
+    const selectedPage = activeDesign.selectedPage || 1;
+    let cancelled = false;
+    (async () => {
+      setUploadValidationStatus(s => ({ ...s, [designId]: 'loading' }));
+      try {
+        if (activeDesign.fileMimeType === 'application/pdf' && !uploadPageThumbs[designId]) {
+          const numPages = await getPdfPageCount(activeDesign.file);
+          if (cancelled) return;
+          if (numPages > 1) {
+            const thumbs = [];
+            for (let p = 1; p <= numPages; p++) {
+              const { canvas } = await renderPdfPageToCanvas(activeDesign.file, p, 140);
+              thumbs.push(canvas.toDataURL('image/png'));
+            }
+            if (cancelled) return;
+            setUploadPageThumbs(s => ({ ...s, [designId]: thumbs }));
+          }
+        }
+        const result = await validateUploadDesignFile({ ...activeDesign, selectedPage });
+        if (cancelled) return;
+        patchDesign(designId, { validation: result, pageCount: result.numPages, confirmMismatch: false });
+        setUploadValidationStatus(s => ({ ...s, [designId]: 'done' }));
+      } catch (err) {
+        if (cancelled) return;
+        console.error('[upload-flow] validation failed:', err);
+        setUploadValidationStatus(s => ({ ...s, [designId]: 'error' }));
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, activeDesign?.id, activeDesign?.selectedPage, activeDesign?.shape]);
 
   function validateCustomerFilePick(file) {
     const name = (file.name || '').toLowerCase();
@@ -3375,60 +3599,182 @@ export default function EdiblePrintApp() {
           </div>
         )}
 
-        {/* STEP 2 (upload flow): REVIEW — placeholder for this stage.
-            Preview rendering (pdf.js) + the required print-as-is approval
-            checkbox land in a later stage; for now this reserves the
-            design's sheet type/quantity/notes and lets the cart flow
-            through to Details like any other design. */}
-        {step === 2 && activeDesign && activeIsUpload && (
-          <div style={{ maxWidth: 600, margin: '0 auto' }}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={stepBadge}>2</div>
-              <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, margin: '16px 0 8px', fontWeight: 700 }}>Review Your File</h2>
-              <p style={{ color: C.muted, marginBottom: 16 }}>{activeDesign.fileName}</p>
-            </div>
-
-            <div style={{ ...card, padding: '20px 22px', marginBottom: 20 }}>
-              <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Sheet type</label>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
-                {UPLOAD_FLOW_SHAPES.map((sh) => {
-                  const szObj = (SIZES[sh] || [])[0];
-                  const uploadShapeLabels = { fullsheet: 'Full Sheet', bwsheet: 'B&W Sheet', waferletter: 'Wafer Paper' };
-                  return (
-                    <button key={sh} onClick={() => { setShape(sh); setSizeId((SIZES[sh] || [])[0]?.id || ''); }} style={{
-                      flex: 1, minWidth: 100, padding: '10px 8px', borderRadius: 12,
-                      border: shape === sh ? '2.5px solid ' + C.brand : '2px solid ' + C.border,
-                      background: shape === sh ? C.brandLight : C.white,
-                      cursor: 'pointer', textAlign: 'center', fontFamily: "'Outfit', sans-serif", transition: 'all 0.2s' }}>
-                      <div style={{ fontWeight: 700, fontSize: 14, color: C.brand }}>{'$' + (szObj?.price ?? 0).toFixed(2)}</div>
-                      <div style={{ fontSize: 11.5, color: C.text, fontWeight: 600, marginTop: 2 }}>{uploadShapeLabels[sh]}</div>
-                    </button>
-                  );
-                })}
+        {/* STEP 2 (upload flow): REVIEW — Change-2 validation lives here.
+            The visual print preview + pdf.js-rendered approval modal land in
+            Stage 3; for now results are shown as a text/numbers panel. */}
+        {step === 2 && activeDesign && activeIsUpload && (() => {
+          const vStatus = uploadValidationStatus[activeDesign.id] || 'loading';
+          const v = activeUploadValidation;
+          const thumbs = uploadPageThumbs[activeDesign.id];
+          const isPdf = activeDesign.fileMimeType === 'application/pdf';
+          const uploadShapeLabels = { fullsheet: 'Full Sheet', bwsheet: 'B&W Sheet', waferletter: 'Wafer Paper' };
+          const canContinue = vStatus === 'done' && (!activeUploadNeedsConfirm || activeDesign.confirmMismatch);
+          return (
+            <div style={{ maxWidth: 600, margin: '0 auto' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={stepBadge}>2</div>
+                <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, margin: '16px 0 8px', fontWeight: 700 }}>Review Your File</h2>
+                <p style={{ color: C.muted, marginBottom: 16 }}>{activeDesign.fileName}</p>
               </div>
 
-              <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Quantity</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
-                <button onClick={() => setQty(Math.max(1, qty - 1))} style={{ width: 38, height: 38, borderRadius: 10, border: '1.5px solid ' + C.border, background: C.white, fontSize: 18, cursor: 'pointer', fontWeight: 600 }}>-</button>
-                <span style={{ fontSize: 20, fontWeight: 700, minWidth: 32, textAlign: 'center' }}>{qty}</span>
-                <button onClick={() => setQty(qty + 1)} style={{ width: 38, height: 38, borderRadius: 10, border: '1.5px solid ' + C.border, background: C.white, fontSize: 18, cursor: 'pointer', fontWeight: 600 }}>+</button>
+              <div style={{ ...card, padding: '20px 22px', marginBottom: 20 }}>
+                <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Sheet type</label>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
+                  {UPLOAD_FLOW_SHAPES.map((sh) => {
+                    const szObj = (SIZES[sh] || [])[0];
+                    return (
+                      <button key={sh} onClick={() => { setShape(sh); setSizeId((SIZES[sh] || [])[0]?.id || ''); }} style={{
+                        flex: 1, minWidth: 100, padding: '10px 8px', borderRadius: 12,
+                        border: shape === sh ? '2.5px solid ' + C.brand : '2px solid ' + C.border,
+                        background: shape === sh ? C.brandLight : C.white,
+                        cursor: 'pointer', textAlign: 'center', fontFamily: "'Outfit', sans-serif", transition: 'all 0.2s' }}>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: C.brand }}>{'$' + (szObj?.price ?? 0).toFixed(2)}</div>
+                        <div style={{ fontSize: 11.5, color: C.text, fontWeight: 600, marginTop: 2 }}>{uploadShapeLabels[sh]}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Multi-page PDF picker */}
+                {isPdf && thumbs && thumbs.length > 1 && (
+                  <div style={{ marginBottom: 18 }}>
+                    <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>
+                      This PDF has {thumbs.length} pages — which one do you want printed?
+                    </label>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {thumbs.map((thumb, i) => (
+                        <button key={i} onClick={() => updateActive({ selectedPage: i + 1 })} style={{
+                          padding: 4, borderRadius: 8, cursor: 'pointer', background: C.white,
+                          border: (activeDesign.selectedPage || 1) === i + 1 ? '2.5px solid ' + C.brand : '2px solid ' + C.border,
+                        }}>
+                          <img src={thumb} alt={`Page ${i + 1}`} style={{ display: 'block', width: 70, height: 'auto', borderRadius: 4 }} />
+                          <div style={{ fontSize: 11, textAlign: 'center', marginTop: 2, fontWeight: 600, color: (activeDesign.selectedPage || 1) === i + 1 ? C.brand : C.muted }}>
+                            Page {i + 1}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Validation results */}
+                {vStatus === 'loading' && (
+                  <div style={{ padding: '14px 0', textAlign: 'center', color: C.muted, fontSize: 13.5 }}>
+                    Checking your file…
+                  </div>
+                )}
+                {vStatus === 'error' && (
+                  <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#B91C1C',
+                    borderRadius: 8, padding: '12px 14px', fontSize: 13, marginBottom: 16 }}>
+                    We couldn't read this file to check it. Please go back and try uploading it again.
+                  </div>
+                )}
+                {vStatus === 'done' && v && (
+                  <div style={{ marginBottom: 18 }}>
+                    <div style={{
+                      display: 'flex', gap: 8, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 8,
+                      marginBottom: 8, fontSize: 12.5, lineHeight: 1.5,
+                      background: v.sizeExact ? '#ECFDF5' : '#FFF8E6',
+                      border: '1px solid ' + (v.sizeExact ? '#6EE7B7' : '#F4D06F'),
+                      color: v.sizeExact ? '#065F46' : '#5C4A1A',
+                    }}>
+                      <span>{v.sizeExact ? '✅' : '⚠️'}</span>
+                      <span>
+                        {v.sizeExact
+                          ? `Your file's proportions match this sheet — it'll print at ${v.printedWidthIn.toFixed(2)}" × ${v.printedHeightIn.toFixed(2)}".`
+                          : `Your file's proportions don't exactly match this sheet. It will be scaled to fit within ${v.targetWidthIn}" × ${v.targetHeightIn}" (printing at ${v.printedWidthIn.toFixed(2)}" × ${v.printedHeightIn.toFixed(2)}"), with a small margin on one side. Nothing will be cropped.`}
+                      </span>
+                    </div>
+
+                    {v.dpiKnown ? (
+                      <div style={{
+                        display: 'flex', gap: 8, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 8,
+                        marginBottom: 8, fontSize: 12.5, lineHeight: 1.5,
+                        background: v.dpiOk ? '#ECFDF5' : '#FFF8E6',
+                        border: '1px solid ' + (v.dpiOk ? '#6EE7B7' : '#F4D06F'),
+                        color: v.dpiOk ? '#065F46' : '#5C4A1A',
+                      }}>
+                        <span>{v.dpiOk ? '✅' : '⚠️'}</span>
+                        <span>
+                          {v.dpiOk
+                            ? `Resolution looks good (~${Math.round(v.dpi)} DPI at print size).`
+                            : `This image is ~${Math.round(v.dpi)} DPI at print size — below our recommended ${UPLOAD_MIN_DPI} DPI. It may look pixelated when printed.`}
+                        </span>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 8,
+                        marginBottom: 8, fontSize: 12.5, lineHeight: 1.5, background: '#F5F5F5', color: C.muted }}>
+                        <span>ℹ️</span>
+                        <span>We can't automatically check the resolution of images inside a PDF — text and vector graphics always print sharp; if you placed a photo, make sure it was at least {UPLOAD_MIN_DPI} DPI at print size.</span>
+                      </div>
+                    )}
+
+                    {v.marginWarning && (
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 8,
+                        marginBottom: 8, fontSize: 12.5, lineHeight: 1.5, background: '#FFF8E6', border: '1px solid #F4D06F', color: '#5C4A1A' }}>
+                        <span>⚠️</span>
+                        <span>There's content within {UPLOAD_MARGIN_MM}mm of the edge of your file — it may be lost when trimmed.</span>
+                      </div>
+                    )}
+
+                    {isPdf && (
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 8,
+                        marginBottom: 8, fontSize: 12.5, lineHeight: 1.5, background: '#F5F5F5', color: C.muted }}>
+                        <span>ℹ️</span>
+                        <span>For best color accuracy, submit RGB if possible — CMYK files may shift slightly when printed.</span>
+                      </div>
+                    )}
+                    {!isPdf && activeDesign.fileMimeType === 'image/png' && (
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 8,
+                        fontSize: 12.5, lineHeight: 1.5, background: '#F5F5F5', color: C.muted }}>
+                        <span>ℹ️</span>
+                        <span>Transparent areas will print as blank sheet.</span>
+                      </div>
+                    )}
+
+                    {activeUploadNeedsConfirm && (
+                      <label style={{
+                        display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', marginTop: 12,
+                        padding: '10px 12px', background: 'white', borderRadius: 6,
+                        border: '2px solid ' + (activeDesign.confirmMismatch ? C.brand : '#F4D06F'),
+                      }}>
+                        <input type="checkbox" checked={!!activeDesign.confirmMismatch}
+                          onChange={(e) => updateActive({ confirmMismatch: e.target.checked })}
+                          style={{ marginTop: 3, width: 18, height: 18, cursor: 'pointer', accentColor: C.brand }} />
+                        <span style={{ fontSize: 13, color: C.text, fontWeight: 500 }}>
+                          I understand the warning{isPdf || !v.dpiKnown ? '' : 's'} above and want to print this file anyway.
+                        </span>
+                      </label>
+                    )}
+                  </div>
+                )}
+
+                <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Quantity</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
+                  <button onClick={() => setQty(Math.max(1, qty - 1))} style={{ width: 38, height: 38, borderRadius: 10, border: '1.5px solid ' + C.border, background: C.white, fontSize: 18, cursor: 'pointer', fontWeight: 600 }}>-</button>
+                  <span style={{ fontSize: 20, fontWeight: 700, minWidth: 32, textAlign: 'center' }}>{qty}</span>
+                  <button onClick={() => setQty(qty + 1)} style={{ width: 38, height: 38, borderRadius: 10, border: '1.5px solid ' + C.border, background: C.white, fontSize: 18, cursor: 'pointer', fontWeight: 600 }}>+</button>
+                </div>
+
+                <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Notes for us (optional)</label>
+                <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything we should know?"
+                  style={{ ...inputStyle, minHeight: 70, resize: 'vertical', fontFamily: "'Outfit', sans-serif" }} />
+
+                <div style={{ marginTop: 18, padding: '12px 14px', background: '#FFF8E6', border: '1px solid #F4D06F', borderRadius: 8, fontSize: 12.5, color: '#5C4A1A' }}>
+                  🚧 Visual preview and the print-as-is approval checkbox are coming in the next update.
+                </div>
               </div>
 
-              <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Notes for us (optional)</label>
-              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything we should know?"
-                style={{ ...inputStyle, minHeight: 70, resize: 'vertical', fontFamily: "'Outfit', sans-serif" }} />
-
-              <div style={{ marginTop: 18, padding: '12px 14px', background: '#FFF8E6', border: '1px solid #F4D06F', borderRadius: 8, fontSize: 12.5, color: '#5C4A1A' }}>
-                🚧 Preview and print-ready approval are coming in the next update — for now this reserves your file and sheet choice in the order.
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button onClick={() => setStep(1)} style={{ ...btnSecondary, flex: 1 }}>← Back</button>
+                <button onClick={() => setStep(3)} disabled={!canContinue}
+                  style={{ ...btnPrimary, flex: 2, opacity: canContinue ? 1 : 0.5, cursor: canContinue ? 'pointer' : 'not-allowed' }}>
+                  Continue →
+                </button>
               </div>
             </div>
-
-            <div style={{ display: 'flex', gap: 12 }}>
-              <button onClick={() => setStep(1)} style={{ ...btnSecondary, flex: 1 }}>← Back</button>
-              <button onClick={() => setStep(3)} style={{ ...btnPrimary, flex: 2 }}>Continue →</button>
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* STEP 2: CUSTOMIZE */}
         {step === 2 && activeDesign && !activeIsUpload && (
