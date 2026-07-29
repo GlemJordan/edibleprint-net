@@ -395,14 +395,20 @@ function appendCirclePath(ctx, cx, cy, r) {
 /* Shared per-layer paint loop, used both for the crisp clipped render and
    (while the user is actively dragging/scaling) an unclipped full-bleed
    pass so the crop-interaction overlay below has real pixels to darken. */
-function drawLayers(ctx, layers, getImg, layerScale, downscale, renderScale, cacheSuffix, grayscale) {
+function drawLayers(ctx, layers, getImg, getNativeSize, layerScale, downscale, renderScale, cacheSuffix, grayscale) {
   layers.forEach(layer => {
     const img = getImg(layer.id);
-    if (!img) return;
+    /* layer.x/y/scale are always anchored to the ORIGINAL loaded image's
+       dimensions (see the auto-fit calc in the layer-load effect below) —
+       getImg() can return a smaller preview bitmap (BG_REMOVE_PREVIEW_MAX_WIDTH)
+       when background removal is on, so the destination box must be sized
+       off the native dimensions, never off whatever bitmap is being sampled. */
+    const native = getNativeSize(layer.id);
+    if (!img || !native) return;
     ctx.save();
     if (grayscale) ctx.filter = 'grayscale(100%)';
-    const imgW = img.width * layer.scale * layerScale;
-    const imgH = img.height * layer.scale * layerScale;
+    const imgW = native.width * layer.scale * layerScale;
+    const imgH = native.height * layer.scale * layerScale;
     const lx = layer.x * layerScale, ly = layer.y * layerScale;
     const src = downscale(`${layer.id}:${cacheSuffix}`, img, imgW * renderScale, imgH * renderScale);
     if (layer.rotation !== 0) {
@@ -445,7 +451,7 @@ function drawCropInteractionOverlay(ctx, cw, ch, boundsFn, overlayOpacity) {
 }
 
 function renderPreviewCore(ctx, cw, ch, {
-  shape, isBWSheet, isMultiCircle, layers, getImg, bgColor, textOverlay,
+  shape, isBWSheet, isMultiCircle, layers, getImg, getNativeSize, bgColor, textOverlay,
   circlePx, mcCols, mcRows, mcOffsetX, mcOffsetY, mcStepPx, layerScale = 1,
   downscale, renderScale, isMobile, showSelection, selectedLayer, selectedLayerImg,
   showWatermark, overlayOpacity = 0,
@@ -465,7 +471,7 @@ function renderPreviewCore(ctx, cw, ch, {
     if (bwInteracting) {
       ctx.save();
       ctx.filter = 'grayscale(100%)';
-      drawLayers(ctx, layers, getImg, layerScale, downscale, renderScale, 'bw', false);
+      drawLayers(ctx, layers, getImg, getNativeSize, layerScale, downscale, renderScale, 'bw', false);
       ctx.filter = 'none';
       ctx.restore();
     }
@@ -483,7 +489,7 @@ function renderPreviewCore(ctx, cw, ch, {
       ctx.filter = 'none';
     }
     ctx.filter = 'grayscale(100%)';
-    drawLayers(ctx, layers, getImg, layerScale, downscale, renderScale, 'bw', false);
+    drawLayers(ctx, layers, getImg, getNativeSize, layerScale, downscale, renderScale, 'bw', false);
     ctx.filter = 'none';
     if (textOverlay?.text) {
       ctx.filter = 'grayscale(100%)';
@@ -530,7 +536,7 @@ function renderPreviewCore(ctx, cw, ch, {
        interacting — so the mask below has the real overflow to darken. */
     if (mcInteracting) {
       sctx.save();
-      drawLayers(sctx, layers, getImg, layerScale, downscale, renderScale, 'mc', false);
+      drawLayers(sctx, layers, getImg, getNativeSize, layerScale, downscale, renderScale, 'mc', false);
       sctx.restore();
     }
 
@@ -548,7 +554,7 @@ function renderPreviewCore(ctx, cw, ch, {
     sctx.beginPath();
     sctx.arc(circlePx / 2, circlePx / 2, circlePx / 2, 0, Math.PI * 2);
     sctx.clip();
-    drawLayers(sctx, layers, getImg, layerScale, downscale, renderScale, 'mc', false);
+    drawLayers(sctx, layers, getImg, getNativeSize, layerScale, downscale, renderScale, 'mc', false);
     sctx.restore();
     drawText(sctx, textOverlay, circlePx, circlePx, layerScale);
 
@@ -592,7 +598,7 @@ function renderPreviewCore(ctx, cw, ch, {
 
     if (interacting && boundsFn) {
       ctx.save();
-      drawLayers(ctx, layers, getImg, layerScale, downscale, renderScale, 'main', false);
+      drawLayers(ctx, layers, getImg, getNativeSize, layerScale, downscale, renderScale, 'main', false);
       ctx.restore();
     }
 
@@ -615,7 +621,7 @@ function renderPreviewCore(ctx, cw, ch, {
       ctx.fillStyle = bgColor;
       ctx.fillRect(0, 0, cw, ch);
     }
-    drawLayers(ctx, layers, getImg, layerScale, downscale, renderScale, 'main', false);
+    drawLayers(ctx, layers, getImg, getNativeSize, layerScale, downscale, renderScale, 'main', false);
     drawText(ctx, textOverlay, cw, ch, layerScale);
     ctx.restore();
 
@@ -920,7 +926,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
        into this modal's (differently sized) layout so it's a true mirror. */
     const layerScale = computeLayerScale(isMultiCircle, cw, layout.circlePx, canvasW, circlePx);
     renderPreviewCore(ctx, cw, ch, {
-      shape, isBWSheet, isMultiCircle, layers, getImg, bgColor, textOverlay,
+      shape, isBWSheet, isMultiCircle, layers, getImg, getNativeSize, bgColor, textOverlay,
       circlePx: layout.circlePx, mcCols: layout.mcCols, mcRows: layout.mcRows,
       mcOffsetX: layout.mcOffsetX, mcOffsetY: layout.mcOffsetY, mcStepPx: layout.mcStepPx,
       layerScale,
@@ -1179,6 +1185,14 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
   /* Hi-res print pipeline only — always the full-resolution processed
      bitmap (or the untouched original), never the capped preview one. */
   const getHiResImg = (id) => (removeWhiteBg && processedHiResImgRefs.current[id]) ? processedHiResImgRefs.current[id] : imgRefs.current[id];
+  /* layer.x/y/scale are computed at load/auto-fit time from the raw loaded
+     <img> (see the layer-load effect below), never from a processed/resized
+     bitmap — so drawLayers must size against these same original dimensions
+     regardless of which bitmap getImg()/getHiResImg() end up sampling from. */
+  const getNativeSize = (id) => {
+    const img = imgRefs.current[id];
+    return img ? { width: img.width, height: img.height } : null;
+  };
   const fitMode = shape === 'custom' ? Math.min : Math.max;
 
   /* Draw canvases */
@@ -1204,7 +1218,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     const selImg = sel ? imgRefs.current[sel.id] : null;
 
     const previewArgs = {
-      shape, isBWSheet, isMultiCircle, layers, getImg, bgColor, textOverlay,
+      shape, isBWSheet, isMultiCircle, layers, getImg, getNativeSize, bgColor, textOverlay,
       circlePx, mcCols, mcRows, mcOffsetX, mcOffsetY, mcStepPx,
       /* This *is* the layout layers are fit to, so the ratio is always 1 —
          computed the same way the modal computes its own, non-1 ratio. */
