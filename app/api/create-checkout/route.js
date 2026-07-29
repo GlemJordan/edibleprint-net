@@ -1,7 +1,7 @@
 import Stripe from 'stripe';
 import { NextResponse } from 'next/server';
 import { getShippingCost } from '../../../lib/shipping-config.js';
-import { WAFER_PAPER_PRICE } from '../../../lib/wafer-paper-config.js';
+import { PRINT_FORMAT_PRICES } from '../../../lib/print-format-prices.js';
 
 const isTest = process.env.STRIPE_MODE === 'test';
 // NOTE: STRIPE_SECRET_KEY_LIVE must be sk_live_... (a full Secret Key).
@@ -37,11 +37,17 @@ export async function POST(request) {
     // trusted from the client, so the charged amount can't be tampered with.
     const shippingCost = getShippingCost(shippingMethod);
 
-    // Wafer paper is a flat rate — like shipping, its price is enforced
-    // server-side from the shared config rather than trusted from the client.
-    const designsSafe = designs.map((d) =>
-      d.shape === 'waferletter' ? { ...d, unitPrice: WAFER_PAPER_PRICE } : d
-    );
+    // Wafer paper is always a flat rate, and ANY design coming through the
+    // "I already have my design" upload flow has no price of its own — it's
+    // just an alternate entry point into these same three catalog formats —
+    // so both get their price enforced server-side rather than trusted from
+    // the client, the same way shipping already is.
+    const designsSafe = designs.map((d) => {
+      const forcePrice = d.shape === 'waferletter' || d.sourceType === 'upload';
+      return forcePrice && PRINT_FORMAT_PRICES[d.shape] != null
+        ? { ...d, unitPrice: PRINT_FORMAT_PRICES[d.shape] }
+        : d;
+    });
 
     // Per-design line items
     const designLineItems = designsSafe.map((d, i) => ({
@@ -49,9 +55,11 @@ export async function POST(request) {
         currency: 'cad',
         product_data: {
           name: (designs.length > 1 ? 'Design ' + (i + 1) + ': ' : 'Edible Print: ') + d.quantity + 'x ' + d.size + ' (' + d.shape + ')',
-          description: d.shape === 'waferletter'
-            ? 'Custom edible image print on wafer paper'
-            : 'Custom edible image print on premium icing sheet',
+          description: d.sourceType === 'upload'
+            ? 'Customer-supplied print-ready file, printed as-is'
+            : d.shape === 'waferletter'
+              ? 'Custom edible image print on wafer paper'
+              : 'Custom edible image print on premium icing sheet',
         },
         unit_amount: Math.round(d.unitPrice * d.quantity * 100),
       },
@@ -60,7 +68,13 @@ export async function POST(request) {
 
     const shippingAmount = Math.round(shippingCost * 100);
 
-    // Per-design metadata (max 5 designs × 6 keys = 30 + 9 customer keys = 39 total)
+    // Per-design metadata (max 5 designs × 6 keys = 30 + 9 customer keys = 39
+    // total; Stripe's hard cap is 50 keys). d{i}_uploadMeta is only added for
+    // upload-flow designs, so ordinary editor orders never get closer to the
+    // cap than they already were — it also doubles as the sourceType marker:
+    // its presence on a design means "customer-supplied file", its absence
+    // means the existing editor flow, so no separate d{i}_sourceType key
+    // is needed.
     const designMeta = { designCount: String(designs.length) };
     designsSafe.slice(0, 5).forEach((d, i) => {
       designMeta['d' + i + '_shape']    = String(d.shape || '').slice(0, 500);
@@ -69,6 +83,13 @@ export async function POST(request) {
       designMeta['d' + i + '_price']    = String(d.unitPrice);
       designMeta['d' + i + '_notes']    = 'N/A';
       designMeta['d' + i + '_imageUrl'] = String(d.imageUrl || 'No image').slice(0, 500);
+      if (d.sourceType === 'upload') {
+        designMeta['d' + i + '_uploadMeta'] = (
+          'page=' + (d.selectedPage || 1) +
+          ';pages=' + (d.pageCount || 1) +
+          ';approvedAt=' + (d.approvedAt || '')
+        ).slice(0, 500);
+      }
     });
 
     const session = await stripe.checkout.sessions.create({

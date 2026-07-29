@@ -548,6 +548,52 @@ async function validateUploadDesignFile(design) {
   };
 }
 
+/* Renders a customer-supplied file exactly as it will print: the file
+   composited (contain-fit, same policy as validation) onto a white canvas
+   sized to the target sheet's physical dimensions. This is preview-only —
+   the bitmap it produces is never uploaded or stored; production always
+   reads the original file (or, for a multi-page PDF, a page extracted from
+   it — see Stage 4), never this rendering. */
+async function renderUploadPreviewCanvas(design, previewDpi = 150) {
+  const target = getUploadTargetSizeIn(design.shape);
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(target.w * previewDpi);
+  canvas.height = Math.round(target.h * previewDpi);
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  if (design.fileMimeType === 'application/pdf') {
+    const pdfjsLib = await getPdfjsLib();
+    const buf = await design.file.arrayBuffer();
+    const pdfDoc = await pdfjsLib.getDocument({ data: buf }).promise;
+    const pageNumber = Math.min(Math.max(1, design.selectedPage || 1), pdfDoc.numPages);
+    const page = await pdfDoc.getPage(pageNumber);
+    const viewport1 = page.getViewport({ scale: 1 });
+    const fileWidthIn = viewport1.width / 72;
+    const fileHeightIn = viewport1.height / 72;
+    const fit = computeContainFit(fileWidthIn, fileHeightIn, target.w, target.h);
+    const renderScale = (fit.printedW * previewDpi) / viewport1.width;
+    const viewport = page.getViewport({ scale: renderScale });
+    const pageCanvas = document.createElement('canvas');
+    pageCanvas.width = Math.max(1, Math.ceil(viewport.width));
+    pageCanvas.height = Math.max(1, Math.ceil(viewport.height));
+    await page.render({ canvasContext: pageCanvas.getContext('2d'), viewport }).promise;
+    const offX = Math.round(((target.w - fit.printedW) / 2) * previewDpi);
+    const offY = Math.round(((target.h - fit.printedH) / 2) * previewDpi);
+    ctx.drawImage(pageCanvas, offX, offY);
+  } else {
+    const img = await loadImageFromFile(design.file);
+    const fit = computeContainFit(img.naturalWidth, img.naturalHeight, target.w, target.h);
+    const drawW = fit.printedW * previewDpi;
+    const drawH = fit.printedH * previewDpi;
+    const offX = Math.round((canvas.width - drawW) / 2);
+    const offY = Math.round((canvas.height - drawH) / 2);
+    ctx.drawImage(img, offX, offY, drawW, drawH);
+  }
+  return canvas.toDataURL('image/png');
+}
+
 /* Layout math for the multi-circle "cookie sheet" grid, factored out so
    both the inline preview canvas and the print-preview modal (which render
    at different pixel sizes) can compute circle size/positions consistently. */
@@ -2498,11 +2544,25 @@ export default function EdiblePrintApp() {
     !activeUploadValidation.sizeExact || (activeUploadValidation.dpiKnown && !activeUploadValidation.dpiOk)
   );
 
+  /* Rendered "as it will print" preview — same render feeds both the inline
+     thumbnail and the full-screen modal. Cached per design id so switching
+     back to an already-checked design doesn't re-render. Never uploaded or
+     stored anywhere; purely for the customer's own review. */
+  const [uploadPreviewCache, setUploadPreviewCache] = useState({});
+  const [uploadPreviewStatus, setUploadPreviewStatus] = useState({});
+  const [showUploadPreviewModal, setShowUploadPreviewModal] = useState(false);
+  const activeUploadPreview = activeDesign ? uploadPreviewCache[activeDesign.id] : null;
+
   useEffect(() => {
     if (step !== 2 || !activeDesign || activeDesign.sourceType !== 'upload' || !activeDesign.file) return;
     const designId = activeDesign.id;
     const selectedPage = activeDesign.selectedPage || 1;
     let cancelled = false;
+    /* What's about to be printed just changed (page or sheet type) — any
+       earlier "print as-is" approval no longer refers to what the customer
+       is now looking at, so it must be re-confirmed. */
+    patchDesign(designId, { approvedPrintAsIs: false, approvedAt: null });
+    setUploadPreviewCache(s => { const n = { ...s }; delete n[designId]; return n; });
     (async () => {
       setUploadValidationStatus(s => ({ ...s, [designId]: 'loading' }));
       try {
@@ -2523,10 +2583,17 @@ export default function EdiblePrintApp() {
         if (cancelled) return;
         patchDesign(designId, { validation: result, pageCount: result.numPages, confirmMismatch: false });
         setUploadValidationStatus(s => ({ ...s, [designId]: 'done' }));
+
+        setUploadPreviewStatus(s => ({ ...s, [designId]: 'loading' }));
+        const previewDataUrl = await renderUploadPreviewCanvas({ ...activeDesign, selectedPage });
+        if (cancelled) return;
+        setUploadPreviewCache(s => ({ ...s, [designId]: previewDataUrl }));
+        setUploadPreviewStatus(s => ({ ...s, [designId]: 'done' }));
       } catch (err) {
         if (cancelled) return;
-        console.error('[upload-flow] validation failed:', err);
+        console.error('[upload-flow] validation/preview failed:', err);
         setUploadValidationStatus(s => ({ ...s, [designId]: 'error' }));
+        setUploadPreviewStatus(s => ({ ...s, [designId]: 'error' }));
       }
     })();
     return () => { cancelled = true; };
@@ -2598,6 +2665,42 @@ export default function EdiblePrintApp() {
     if (uploadFileRef.current) uploadFileRef.current.value = '';
     addDesignFromCustomerFile(file);
   };
+
+  /* Signed direct browser->Cloudinary upload (raw resource, byte-exact) —
+     see app/api/upload-print-file/route.js for why this doesn't route
+     through our own server first. Runs once per design at "Place order"
+     time, same moment editor designs upload their crop today. */
+  async function uploadCustomerFileDirect(design) {
+    const sigRes = await fetch('/api/upload-print-file', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileName: design.fileName,
+        fileSizeBytes: design.fileSizeBytes,
+        mimeType: design.fileMimeType,
+      }),
+    });
+    if (!sigRes.ok) throw new Error('UPLOAD_SIGN_FAILED');
+    const { cloudName, apiKey, timestamp, signature, publicId } = await sigRes.json();
+
+    const form = new FormData();
+    form.append('file', design.file);
+    form.append('public_id', publicId);
+    form.append('timestamp', String(timestamp));
+    form.append('api_key', apiKey);
+    form.append('signature', signature);
+    form.append('invalidate', '1');
+    form.append('overwrite', '1');
+
+    const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/raw/upload`, {
+      method: 'POST',
+      body: form,
+    });
+    if (!uploadRes.ok) throw new Error('UPLOAD_FAILED');
+    const result = await uploadRes.json();
+    if (!result.secure_url) throw new Error('UPLOAD_FAILED');
+    return result.secure_url;
+  }
 
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
@@ -2764,6 +2867,16 @@ export default function EdiblePrintApp() {
     setLoading(true);
     try {
       const uploadedDesigns = await Promise.all(designs.map(async (d) => {
+        if (d.sourceType === 'upload') {
+          let imageUrl = '';
+          try {
+            imageUrl = await uploadCustomerFileDirect(d);
+          } catch {
+            throw new Error('IMAGE_UPLOAD_FAILED');
+          }
+          if (!imageUrl.startsWith('https://res.cloudinary.com')) throw new Error('IMAGE_UPLOAD_FAILED');
+          return { ...d, uploadedImageUrl: imageUrl };
+        }
         let imageUrl = '';
         const imageToUpload = d.hiResCrop || d.cropPreview || d.layers?.[0]?.src;
         if (imageToUpload) {
@@ -2848,6 +2961,12 @@ export default function EdiblePrintApp() {
               quantity: d.qty,
               unitPrice: dPrice,
               imageUrl: d.uploadedImageUrl || '',
+              ...(d.sourceType === 'upload' ? {
+                sourceType: 'upload',
+                selectedPage: d.selectedPage || 1,
+                pageCount: d.pageCount || 1,
+                approvedAt: d.approvedAt || '',
+              } : {}),
             };
           }),
         }),
@@ -3608,7 +3727,7 @@ export default function EdiblePrintApp() {
           const thumbs = uploadPageThumbs[activeDesign.id];
           const isPdf = activeDesign.fileMimeType === 'application/pdf';
           const uploadShapeLabels = { fullsheet: 'Full Sheet', bwsheet: 'B&W Sheet', waferletter: 'Wafer Paper' };
-          const canContinue = vStatus === 'done' && (!activeUploadNeedsConfirm || activeDesign.confirmMismatch);
+          const canContinue = vStatus === 'done' && (!activeUploadNeedsConfirm || activeDesign.confirmMismatch) && activeDesign.approvedPrintAsIs === true;
           return (
             <div style={{ maxWidth: 600, margin: '0 auto' }}>
               <div style={{ textAlign: 'center' }}>
@@ -3760,9 +3879,43 @@ export default function EdiblePrintApp() {
                 <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything we should know?"
                   style={{ ...inputStyle, minHeight: 70, resize: 'vertical', fontFamily: "'Outfit', sans-serif" }} />
 
-                <div style={{ marginTop: 18, padding: '12px 14px', background: '#FFF8E6', border: '1px solid #F4D06F', borderRadius: 8, fontSize: 12.5, color: '#5C4A1A' }}>
-                  🚧 Visual preview and the print-as-is approval checkbox are coming in the next update.
+                {/* Print preview — rendered exactly as validation computed it
+                    will print (contain-fit onto the target sheet). */}
+                <label style={{ fontWeight: 600, fontSize: 14, display: 'block', margin: '18px 0 8px' }}>Print preview</label>
+                <div style={{
+                  border: '1px solid ' + C.border, borderRadius: 10, padding: 12,
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, background: '#FAFBF9',
+                }}>
+                  {uploadPreviewStatus[activeDesign.id] === 'error' ? (
+                    <div style={{ padding: '20px 0', color: '#B91C1C', fontSize: 13 }}>Couldn't render a preview for this file.</div>
+                  ) : activeUploadPreview ? (
+                    <img src={activeUploadPreview} alt="Print preview" style={{ maxWidth: 220, maxHeight: 260, borderRadius: 6, border: '1px solid ' + C.border, boxShadow: '0 2px 10px rgba(0,0,0,0.08)' }} />
+                  ) : (
+                    <div style={{ padding: '20px 0', color: C.muted, fontSize: 13 }}>Rendering preview…</div>
+                  )}
+                  <button onClick={() => setShowUploadPreviewModal(true)} disabled={!activeUploadPreview}
+                    style={{
+                      background: 'none', border: '1px solid ' + C.brand, color: C.brand, borderRadius: 8,
+                      padding: '6px 14px', fontSize: 12.5, fontWeight: 600, cursor: activeUploadPreview ? 'pointer' : 'not-allowed',
+                      opacity: activeUploadPreview ? 1 : 0.5, fontFamily: "'Outfit', sans-serif",
+                    }}>
+                    View Full Print Preview
+                  </button>
                 </div>
+
+                <label style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 10, cursor: activeUploadPreview ? 'pointer' : 'not-allowed', marginTop: 16,
+                  padding: '12px 14px', background: '#FFF8E6', borderRadius: 8,
+                  border: '2px solid ' + (activeDesign.approvedPrintAsIs ? C.brand : '#F4D06F'),
+                  opacity: activeUploadPreview ? 1 : 0.6,
+                }}>
+                  <input type="checkbox" checked={!!activeDesign.approvedPrintAsIs} disabled={!activeUploadPreview}
+                    onChange={(e) => updateActive({ approvedPrintAsIs: e.target.checked, approvedAt: e.target.checked ? new Date().toISOString() : null })}
+                    style={{ marginTop: 3, width: 18, height: 18, cursor: activeUploadPreview ? 'pointer' : 'not-allowed', accentColor: C.brand }} />
+                  <span style={{ fontSize: 13, color: '#5C4A1A', fontWeight: 600 }}>
+                    I confirm this file is print-ready. It will be printed exactly as shown, without modifications.
+                  </span>
+                </label>
               </div>
 
               <div style={{ display: 'flex', gap: 12 }}>
@@ -3772,6 +3925,31 @@ export default function EdiblePrintApp() {
                   Continue →
                 </button>
               </div>
+
+              {/* Full print-preview modal — visually matches the editor's
+                  print-preview modal (dark backdrop, white card, close
+                  button) but renders a plain composited bitmap instead of
+                  the layer-based canvas the editor's modal uses. */}
+              {showUploadPreviewModal && activeUploadPreview && (
+                <div onClick={() => setShowUploadPreviewModal(false)} style={{
+                  position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 300,
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20,
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', maxWidth: 700, marginBottom: 12 }}>
+                    <span style={{ color: '#fff', fontWeight: 600, fontSize: 15 }}>Print Preview — {activeDesign.fileName}</span>
+                    <button onClick={() => setShowUploadPreviewModal(false)} style={{
+                      background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: 8,
+                      padding: '6px 14px', cursor: 'pointer', fontSize: 14, fontFamily: "'Outfit', sans-serif",
+                    }}>✕ Close</button>
+                  </div>
+                  <div onClick={(e) => e.stopPropagation()} style={{
+                    background: '#fff', borderRadius: 8, boxShadow: '0 8px 40px rgba(0,0,0,0.4)',
+                    padding: 10, maxWidth: '90vw', maxHeight: '78vh', overflow: 'auto',
+                  }}>
+                    <img src={activeUploadPreview} alt="Print preview" style={{ display: 'block', maxWidth: '100%', height: 'auto' }} />
+                  </div>
+                </div>
+              )}
             </div>
           );
         })()}
