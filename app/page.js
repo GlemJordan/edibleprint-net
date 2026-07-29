@@ -42,6 +42,12 @@ const SIZES = {
   custom: [{ id: 'custom', label: 'Custom Size', w: 0, h: 0, price: 0 }],
 };
 
+/* ═══ "I ALREADY HAVE MY DESIGN" — customer-supplied print-ready file ═══
+   No price of its own: an alternate entry point into the same three flat
+   formats above, at the price each already has. */
+const UPLOAD_FLOW_SHAPES = ['fullsheet', 'bwsheet', 'waferletter'];
+const UPLOAD_MAX_FILE_MB = 25;
+
 /* ═══ SHIPPING ═══ */
 function getDeliveryEstimate() {
   return 'Canada Post shipping — flat rate $9.99, approx. 3–5 business days anywhere in Canada.';
@@ -2105,6 +2111,12 @@ function ColorPickerDropdown({ value, onChange, colors, label, allowCustom }) {
 /* ═══════════════════════════════════ */
 export default function EdiblePrintApp() {
   const [step, setStep] = useState(0);
+  /* 'editor' = the existing upload-and-customize flow (default, most visible).
+     'upload' = "I already have my design" — customer supplies a print-ready
+     file for one of the flat-sheet formats and we print it as-is. Drives
+     which UI renders at steps 1-2; step 0 (home) and step 3 (Details/
+     checkout) are shared and shape-agnostic already. */
+  const [orderMode, setOrderMode] = useState('editor');
   const [designs, setDesigns] = useState([]);
   const [activeDesignId, setActiveDesignId] = useState(null);
   const [shipping, setShipping] = useState('shipping');
@@ -2264,6 +2276,7 @@ export default function EdiblePrintApp() {
     trackGA('select_size', { shape, size_id: sizeId });
     setPendingShape(shape);
     setPendingSizeId(sizeId);
+    setOrderMode('editor');
     setStep(1);
   };
 
@@ -2284,6 +2297,83 @@ export default function EdiblePrintApp() {
   };
   const handleDragOver = (e) => { e.preventDefault(); setIsDragOver(true); };
   const handleDragLeave = () => { setIsDragOver(false); };
+
+  /* ── "I already have my design" — customer-supplied print-ready file ──
+     Reuses the existing designs[] cart (see `sourceType: 'upload'` design
+     objects) so checkout/shipping/payment stay entirely shared with the
+     editor flow. The file itself is kept as a plain File object and never
+     touched here — no canvas re-encoding, no recompression — it's only
+     uploaded (byte-exact, via a signed raw upload) at "Place order" time. */
+  const uploadFileRef = useRef(null);
+  const [pendingUploadShape, setPendingUploadShape] = useState('fullsheet');
+  const [uploadFileError, setUploadFileError] = useState('');
+  const activeIsUpload = activeDesign?.sourceType === 'upload';
+
+  function validateCustomerFilePick(file) {
+    const name = (file.name || '').toLowerCase();
+    const isWordDoc = name.endsWith('.doc') || name.endsWith('.docx')
+      || file.type === 'application/msword'
+      || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    if (isWordDoc) {
+      return {
+        ok: false,
+        message: "Word documents can't be printed directly. Please export/print this file to PDF from Word (where your fonts are installed), then upload the PDF.",
+      };
+    }
+    const okType = file.type === 'application/pdf' || file.type === 'image/png' || file.type === 'image/jpeg'
+      || name.endsWith('.pdf') || name.endsWith('.png') || name.endsWith('.jpg') || name.endsWith('.jpeg');
+    if (!okType) {
+      return { ok: false, message: 'Please upload a PDF, PNG, or JPG file.' };
+    }
+    if (file.size > UPLOAD_MAX_FILE_MB * 1024 * 1024) {
+      return { ok: false, message: `File is too large (max ${UPLOAD_MAX_FILE_MB}MB). Please compress it and try again.` };
+    }
+    return { ok: true };
+  }
+
+  const addDesignFromCustomerFile = (file) => {
+    if (!file) return;
+    if (designs.length >= 5) { alert('Maximum 5 designs per order.'); return; }
+    const check = validateCustomerFilePick(file);
+    if (!check.ok) { setUploadFileError(check.message); return; }
+    setUploadFileError('');
+    trackGA('add_to_design', { method: 'file_upload_print_ready', design_count: designs.length + 1 });
+    const newId = String(Date.now());
+    const newShape = pendingUploadShape;
+    const newSizeObj = (SIZES[newShape] || [])[0];
+    trackGA('add_to_cart', {
+      currency: 'CAD',
+      value: newSizeObj?.price || 0,
+      items: [{ item_id: `${newShape}-upload`, item_name: `EdiblePrint ${newShape} (customer file)`, price: newSizeObj?.price || 0, quantity: 1 }],
+    });
+    setDesigns(ds => [...ds, {
+      id: newId,
+      sourceType: 'upload',
+      shape: newShape,
+      sizeId: newSizeObj?.id || '',
+      qty: 1,
+      notes: '',
+      file,
+      fileName: file.name,
+      fileMimeType: file.type,
+      fileSizeBytes: file.size,
+      pageCount: null,          // Stage 2: PDF page count
+      selectedPage: 1,          // Stage 2: which page to print, if multi-page
+      validation: null,         // Stage 2: size/DPI/margin results
+      approvedPrintAsIs: false, // Stage 3: explicit "print as-is" confirmation
+      approvedAt: null,
+      previewThumb: null,       // Stage 3: rendered preview thumbnail
+      cropPreview: null,
+    }]);
+    setActiveDesignId(newId);
+    setStep(2);
+  };
+
+  const handleUploadFileInputChange = (e) => {
+    const file = e.target.files?.[0];
+    if (uploadFileRef.current) uploadFileRef.current.value = '';
+    addDesignFromCustomerFile(file);
+  };
 
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
@@ -2578,11 +2668,15 @@ export default function EdiblePrintApp() {
           borderBottom: '1px solid ' + C.border, background: 'rgba(255,255,255,0.92)',
           backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 100 }}>
           <Logo />
-          <button onClick={() => setStep(1)} style={{ ...btnPrimary, padding: '10px 22px', fontSize: 14, borderRadius: 10 }}>
+          <button onClick={() => { setOrderMode('editor'); setStep(1); }} style={{ ...btnPrimary, padding: '10px 22px', fontSize: 14, borderRadius: 10 }}>
             Order Now
           </button>
         </nav>
-        <HeroSection onOrderClick={() => setStep(1)} cutoffMsg={cutoffMsg} />
+        <HeroSection
+          onOrderClick={() => { setOrderMode('editor'); setStep(1); }}
+          onUploadFileClick={() => { setOrderMode('upload'); setStep(1); }}
+          cutoffMsg={cutoffMsg}
+        />
         <div style={{ background: C.white, borderTop: '1px solid ' + C.border, borderBottom: '1px solid ' + C.border, padding: '16px 24px' }}>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 0, flexWrap: 'wrap', maxWidth: 760, margin: '0 auto' }}>
             {[
@@ -2829,7 +2923,7 @@ export default function EdiblePrintApp() {
                 <li>Arrives in protective packaging to prevent damage in transit</li>
                 <li>Every batch is taste-tested for colour accuracy</li>
               </ul>
-              <button onClick={() => setStep(1)} style={{ ...btnPrimary, padding: '13px 30px', fontSize: 15, borderRadius: 12 }}>
+              <button onClick={() => { setOrderMode('editor'); setStep(1); }} style={{ ...btnPrimary, padding: '13px 30px', fontSize: 15, borderRadius: 12 }}>
                 Order with Confidence →
               </button>
             </div>
@@ -2994,7 +3088,7 @@ export default function EdiblePrintApp() {
         <section style={{ background: C.brand, color: '#fff', padding: '52px 24px', textAlign: 'center' }}>
           <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, margin: '0 0 16px', fontWeight: 700 }}>Ready to Create Your Edible Print?</h2>
           <p style={{ fontSize: 16, opacity: 0.88, margin: '0 0 28px' }}>Upload your image and get your custom edible print delivered to your door.</p>
-          <button onClick={() => setStep(1)} style={{ ...btnPrimary, background: '#fff', color: C.brand, fontSize: 18, padding: '16px 44px', borderRadius: 14 }}>
+          <button onClick={() => { setOrderMode('editor'); setStep(1); }} style={{ ...btnPrimary, background: '#fff', color: C.brand, fontSize: 18, padding: '16px 44px', borderRadius: 14 }}>
             Start Your Order →
           </button>
         </section>
@@ -3100,7 +3194,7 @@ export default function EdiblePrintApp() {
         backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 10 }}>
         <div onClick={() => setStep(0)} style={{ cursor: 'pointer' }}><Logo /></div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          {['Upload', 'Customize', 'Details', 'Done'].map((label, i) => (
+          {(orderMode === 'upload' ? ['Upload', 'Review', 'Details', 'Done'] : ['Upload', 'Customize', 'Details', 'Done']).map((label, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <div style={{ width: 26, height: 26, borderRadius: '50%', fontSize: 12, fontWeight: 700,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -3122,11 +3216,17 @@ export default function EdiblePrintApp() {
             <div style={{ textAlign: 'center' }}>
               <div style={stepBadge}>1</div>
               <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, margin: '16px 0 8px', fontWeight: 700 }}>
-                {designs.length > 0 ? 'Add Another Design' : 'Upload Your Image'}
+                {orderMode === 'upload'
+                  ? (designs.length > 0 ? 'Add Another File' : 'Upload Your Print-Ready File')
+                  : (designs.length > 0 ? 'Add Another Design' : 'Upload Your Image')}
               </h2>
-              <p style={{ color: C.muted, marginBottom: pendingShape ? 12 : 24 }}>JPG, PNG or PDF · High resolution for best results</p>
+              <p style={{ color: C.muted, marginBottom: pendingShape ? 12 : 24 }}>
+                {orderMode === 'upload'
+                  ? "We print it exactly as provided — no editing or adjustments on our end."
+                  : 'JPG, PNG or PDF · High resolution for best results'}
+              </p>
             </div>
-            {pendingShape && pendingSizeId && (() => {
+            {orderMode === 'editor' && pendingShape && pendingSizeId && (() => {
               const pSizes = SIZES[pendingShape] || [];
               const pSel = pSizes.find(s => s.id === pendingSizeId);
               const shapeLabels = { circular: 'Round', heart: 'Heart', square: 'Square', multicircle: 'Cookie Sheet', fullsheet: 'Full Sheet', bwsheet: 'B&W Sheet', waferletter: 'Wafer Paper' };
@@ -3147,14 +3247,23 @@ export default function EdiblePrintApp() {
                 <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 10 }}>Your Designs ({designs.length}/5)</label>
                 {designs.map((d, i) => (
                   <div key={d.id} style={{ ...card, display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, padding: '12px 16px' }}>
-                    {d.cropPreview
-                      ? <img src={d.cropPreview} alt="" style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
-                      : d.layers?.[0]?.src
-                        ? <img src={d.layers[0].src} alt="" style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
-                        : <div style={{ width: 48, height: 48, borderRadius: 8, background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0 }}>🖼️</div>}
+                    {d.sourceType === 'upload'
+                      ? <div style={{ width: 48, height: 48, borderRadius: 8, background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>
+                          {d.fileMimeType === 'application/pdf' ? '📄' : '🖼️'}
+                        </div>
+                      : d.cropPreview
+                        ? <img src={d.cropPreview} alt="" style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+                        : d.layers?.[0]?.src
+                          ? <img src={d.layers[0].src} alt="" style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+                          : <div style={{ width: 48, height: 48, borderRadius: 8, background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0 }}>🖼️</div>}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 14 }}>Design {i + 1}{d.layers?.length > 1 ? ` (${d.layers.length} images)` : ''}</div>
-                      <div style={{ fontSize: 12, color: C.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.layers?.map(l => l.name).join(', ') || 'No image'}</div>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>
+                        Design {i + 1}
+                        {d.sourceType === 'upload' ? ' — Your file' : (d.layers?.length > 1 ? ` (${d.layers.length} images)` : '')}
+                      </div>
+                      <div style={{ fontSize: 12, color: C.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {d.sourceType === 'upload' ? d.fileName : (d.layers?.map(l => l.name).join(', ') || 'No image')}
+                      </div>
                     </div>
                     <button onClick={() => { setActiveDesignId(d.id); setStep(2); }}
                       style={{ fontSize: 12, color: C.brand, background: 'none', border: '1px solid ' + C.brand, borderRadius: 8, padding: '4px 10px', cursor: 'pointer', fontFamily: "'Outfit', sans-serif", flexShrink: 0 }}>
@@ -3173,50 +3282,156 @@ export default function EdiblePrintApp() {
               </div>
             )}
 
-            {designs.length < 5 && (
-              <div
-                onClick={() => fileRef.current?.click()}
-                onDrop={handleDrop}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                style={{
-                  border: '2.5px dashed ' + (isDragOver ? C.brand : C.border),
-                  borderRadius: 20, padding: designs.length > 0 ? '36px 24px' : '56px 24px',
-                  cursor: 'pointer', transition: 'all 0.25s',
-                  background: isDragOver ? C.brandLight : C.white, textAlign: 'center',
-                }}>
-                <div style={{ fontSize: designs.length > 0 ? 36 : 52, marginBottom: 14, opacity: 0.8 }}>🖼️</div>
-                <p style={{ margin: 0, fontWeight: 600, fontSize: designs.length > 0 ? 15 : 17 }}>
-                  {isDragOver ? 'Drop your image here!' : designs.length > 0 ? 'Upload another image' : 'Tap to upload your image'}
-                </p>
-                <p style={{ margin: '8px 0 0', fontSize: 13, color: '#bbb' }}>or drag and drop here</p>
-              </div>
-            )}
-            <input ref={fileRef} type="file" accept="image/*,.pdf" onChange={handleFile} style={{ display: 'none' }} />
+            {orderMode === 'editor' ? (
+              <>
+                {designs.length < 5 && (
+                  <div
+                    onClick={() => fileRef.current?.click()}
+                    onDrop={handleDrop}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    style={{
+                      border: '2.5px dashed ' + (isDragOver ? C.brand : C.border),
+                      borderRadius: 20, padding: designs.length > 0 ? '36px 24px' : '56px 24px',
+                      cursor: 'pointer', transition: 'all 0.25s',
+                      background: isDragOver ? C.brandLight : C.white, textAlign: 'center',
+                    }}>
+                    <div style={{ fontSize: designs.length > 0 ? 36 : 52, marginBottom: 14, opacity: 0.8 }}>🖼️</div>
+                    <p style={{ margin: 0, fontWeight: 600, fontSize: designs.length > 0 ? 15 : 17 }}>
+                      {isDragOver ? 'Drop your image here!' : designs.length > 0 ? 'Upload another image' : 'Tap to upload your image'}
+                    </p>
+                    <p style={{ margin: '8px 0 0', fontSize: 13, color: '#bbb' }}>or drag and drop here</p>
+                  </div>
+                )}
+                <input ref={fileRef} type="file" accept="image/*,.pdf" onChange={handleFile} style={{ display: 'none' }} />
 
-            {designs.length < 5 && (
-              <button onClick={addTextOnlyDesign} style={{
-                width: '100%', marginTop: 12, padding: '14px 24px', borderRadius: 14,
-                border: '1.5px dashed ' + C.border, background: C.white, cursor: 'pointer',
-                fontSize: 15, fontWeight: 600, color: C.muted, fontFamily: "'Outfit', sans-serif",
-                transition: 'all 0.2s',
-              }}>
-                ✏️ Create text-only design (no image)
-              </button>
+                {designs.length < 5 && (
+                  <button onClick={addTextOnlyDesign} style={{
+                    width: '100%', marginTop: 12, padding: '14px 24px', borderRadius: 14,
+                    border: '1.5px dashed ' + C.border, background: C.white, cursor: 'pointer',
+                    fontSize: 15, fontWeight: 600, color: C.muted, fontFamily: "'Outfit', sans-serif",
+                    transition: 'all 0.2s',
+                  }}>
+                    ✏️ Create text-only design (no image)
+                  </button>
+                )}
+              </>
+            ) : (
+              designs.length < 5 && (
+                <div>
+                  <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Sheet type</label>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
+                    {UPLOAD_FLOW_SHAPES.map((sh) => {
+                      const szObj = (SIZES[sh] || [])[0];
+                      const uploadShapeLabels = { fullsheet: 'Full Sheet', bwsheet: 'B&W Sheet', waferletter: 'Wafer Paper' };
+                      return (
+                        <button key={sh} onClick={() => setPendingUploadShape(sh)} style={{
+                          flex: 1, minWidth: 110, padding: '12px 10px', borderRadius: 12,
+                          border: pendingUploadShape === sh ? '2.5px solid ' + C.brand : '2px solid ' + C.border,
+                          background: pendingUploadShape === sh ? C.brandLight : C.white,
+                          cursor: 'pointer', textAlign: 'center', fontFamily: "'Outfit', sans-serif", transition: 'all 0.2s' }}>
+                          <div style={{ fontWeight: 700, fontSize: 15, color: C.brand }}>{'$' + (szObj?.price ?? 0).toFixed(2)}</div>
+                          <div style={{ fontSize: 12.5, color: C.text, fontWeight: 600, marginTop: 2 }}>{uploadShapeLabels[sh]}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p style={{ fontSize: 12.5, color: C.muted, marginBottom: 10, textAlign: 'center' }}>
+                    Accepted formats: PDF, PNG, JPG · Max {UPLOAD_MAX_FILE_MB}MB
+                  </p>
+                  {uploadFileError && (
+                    <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#B91C1C',
+                      borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 14 }}>
+                      {uploadFileError}
+                    </div>
+                  )}
+                  <div
+                    onClick={() => uploadFileRef.current?.click()}
+                    style={{
+                      border: '2.5px dashed ' + C.border,
+                      borderRadius: 20, padding: designs.length > 0 ? '36px 24px' : '56px 24px',
+                      cursor: 'pointer', transition: 'all 0.25s',
+                      background: C.white, textAlign: 'center',
+                    }}>
+                    <div style={{ fontSize: designs.length > 0 ? 36 : 52, marginBottom: 14, opacity: 0.8 }}>📄</div>
+                    <p style={{ margin: 0, fontWeight: 600, fontSize: designs.length > 0 ? 15 : 17 }}>
+                      Tap to upload your print-ready file
+                    </p>
+                    <p style={{ margin: '8px 0 0', fontSize: 13, color: '#bbb' }}>PDF, PNG or JPG</p>
+                  </div>
+                  <input ref={uploadFileRef} type="file" accept="application/pdf,image/png,image/jpeg,.pdf,.png,.jpg,.jpeg"
+                    onChange={handleUploadFileInputChange} style={{ display: 'none' }} />
+                </div>
+              )
             )}
 
             {designs.length > 0 && (
               <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
                 <button onClick={() => { setActiveDesignId(designs[0].id); setStep(2); }} style={{ ...btnPrimary, flex: 1 }}>
-                  Continue to Customize →
+                  Continue →
                 </button>
               </div>
             )}
           </div>
         )}
 
+        {/* STEP 2 (upload flow): REVIEW — placeholder for this stage.
+            Preview rendering (pdf.js) + the required print-as-is approval
+            checkbox land in a later stage; for now this reserves the
+            design's sheet type/quantity/notes and lets the cart flow
+            through to Details like any other design. */}
+        {step === 2 && activeDesign && activeIsUpload && (
+          <div style={{ maxWidth: 600, margin: '0 auto' }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={stepBadge}>2</div>
+              <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, margin: '16px 0 8px', fontWeight: 700 }}>Review Your File</h2>
+              <p style={{ color: C.muted, marginBottom: 16 }}>{activeDesign.fileName}</p>
+            </div>
+
+            <div style={{ ...card, padding: '20px 22px', marginBottom: 20 }}>
+              <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Sheet type</label>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
+                {UPLOAD_FLOW_SHAPES.map((sh) => {
+                  const szObj = (SIZES[sh] || [])[0];
+                  const uploadShapeLabels = { fullsheet: 'Full Sheet', bwsheet: 'B&W Sheet', waferletter: 'Wafer Paper' };
+                  return (
+                    <button key={sh} onClick={() => { setShape(sh); setSizeId((SIZES[sh] || [])[0]?.id || ''); }} style={{
+                      flex: 1, minWidth: 100, padding: '10px 8px', borderRadius: 12,
+                      border: shape === sh ? '2.5px solid ' + C.brand : '2px solid ' + C.border,
+                      background: shape === sh ? C.brandLight : C.white,
+                      cursor: 'pointer', textAlign: 'center', fontFamily: "'Outfit', sans-serif", transition: 'all 0.2s' }}>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: C.brand }}>{'$' + (szObj?.price ?? 0).toFixed(2)}</div>
+                      <div style={{ fontSize: 11.5, color: C.text, fontWeight: 600, marginTop: 2 }}>{uploadShapeLabels[sh]}</div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Quantity</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
+                <button onClick={() => setQty(Math.max(1, qty - 1))} style={{ width: 38, height: 38, borderRadius: 10, border: '1.5px solid ' + C.border, background: C.white, fontSize: 18, cursor: 'pointer', fontWeight: 600 }}>-</button>
+                <span style={{ fontSize: 20, fontWeight: 700, minWidth: 32, textAlign: 'center' }}>{qty}</span>
+                <button onClick={() => setQty(qty + 1)} style={{ width: 38, height: 38, borderRadius: 10, border: '1.5px solid ' + C.border, background: C.white, fontSize: 18, cursor: 'pointer', fontWeight: 600 }}>+</button>
+              </div>
+
+              <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Notes for us (optional)</label>
+              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything we should know?"
+                style={{ ...inputStyle, minHeight: 70, resize: 'vertical', fontFamily: "'Outfit', sans-serif" }} />
+
+              <div style={{ marginTop: 18, padding: '12px 14px', background: '#FFF8E6', border: '1px solid #F4D06F', borderRadius: 8, fontSize: 12.5, color: '#5C4A1A' }}>
+                🚧 Preview and print-ready approval are coming in the next update — for now this reserves your file and sheet choice in the order.
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button onClick={() => setStep(1)} style={{ ...btnSecondary, flex: 1 }}>← Back</button>
+              <button onClick={() => setStep(3)} style={{ ...btnPrimary, flex: 2 }}>Continue →</button>
+            </div>
+          </div>
+        )}
+
         {/* STEP 2: CUSTOMIZE */}
-        {step === 2 && activeDesign && (
+        {step === 2 && activeDesign && !activeIsUpload && (
           <div style={{ maxWidth: 600, margin: '0 auto' }}>
             <div style={{ textAlign: 'center' }}>
               <div style={stepBadge}>2</div>

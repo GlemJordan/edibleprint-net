@@ -10,7 +10,7 @@ const SLIDES = [
   { tag: 'Space cupcakes', after: '/hero/ejemplo-4-after.jpg', before: '/hero/ejemplo-4-before.jpg' },
 ];
 
-export default function HeroSection({ onOrderClick, cutoffMsg }) {
+export default function HeroSection({ onOrderClick, onUploadFileClick, cutoffMsg }) {
   const [current, setCurrent] = useState(0);
   const [afterErr, setAfterErr]   = useState({});
   const [beforeErr, setBeforeErr] = useState({});
@@ -191,6 +191,23 @@ export default function HeroSection({ onOrderClick, cutoffMsg }) {
                 See Pricing
               </button>
             </div>
+
+            {/* Secondary path — deliberately subordinate to the primary CTA above:
+                plain text link, no button chrome, smaller. Most customers should
+                use the editor; this is only for people who already have a
+                finished print-ready file and don't want/need it. */}
+            {onUploadFileClick && (
+              <button
+                onClick={onUploadFileClick}
+                style={{
+                  background: 'none', border: 'none', padding: 0, marginBottom: 20,
+                  color: '#5c6b62', fontSize: 13.5, fontWeight: 500, cursor: 'pointer',
+                  fontFamily: 'inherit', textDecoration: 'underline', textUnderlineOffset: 3,
+                }}
+              >
+                Already have a print-ready file? Upload it directly →
+              </button>
+            )}
 
             {/* Trust line */}
             <div style={{
