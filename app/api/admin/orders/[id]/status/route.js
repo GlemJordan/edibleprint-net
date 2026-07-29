@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 import { updateOrderStatus } from '../../../../../../lib/order-record.js';
+import { getAdminSession } from '../../../../../../lib/admin-auth.js';
 
 const VALID_STATUSES = ['paid', 'file_received', 'ready_to_print', 'printed', 'packed', 'shipped', 'pickup_ready'];
 
 export async function POST(request, { params }) {
-  // Bearer token auth
-  const auth = request.headers.get('authorization') || '';
-  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-  if (!token || token !== process.env.ADMIN_API_TOKEN) {
+  // Same ep_admin session-cookie mechanism as the rest of the admin surface
+  // (check/request-link/verify-link) — no separate bearer-token auth.
+  const session = await getAdminSession();
+  if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
