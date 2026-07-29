@@ -502,6 +502,14 @@ function renderPreviewCore(ctx, cw, ch, {
       ctx.setLineDash([]);
     }
   } else if (isMultiCircle) {
+    /* Fill the WHOLE sheet with bgColor first — not just inside each tiled
+       circle — so the gaps/margins between circles are colored too, not
+       left as the plain white shadow-shape fill from drawShapeShadow above.
+       (Bug: background fill used to only reach the inside of each circle.) */
+    if (bgColor && bgColor !== 'transparent') {
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, cw, ch);
+    }
     /* Build a single source-crop canvas (what the user sees) then tile it.
        Rendered at renderScale physical density so tiling it 40× onto the
        already-scaled main canvas is a crisp ~1:1 blit, not an upscale. */
@@ -642,72 +650,11 @@ function renderPreviewCore(ctx, cw, ch, {
   if (showWatermark) drawWatermark(ctx, cw, ch);
 }
 
-async function removeWhiteBackground(img, tolerance = 30) {
-  const off = document.createElement('canvas');
-  off.width = img.width;
-  off.height = img.height;
-  const ctx = off.getContext('2d');
-  ctx.drawImage(img, 0, 0);
+/* White-background removal now runs off the main thread — see
+   public/bg-remove-worker.js (same flood-fill + feather algorithm, moved
+   verbatim) and removeWhiteBackgroundViaWorker() inside ImageEditor below. */
 
-  const w = img.width;
-  const h = img.height;
-  const imageData = ctx.getImageData(0, 0, w, h);
-  const data = imageData.data;
-  const visited = new Uint8Array(w * h);
-
-  function isWhiteish(idx) {
-    return Math.min(data[idx], data[idx + 1], data[idx + 2]) >= 255 - tolerance;
-  }
-
-  const queue = [];
-  for (let x = 0; x < w; x++) { queue.push(x, 0); queue.push(x, h - 1); }
-  for (let y = 0; y < h; y++) { queue.push(0, y); queue.push(w - 1, y); }
-
-  while (queue.length > 0) {
-    const y = queue.pop();
-    const x = queue.pop();
-    if (x < 0 || x >= w || y < 0 || y >= h) continue;
-    const pixelIdx = y * w + x;
-    if (visited[pixelIdx]) continue;
-    const dataIdx = pixelIdx * 4;
-    if (!isWhiteish(dataIdx)) continue;
-    visited[pixelIdx] = 1;
-    data[dataIdx + 3] = 0;
-    queue.push(x + 1, y); queue.push(x - 1, y);
-    queue.push(x, y + 1); queue.push(x, y - 1);
-  }
-
-  /* Anti-aliasing pass on border pixels */
-  const dataCopy = new Uint8ClampedArray(data);
-  for (let y = 1; y < h - 1; y++) {
-    for (let x = 1; x < w - 1; x++) {
-      const idx = (y * w + x) * 4;
-      if (dataCopy[idx + 3] === 0 || dataCopy[idx + 3] < 255) continue;
-      let transparentNeighbors = 0;
-      for (const off of [-4, 4, -w * 4, w * 4]) {
-        if (dataCopy[idx + off + 3] === 0) transparentNeighbors++;
-      }
-      if (transparentNeighbors >= 2) {
-        const minCh = Math.min(data[idx], data[idx + 1], data[idx + 2]);
-        if (minCh < 200) continue;
-        const edge = 255 - tolerance - 20;
-        if (minCh >= edge) {
-          const fade = (minCh - edge) / 20;
-          data[idx + 3] = Math.round(255 * (1 - Math.min(1, fade)));
-        }
-      }
-    }
-  }
-
-  ctx.putImageData(imageData, 0, 0);
-  return new Promise((resolve) => {
-    const newImg = new Image();
-    newImg.onload = () => resolve(newImg);
-    newImg.src = off.toDataURL('image/png');
-  });
-}
-
-function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF', textOverlay = null, onTextPositionChange, removeWhiteBg = false, bgRemoveTolerance = 30, sizeLabel = '', isMobile = false }) {
+function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF', textOverlay = null, onTextPositionChange, removeWhiteBg = false, bgRemoveTolerance = 30, onBgProcessingChange, sizeLabel = '', isMobile = false }) {
   /* Declared early: several hooks below depend on these */
   const isMultiCircle = shape === 'multicircle';
   const isBWSheet = shape === 'bwsheet';
@@ -716,8 +663,71 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
   const hiResCanvasRef = useRef(null);
   const containerRef = useRef(null);
   const imgRefs = useRef({});
+  /* Background-removed bitmaps, kept in TWO separate caches so the hi-res
+     print pipeline never touches the downscaled preview version:
+     - processedImgRefs: preview only, capped to BG_REMOVE_PREVIEW_MAX_WIDTH.
+     - processedHiResImgRefs: full original resolution, used only by the
+       hi-res canvas draw code (getHiResImg) that feeds the print output. */
   const processedImgRefs = useRef({});
+  const processedHiResImgRefs = useRef({});
   const addLayerFileRef = useRef(null);
+
+  /* Persistent Web Worker running the white-background removal algorithm
+     (public/bg-remove-worker.js) off the main thread. One worker per
+     ImageEditor instance, created lazily, terminated on unmount. */
+  const bgWorkerRef = useRef(null);
+  const bgWorkerCallbacksRef = useRef(new Map());
+  const bgRequestIdRef = useRef(0);
+  const getBgWorker = () => {
+    if (!bgWorkerRef.current) {
+      const worker = new Worker('/bg-remove-worker.js');
+      worker.onmessage = (e) => {
+        const { requestId, ok, bitmap, error } = e.data;
+        const cb = bgWorkerCallbacksRef.current.get(requestId);
+        bgWorkerCallbacksRef.current.delete(requestId);
+        if (!cb) { bitmap?.close?.(); return; }
+        if (ok) cb.resolve(bitmap); else cb.reject(new Error(error));
+      };
+      bgWorkerRef.current = worker;
+    }
+    return bgWorkerRef.current;
+  };
+  useEffect(() => () => {
+    bgWorkerRef.current?.terminate();
+    bgWorkerRef.current = null;
+  }, []);
+  /* Preview quality only — capped so a single slider tick's flood fill runs
+     in single-digit/low-double-digit ms even on a large source photo. The
+     hi-res pass (no maxWidth) always runs at the original resolution. */
+  const BG_REMOVE_PREVIEW_MAX_WIDTH = 600;
+  const removeWhiteBackgroundViaWorker = async (img, tolerance, maxWidth) => {
+    const opts = {};
+    if (maxWidth && img.width > maxWidth) {
+      opts.resizeWidth = maxWidth;
+      opts.resizeHeight = Math.max(1, Math.round(img.height * (maxWidth / img.width)));
+      opts.resizeQuality = 'high';
+    }
+    const bitmap = await createImageBitmap(img, opts);
+    const worker = getBgWorker();
+    const requestId = ++bgRequestIdRef.current;
+    return new Promise((resolve, reject) => {
+      bgWorkerCallbacksRef.current.set(requestId, { resolve, reject });
+      worker.postMessage({ requestId, bitmap, tolerance }, [bitmap]);
+    });
+  };
+  /* Runs both passes (preview-capped + full-res) for one loaded image in
+     parallel, as two independent worker round-trips. Returns the bitmaps
+     without storing them — callers decide whether to keep or discard+close
+     based on whether a newer request has since superseded this one. */
+  const computeBgRemovalForId = async (id, tolerance) => {
+    const img = imgRefs.current[id];
+    if (!img) return null;
+    const [previewBmp, hiResBmp] = await Promise.all([
+      removeWhiteBackgroundViaWorker(img, tolerance, BG_REMOVE_PREVIEW_MAX_WIDTH),
+      removeWhiteBackgroundViaWorker(img, tolerance, null),
+    ]);
+    return { previewBmp, hiResBmp };
+  };
   /* Cache of preview-only stepped-downscale results, keyed by cache key
      (layer id + which render pass). Invalidated automatically whenever the
      source image or requested target size changes, so the expensive
@@ -737,6 +747,16 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
   onLayersChangeRef.current = onLayersChange;
 
   const [selectedLayerId, setSelectedLayerId] = useState(null);
+  const [bgProcessing, setBgProcessing] = useState(false);
+  useEffect(() => { onBgProcessingChange?.(bgProcessing); }, [bgProcessing]); // eslint-disable-line react-hooks/exhaustive-deps
+  /* Counter rather than a plain boolean: multiple layers can be reprocessing
+     concurrently, and the indicator should stay on until all of them finish. */
+  const bgProcessingCountRef = useRef(0);
+  const beginBgProcessing = () => { bgProcessingCountRef.current++; setBgProcessing(true); };
+  const endBgProcessing = () => {
+    bgProcessingCountRef.current = Math.max(0, bgProcessingCountRef.current - 1);
+    if (bgProcessingCountRef.current === 0) setBgProcessing(false);
+  };
   const [dragging, setDragging] = useState(false);
   const [dragLayerId, setDragLayerId] = useState(null);
   const [dragStart, setDragStart] = useState({ clientX: 0, clientY: 0, layerX: 0, layerY: 0 });
@@ -1061,7 +1081,19 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       img.onload = async () => {
         imgRefs.current[layer.id] = img;
         if (removeWhiteBg) {
-          processedImgRefs.current[layer.id] = await removeWhiteBackground(img, bgRemoveTolerance);
+          beginBgProcessing();
+          try {
+            const result = await computeBgRemovalForId(layer.id, bgRemoveTolerance);
+            if (result) {
+              processedImgRefs.current[layer.id] = result.previewBmp;
+              processedHiResImgRefs.current[layer.id] = result.hiResBmp;
+            }
+          } catch (e) {
+            delete processedImgRefs.current[layer.id];
+            delete processedHiResImgRefs.current[layer.id];
+          } finally {
+            endBgProcessing();
+          }
         }
         const effW = isMultiCircle ? circlePx : canvasW;
         const effH = isMultiCircle ? circlePx : canvasH;
@@ -1078,36 +1110,71 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     /* Clean up refs for removed layers */
     const ids = new Set(layers.map(l => l.id));
     Object.keys(imgRefs.current).forEach(id => { if (!ids.has(id)) delete imgRefs.current[id]; });
-    Object.keys(processedImgRefs.current).forEach(id => { if (!ids.has(id)) delete processedImgRefs.current[id]; });
+    Object.keys(processedImgRefs.current).forEach(id => {
+      if (!ids.has(id)) { processedImgRefs.current[id]?.close?.(); delete processedImgRefs.current[id]; }
+    });
+    Object.keys(processedHiResImgRefs.current).forEach(id => {
+      if (!ids.has(id)) { processedHiResImgRefs.current[id]?.close?.(); delete processedHiResImgRefs.current[id]; }
+    });
     Array.from(downscaleCacheRef.current.keys()).forEach(key => {
       if (!ids.has(key.split(':')[0])) downscaleCacheRef.current.delete(key);
     });
   }, [layers]);
 
-  /* Re-process all loaded images when removeWhiteBg or tolerance changes */
+  /* Raw tolerance drives the slider UI instantly; reprocessing only fires
+     ~200ms after the user stops moving it (debounced "confirm" point) —
+     not on every drag tick, which is what used to freeze the main thread. */
+  const [debouncedTolerance, setDebouncedTolerance] = useState(bgRemoveTolerance);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedTolerance(bgRemoveTolerance), 200);
+    return () => clearTimeout(t);
+  }, [bgRemoveTolerance]);
+
+  /* Re-process all loaded images when the toggle flips, or (debounced) when
+     tolerance settles. Computes BOTH a capped-width preview bitmap and a
+     full-resolution hi-res bitmap per image, each a separate Web Worker
+     round-trip, so neither one blocks the main thread. */
   useEffect(() => {
     let cancelled = false;
     const process = async () => {
+      if (!removeWhiteBg) {
+        Object.values(processedImgRefs.current).forEach(b => b?.close?.());
+        Object.values(processedHiResImgRefs.current).forEach(b => b?.close?.());
+        processedImgRefs.current = {};
+        processedHiResImgRefs.current = {};
+        setRedrawTick(t => t + 1);
+        return;
+      }
       const ids = Object.keys(imgRefs.current);
-      if (removeWhiteBg) {
-        await Promise.all(ids.map(async id => {
+      if (ids.length === 0) return;
+      beginBgProcessing();
+      try {
+        await Promise.all(ids.map(async (id) => {
           try {
-            const processed = await removeWhiteBackground(imgRefs.current[id], bgRemoveTolerance);
-            if (!cancelled) processedImgRefs.current[id] = processed;
+            const result = await computeBgRemovalForId(id, debouncedTolerance);
+            if (!result) return;
+            if (cancelled) { result.previewBmp.close?.(); result.hiResBmp.close?.(); return; }
+            processedImgRefs.current[id]?.close?.();
+            processedImgRefs.current[id] = result.previewBmp;
+            processedHiResImgRefs.current[id]?.close?.();
+            processedHiResImgRefs.current[id] = result.hiResBmp;
           } catch (e) {
-            if (!cancelled) delete processedImgRefs.current[id];
+            if (!cancelled) { delete processedImgRefs.current[id]; delete processedHiResImgRefs.current[id]; }
           }
         }));
-      } else {
-        processedImgRefs.current = {};
+      } finally {
+        if (!cancelled) endBgProcessing();
       }
       if (!cancelled) setRedrawTick(t => t + 1);
     };
     process();
     return () => { cancelled = true; };
-  }, [removeWhiteBg, bgRemoveTolerance]);
+  }, [removeWhiteBg, debouncedTolerance]);
 
   const getImg = (id) => (removeWhiteBg && processedImgRefs.current[id]) ? processedImgRefs.current[id] : imgRefs.current[id];
+  /* Hi-res print pipeline only — always the full-resolution processed
+     bitmap (or the untouched original), never the capped preview one. */
+  const getHiResImg = (id) => (removeWhiteBg && processedHiResImgRefs.current[id]) ? processedHiResImgRefs.current[id] : imgRefs.current[id];
   const fitMode = shape === 'custom' ? Math.min : Math.max;
 
   /* Draw canvases */
@@ -1176,7 +1243,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
         hctx.filter = 'none';
       }
       layers.forEach(layer => {
-        const img = getImg(layer.id);
+        const img = getHiResImg(layer.id);
         if (!img) return;
         hctx.save();
         hctx.filter = 'grayscale(100%)';
@@ -1207,6 +1274,14 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       hctx.stroke();
       hctx.setLineDash([]);
     } else if (isMultiCircle) {
+      /* Fill the WHOLE sheet with bgColor first — not just inside each tiled
+         circle — so the gaps/margins between circles are colored too, not
+         left as the base white fill above. (Bug: background fill used to
+         only reach the inside of each circle.) */
+      if (bgColor && bgColor !== 'transparent') {
+        hctx.fillStyle = bgColor;
+        hctx.fillRect(0, 0, hiResW, hiResH);
+      }
       const hrCirclePx = circleSize * DPI;
       const hrSf       = hrCirclePx / circlePx; /* preview→hi-res scale for this circle */
       const hrGapPx    = mcGapInches * DPI;
@@ -1228,7 +1303,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       hsctx.arc(hrCirclePx / 2, hrCirclePx / 2, hrCirclePx / 2, 0, Math.PI * 2);
       hsctx.clip();
       layers.forEach(layer => {
-        const img = getImg(layer.id);
+        const img = getHiResImg(layer.id);
         if (!img) return;
         hsctx.save();
         const hrX = layer.x * hrSf;
@@ -1280,7 +1355,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
         hctx.fillRect(0, 0, hiResW, hiResH);
       }
       layers.forEach(layer => {
-        const img = getImg(layer.id);
+        const img = getHiResImg(layer.id);
         if (!img) return;
         hctx.save();
         const hrX = layer.x * scaleFactor;
@@ -2187,6 +2262,7 @@ export default function EdiblePrintApp() {
       .catch(() => setIsAdmin(false));
   }, []);
   const [bgRemoveTolerance, setBgRemoveTolerance] = useState(15);
+  const [bgProcessing, setBgProcessing] = useState(false);
 
   /* ── Accordion state for Step 2 ── */
   const [accordionText, setAccordionText] = useState(false);
@@ -3107,6 +3183,7 @@ export default function EdiblePrintApp() {
                 onTextPositionChange={(pos) => setTextOverlay((p) => ({ ...p, position: pos }))}
                 removeWhiteBg={removeWhiteBg}
                 bgRemoveTolerance={bgRemoveTolerance}
+                onBgProcessingChange={setBgProcessing}
                 sizeLabel={sizeLabel}
                 isMobile={isMobile}
               />
@@ -3222,58 +3299,73 @@ export default function EdiblePrintApp() {
               </div>
             </div>
 
-            {/* 5. Remove White Background — toggle always visible; fine controls visible only when on */}
+            {/* 5. Background Fill — the prominent, always-visible control (most
+                people use this); Remove White Background is a niche tool
+                (logos/text mostly) tucked into "Advanced options" below. */}
             {shape !== 'bwsheet' && (
               <div style={{ borderTop: '1px solid ' + C.border, paddingTop: 12, marginBottom: 16 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: removeWhiteBg ? 12 : 0 }}>
-                  <span style={{ fontWeight: 600, fontSize: 14, color: C.text }}>✂️ Remove white background around my image</span>
-                  <button
-                    onClick={() => setRemoveWhiteBg(v => !v)}
-                    aria-pressed={removeWhiteBg}
-                    style={{
-                      flexShrink: 0, marginLeft: 10,
-                      width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
-                      background: removeWhiteBg ? C.brand : C.border,
-                      position: 'relative', transition: 'background 0.2s',
-                    }}
-                  >
-                    <span style={{
-                      position: 'absolute', top: 3, left: removeWhiteBg ? 23 : 3,
-                      width: 18, height: 18, borderRadius: '50%', background: '#fff',
-                      transition: 'left 0.2s', display: 'block',
-                    }} />
-                  </button>
+                <div style={{ marginBottom: 4 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14, color: C.text, marginBottom: 8 }}>🎨 Background Fill Color</div>
+                  <ColorPickerDropdown value={bgColor} onChange={setBgColor} colors={shape === 'bwsheet' ? BW_PALETTE : PALETTE} label="Fill" allowCustom={shape !== 'bwsheet'} />
                 </div>
-                {removeWhiteBg && (
-                  <>
-                    <div style={{ padding: '8px 10px', background: '#FAFBF9', borderRadius: 6, marginBottom: 10, fontSize: 11.5 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, color: C.muted }}>
-                        <span>Edge tolerance</span>
-                        <span style={{ fontWeight: 600, color: C.brand }}>{bgRemoveTolerance}</span>
-                      </div>
-                      <input
-                        type="range"
-                        min="0"
-                        max="60"
-                        step="5"
-                        value={bgRemoveTolerance}
-                        onChange={(e) => setBgRemoveTolerance(parseInt(e.target.value))}
-                        style={{ width: '100%', accentColor: C.brand, cursor: 'pointer' }}
-                      />
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: C.muted, marginTop: 2 }}>
-                        <span>Conservative (white only)</span>
-                        <span>Aggressive (light colors)</span>
-                      </div>
-                      <div style={{ fontSize: 10.5, color: C.muted, marginTop: 4, fontStyle: 'italic' }}>
-                        Increase only if white areas remain visible
-                      </div>
+
+                <details style={{ marginTop: 14 }}>
+                  <summary style={{ fontSize: 13, fontWeight: 600, color: C.muted, cursor: 'pointer',
+                    padding: '4px 0', fontFamily: "'Outfit', sans-serif", listStyle: 'none',
+                    display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>▸</span> Advanced options
+                  </summary>
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: removeWhiteBg ? 12 : 0 }}>
+                      <span style={{ fontWeight: 600, fontSize: 14, color: C.text }}>✂️ Remove white background around my image</span>
+                      <button
+                        onClick={() => setRemoveWhiteBg(v => !v)}
+                        aria-pressed={removeWhiteBg}
+                        style={{
+                          flexShrink: 0, marginLeft: 10,
+                          width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
+                          background: removeWhiteBg ? C.brand : C.border,
+                          position: 'relative', transition: 'background 0.2s',
+                        }}
+                      >
+                        <span style={{
+                          position: 'absolute', top: 3, left: removeWhiteBg ? 23 : 3,
+                          width: 18, height: 18, borderRadius: '50%', background: '#fff',
+                          transition: 'left 0.2s', display: 'block',
+                        }} />
+                      </button>
                     </div>
-                    <div style={{ marginBottom: 4 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 6 }}>Background Fill Color</div>
-                      <ColorPickerDropdown value={bgColor} onChange={setBgColor} colors={shape === 'bwsheet' ? BW_PALETTE : PALETTE} label="Fill" allowCustom={shape !== 'bwsheet'} />
-                    </div>
-                  </>
-                )}
+                    {removeWhiteBg && (
+                      <div style={{ padding: '8px 10px', background: '#FAFBF9', borderRadius: 6, fontSize: 11.5 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, color: C.muted }}>
+                          <span>Edge tolerance</span>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            {bgProcessing && (
+                              <span aria-live="polite" style={{ fontSize: 10, color: C.brand, fontStyle: 'italic' }}>Processing…</span>
+                            )}
+                            <span style={{ fontWeight: 600, color: C.brand }}>{bgRemoveTolerance}</span>
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="60"
+                          step="5"
+                          value={bgRemoveTolerance}
+                          onChange={(e) => setBgRemoveTolerance(parseInt(e.target.value))}
+                          style={{ width: '100%', accentColor: C.brand, cursor: 'pointer' }}
+                        />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: C.muted, marginTop: 2 }}>
+                          <span>Conservative (white only)</span>
+                          <span>Aggressive (light colors)</span>
+                        </div>
+                        <div style={{ fontSize: 10.5, color: C.muted, marginTop: 4, fontStyle: 'italic' }}>
+                          Increase only if white areas remain visible
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </details>
               </div>
             )}
 
