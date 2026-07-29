@@ -53,9 +53,9 @@ export default function AboutPage() {
             needing consistent batch prints, or a business looking to brand your corporate treats — we've got you covered.
           </p>
           <p>
-            We use only <strong>FDA-approved, food-safe inks</strong> and <strong>premium icing sheets</strong> to ensure every print
-            is vibrant, crisp at 300 DPI, and completely safe to eat. Every order is reviewed by a human before printing,
-            and we stand behind every sheet we produce with our 100% satisfaction guarantee.
+            We use only <strong>FDA-approved, food-safe inks</strong> on <strong>premium icing sheets or wafer paper</strong> — depending
+            on the format you choose — to ensure every print is vibrant, crisp at 300 DPI, and completely safe to eat. Every order is
+            reviewed by a human before printing, and we stand behind every print we produce with our 100% satisfaction guarantee.
           </p>
         </div>
 
@@ -65,7 +65,7 @@ export default function AboutPage() {
             margin: '0 0 20px', color: C.brandDark }}>Why Choose Us</h2>
           <ul style={{ margin: 0, padding: '0 0 0 20px', fontSize: 15, lineHeight: 2, color: C.text }}>
             <li><strong>300 DPI resolution</strong> — crystal-clear results on every print</li>
-            <li><strong>FDA-approved food-safe inks & icing sheets</strong> — safe for all ages</li>
+            <li><strong>FDA-approved food-safe inks, icing sheets & wafer paper</strong> — safe for all ages</li>
             <li><strong>Human review</strong> of every order before printing — no surprises</li>
             <li><strong>Canada-wide shipping</strong> via Canada Post — flat rate $9.99, approx. 3–5 business days</li>
             <li><strong>100% satisfaction guarantee</strong> — reprints or full refund, no questions asked</li>

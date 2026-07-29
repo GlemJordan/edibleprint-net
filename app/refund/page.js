@@ -70,8 +70,13 @@ export default function RefundPage() {
         </li>
         <li>
           <strong>Color differences</strong> between your screen and the printed result. Screens display
-          colors differently from edible inks on frosting sheets. We print accurately to standard
-          edible-ink color profiles.
+          colors differently from edible inks on frosting sheets or wafer paper. We print accurately to
+          standard edible-ink color profiles for each material.
+        </li>
+        <li>
+          <strong>Wafer paper's natural characteristics</strong> — it is inherently thinner, more brittle,
+          and prints with softer colour than icing sheets. These are expected properties of the material,
+          not print defects.
         </li>
         <li><strong>Change of mind</strong> after production has started.</li>
         <li><strong>Shipping delays</strong> caused by the carrier or weather.</li>
@@ -84,6 +89,10 @@ export default function RefundPage() {
         Edible prints are perishable when exposed to heat, moisture, or sunlight. Once delivered, please store
         them sealed in a cool, dry place and apply them within 12 months. Problems caused by improper storage
         are not covered.
+      </p>
+      <p style={p}>
+        Wafer paper is especially sensitive to humidity — store it in a fully sealed bag or container to
+        prevent warping or softening before use.
       </p>
 
       <h2 style={h2}>Refunds Processing</h2>

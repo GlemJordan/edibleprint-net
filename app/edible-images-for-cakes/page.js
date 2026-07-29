@@ -39,14 +39,14 @@ export default function EdibleImagesForCakesPage() {
         </h1>
         <p style={{ fontSize: 18, color: C.muted, lineHeight: 1.65, marginBottom: 36 }}>
           Turn any photo, logo, or design into a stunning edible image — printed on premium icing sheets
-          and delivered across Canada.
+          or wafer paper and delivered across Canada.
         </p>
 
         <div style={{ fontSize: 16, lineHeight: 1.8, color: C.text, marginBottom: 28 }}>
           <p>
             At EdiblePrint.net, we make it simple to add a personal touch to any cake. Upload your photo
-            online, choose your size and shape, and we'll print it on food-safe edible icing sheets using
-            <strong> 300 DPI, FDA-approved inks</strong>. The result is a vibrant, crisp edible image that
+            online, choose your size and shape, and we'll print it on food-safe edible icing sheets or wafer
+            paper using<strong> 300 DPI, FDA-approved inks</strong>. The result is a vibrant, crisp edible image that
             lays flat and looks incredible on buttercream, fondant, or whipped cream.
           </p>
           <p>
@@ -62,7 +62,7 @@ export default function EdibleImagesForCakesPage() {
             margin: '0 0 20px', color: C.brandDark }}>Why Order With Us</h2>
           <ul style={{ margin: 0, padding: '0 0 0 20px', fontSize: 15, lineHeight: 2, color: C.text }}>
             <li><strong>300 DPI resolution</strong> — sharp, vibrant results on every edible image</li>
-            <li><strong>Food-safe inks & icing sheets</strong> — FDA-approved, tasteless, safe for all ages</li>
+            <li><strong>Food-safe inks, icing sheets & wafer paper</strong> — FDA-approved, tasteless, safe for all ages</li>
             <li><strong>Multiple shapes & sizes</strong> — round, square, heart, full sheet, and more</li>
             <li><strong>Canada-wide shipping</strong> via Canada Post — flat rate $9.99, approx. 3–5 business days</li>
             <li><strong>100% satisfaction guarantee</strong> — reprint or full refund, no questions asked</li>

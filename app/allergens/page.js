@@ -55,14 +55,10 @@ export default function AllergensPage() {
       <h2 style={h2}>Wafer Paper</h2>
       <p style={p}>
         Our Wafer Paper — Letter Sheet product uses a different substrate from the frosting sheets above.
-        Wafer paper is typically made from starch (potato or tapioca), water, and a small amount of oil —
-        it's thinner and more brittle than frosting sheets, and prints with slightly softer colour.
-      </p>
-      <p style={p}>
-        We haven't published a full allergen breakdown for wafer paper here yet, so if you have a severe
-        allergy or dietary restriction, please email us at{' '}
+        We haven't published ingredient or allergen information for wafer paper on this page yet.
+        Ingredient and allergen details are available on request — please email us at{' '}
         <a href={`mailto:${EMAIL}`} style={{ color: C.brand }}>{EMAIL}</a>{' '}
-        to confirm current supplier ingredients before ordering.
+        before ordering and we'll confirm current supplier information with you.
       </p>
 
       <h2 style={h2}>Edible Inks</h2>
