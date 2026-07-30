@@ -43,3 +43,13 @@ details summary { list-style: none; }
 @media (max-width: 600px) {
   .hide-mobile { display: none !important; }
 }
+
+/* Header logo swap — desktop ≥768px shows logo-header.png, mobile <768px
+   shows logo-compact.png. Both render server-side; CSS picks one, so there's
+   no layout shift or hydration mismatch from a JS-computed viewport check. */
+.ep-logo-desktop { display: inline-block; }
+.ep-logo-mobile { display: none; }
+@media (max-width: 767px) {
+  .ep-logo-desktop { display: none; }
+  .ep-logo-mobile { display: inline-block; }
+}

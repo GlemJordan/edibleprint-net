@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import NextImage from 'next/image';
 import './globals.css';
 import HeroSection from './_components/HeroSection';
 import { getShippingCost } from '../lib/shipping-config.js';
@@ -129,17 +130,48 @@ const zoomBtnStyle = {
   fontFamily: "'Outfit', sans-serif",
 };
 
-/* ═══ LOGO ═══ */
+/* ═══ LOGO ═══
+   Footer uses the circular badge mark (logo-full.png — white/light
+   background, reads fine on the dark footer). Header uses the horizontal
+   wordmark, swapped at 768px via CSS classes below (not JS isMobile state)
+   so there's no SSR/hydration flash of the wrong logo on first paint. */
 function Logo({ footer = false }) {
-  const brandColor = footer ? '#6EE7B7' : C.brand;
-  const textColor  = footer ? '#F9FAFB' : C.text;
-  const mutedColor = footer ? '#9CA3AF' : C.muted;
+  if (footer) {
+    return (
+      <div style={{ textAlign: 'center' }}>
+        <NextImage
+          src="/logo-assets/logo-full.png"
+          alt="EdiblePrint.net"
+          width={800}
+          height={800}
+          style={{ height: 80, width: 'auto', display: 'inline-block' }}
+        />
+      </div>
+    );
+  }
   return (
-    <span style={{ userSelect: 'none' }}>
-      <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 700, color: brandColor, letterSpacing: '-0.3px' }}>Edible</span>
-      <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 400, color: textColor, letterSpacing: '-0.3px' }}>Print</span>
-      <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 13, fontWeight: 400, color: mutedColor, letterSpacing: '0.5px', marginLeft: 3, verticalAlign: 'middle' }}>.net</span>
-    </span>
+    <>
+      <span className="ep-logo-desktop">
+        <NextImage
+          src="/logo-assets/logo-header.png"
+          alt="EdiblePrint.net"
+          width={879}
+          height={200}
+          priority
+          style={{ height: 52, width: 'auto', display: 'block' }}
+        />
+      </span>
+      <span className="ep-logo-mobile">
+        <NextImage
+          src="/logo-assets/logo-compact.png"
+          alt="EdiblePrint.net"
+          width={657}
+          height={116}
+          priority
+          style={{ height: 36, width: 'auto', display: 'block' }}
+        />
+      </span>
+    </>
   );
 }
 

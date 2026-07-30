@@ -16,6 +16,12 @@ const webhookSecret = isTest
 
 const stripe = new Stripe(stripeKey);
 
+// Absolute URL required — email clients don't resolve relative paths.
+// logo-full.png (white/light circular badge) is used here rather than the
+// dark-green wordmark variants, since it needs to read on the dark green
+// banner background both emails use.
+const LOGO_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://edibleprint.net') + '/logo-assets/logo-full.png';
+
 const SHAPE_LABELS = {
   circular: 'Round', square: 'Square', rectangular: 'Rectangle',
   fullsheet: 'Full Sheet', multicircle: 'Cookie Sheet', heart: 'Heart', custom: 'Custom',
@@ -241,6 +247,7 @@ async function processOrder(session, orderId) {
   const ownerHtml = '<div style="font-family:Arial,sans-serif;max-width:640px;margin:0 auto;">'
     + (isTest ? '<div style="background:#F59E0B;color:white;padding:10px;text-align:center;border-radius:8px 8px 0 0;font-weight:bold;">⚠️ TEST ORDER — Not a real payment</div>' : '')
     + '<div style="background:#1B6B4A;color:white;padding:20px;' + (isTest ? '' : 'border-radius:8px 8px 0 0;') + '">'
+    + '<img src="' + LOGO_URL + '" alt="EdiblePrint.net" width="44" height="44" style="display:block;margin-bottom:10px;" />'
     + '<h1 style="margin:0;font-size:22px;">New Order: ' + orderId + '</h1>'
     + '<p style="margin:8px 0 0;opacity:0.9;">Total: $' + totalAmt.toFixed(2) + ' CAD &nbsp;|&nbsp; ' + designs.length + ' design' + (designs.length > 1 ? 's' : '') + '</p>'
     + '</div>'
@@ -316,6 +323,7 @@ async function processOrder(session, orderId) {
 
   const customerHtml = '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1a1a1a;">'
     + '<div style="background:#1B6B4A;color:white;padding:28px 24px;border-radius:8px 8px 0 0;text-align:center;">'
+    + '<img src="' + LOGO_URL + '" alt="EdiblePrint.net" width="64" height="64" style="display:block;margin:0 auto 12px;" />'
     + '<h1 style="margin:0 0 8px;font-size:26px;letter-spacing:-0.5px;">Thank you for your order!</h1>'
     + '<p style="margin:0;font-size:16px;opacity:0.9;">Order <strong>#' + orderId + '</strong></p>'
     + '</div>'
