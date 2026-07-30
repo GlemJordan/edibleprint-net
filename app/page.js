@@ -133,15 +133,6 @@ const zoomBtnStyle = {
   fontFamily: "'Outfit', sans-serif",
 };
 
-/* ═══ HEADER LAYOUT A/B TOGGLE ═══
-   'centered' — 3-col grid, logo centered on the page width, Order Now at
-                the right edge (desktop only; mobile is always left+compact).
-   'left'     — logo pinned to the left edge, Order Now at the right edge,
-                with extra breathing room around the logo.
-   Pick one in the browser, then delete the branch that loses in the home
-   nav below (search HEADER_LAYOUT) and this comment block. */
-const HEADER_LAYOUT = 'centered'; // 'centered' | 'left'
-
 /* ═══ LOGO ═══
    Footer uses the circular badge mark (logo-full.png — white/light
    background, reads fine on the dark footer). Header uses the horizontal
@@ -3051,28 +3042,14 @@ export default function EdiblePrintApp() {
     const stepColors = ['#E8F5EE', '#FFF4EB', '#EEF2FF', '#FFF9E6'];
     return (
       <div style={{ fontFamily: "'Outfit', sans-serif", background: C.bg, minHeight: '100vh', color: C.text }}>
-        {HEADER_LAYOUT === 'centered' ? (
-          <nav className="ep-header-nav ep-header-centered" style={{
-            borderBottom: '1px solid ' + C.border, background: 'rgba(255,255,255,0.92)',
-            backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 100 }}>
-            <div className="ep-header-spacer" />
-            <Logo />
-            <div className="ep-header-cta">
-              <button className="ep-header-cta-btn" onClick={() => { setOrderMode('editor'); setStep(1); }} style={btnPrimaryHeader}>
-                Order Now
-              </button>
-            </div>
-          </nav>
-        ) : (
-          <nav className="ep-header-nav ep-header-left" style={{
-            borderBottom: '1px solid ' + C.border, background: 'rgba(255,255,255,0.92)',
-            backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 100 }}>
-            <Logo />
-            <button className="ep-header-cta-btn" onClick={() => { setOrderMode('editor'); setStep(1); }} style={btnPrimaryHeader}>
-              Order Now
-            </button>
-          </nav>
-        )}
+        <nav className="ep-header-nav" style={{
+          borderBottom: '1px solid ' + C.border, background: 'rgba(255,255,255,0.92)',
+          backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 100 }}>
+          <Logo />
+          <button className="ep-header-cta-btn" onClick={() => { setOrderMode('editor'); setStep(1); }} style={btnPrimaryHeader}>
+            Order Now
+          </button>
+        </nav>
         <HeroSection
           onOrderClick={() => { setOrderMode('editor'); setStep(1); }}
           onUploadFileClick={() => { setOrderMode('upload'); setStep(1); }}
