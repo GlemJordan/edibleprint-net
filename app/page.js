@@ -114,6 +114,9 @@ const btnPrimary = {
   boxShadow: '0 4px 16px rgba(27,107,74,0.25)',
 };
 const btnSecondary = { ...btnPrimary, background: '#F3F4F6', color: '#555', boxShadow: 'none' };
+// padding/fontSize/borderRadius stripped so the .ep-header-cta-btn CSS class
+// (which differs mobile vs desktop) isn't fought by higher-precedence inline styles.
+const { padding: _hp, fontSize: _hf, borderRadius: _hr, ...btnPrimaryHeader } = btnPrimary;
 const stepBadge = {
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
   width: 36, height: 36, borderRadius: '50%', background: C.brand,
@@ -129,6 +132,15 @@ const zoomBtnStyle = {
   color: C.text, display: 'flex', alignItems: 'center', justifyContent: 'center',
   fontFamily: "'Outfit', sans-serif",
 };
+
+/* ═══ HEADER LAYOUT A/B TOGGLE ═══
+   'centered' — 3-col grid, logo centered on the page width, Order Now at
+                the right edge (desktop only; mobile is always left+compact).
+   'left'     — logo pinned to the left edge, Order Now at the right edge,
+                with extra breathing room around the logo.
+   Pick one in the browser, then delete the branch that loses in the home
+   nav below (search HEADER_LAYOUT) and this comment block. */
+const HEADER_LAYOUT = 'centered'; // 'centered' | 'left'
 
 /* ═══ LOGO ═══
    Footer uses the circular badge mark (logo-full.png — white/light
@@ -158,7 +170,7 @@ function Logo({ footer = false }) {
           width={879}
           height={200}
           priority
-          style={{ height: 52, width: 'auto', display: 'block' }}
+          style={{ height: 64, width: 'auto', display: 'block' }}
         />
       </span>
       <span className="ep-logo-mobile">
@@ -168,7 +180,7 @@ function Logo({ footer = false }) {
           width={657}
           height={116}
           priority
-          style={{ height: 36, width: 'auto', display: 'block' }}
+          style={{ height: 44, width: 'auto', display: 'block' }}
         />
       </span>
     </>
@@ -3039,14 +3051,28 @@ export default function EdiblePrintApp() {
     const stepColors = ['#E8F5EE', '#FFF4EB', '#EEF2FF', '#FFF9E6'];
     return (
       <div style={{ fontFamily: "'Outfit', sans-serif", background: C.bg, minHeight: '100vh', color: C.text }}>
-        <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 24px',
-          borderBottom: '1px solid ' + C.border, background: 'rgba(255,255,255,0.92)',
-          backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 100 }}>
-          <Logo />
-          <button onClick={() => { setOrderMode('editor'); setStep(1); }} style={{ ...btnPrimary, padding: '10px 22px', fontSize: 14, borderRadius: 10 }}>
-            Order Now
-          </button>
-        </nav>
+        {HEADER_LAYOUT === 'centered' ? (
+          <nav className="ep-header-nav ep-header-centered" style={{
+            borderBottom: '1px solid ' + C.border, background: 'rgba(255,255,255,0.92)',
+            backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 100 }}>
+            <div className="ep-header-spacer" />
+            <Logo />
+            <div className="ep-header-cta">
+              <button className="ep-header-cta-btn" onClick={() => { setOrderMode('editor'); setStep(1); }} style={btnPrimaryHeader}>
+                Order Now
+              </button>
+            </div>
+          </nav>
+        ) : (
+          <nav className="ep-header-nav ep-header-left" style={{
+            borderBottom: '1px solid ' + C.border, background: 'rgba(255,255,255,0.92)',
+            backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 100 }}>
+            <Logo />
+            <button className="ep-header-cta-btn" onClick={() => { setOrderMode('editor'); setStep(1); }} style={btnPrimaryHeader}>
+              Order Now
+            </button>
+          </nav>
+        )}
         <HeroSection
           onOrderClick={() => { setOrderMode('editor'); setStep(1); }}
           onUploadFileClick={() => { setOrderMode('upload'); setStep(1); }}
