@@ -77,3 +77,15 @@ details summary { list-style: none; }
     border-radius: 10px !important;
   }
 }
+
+/* Order-flow nav stepper swap — desktop ≥768px shows the full 4-node walk,
+   mobile <768px shows a constant-width "Step N of 4" + progress bar instead
+   (the full walk overflows past 360px regardless of hidden labels, since
+   the 4 circles + chevrons + wordmark logo alone don't fit). */
+.ep-stepper-desktop { display: flex; }
+.ep-stepper-mobile { display: none; }
+@media (max-width: 767px) {
+  .ep-stepper-desktop { display: none; }
+  .ep-stepper-mobile { display: block; }
+}
+

@@ -3617,24 +3617,44 @@ export default function EdiblePrintApp() {
   }
 
   /* ORDER FLOW */
+  const stepLabels = orderMode === 'upload' ? ['Upload', 'Review', 'Details', 'Done'] : ['Upload', 'Customize', 'Details', 'Done'];
   return (
     <div style={{ fontFamily: "'Outfit', sans-serif", background: C.bg, minHeight: '100vh', color: C.text }}>
-      <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 24px',
+      <nav style={{ padding: '14px 24px',
         borderBottom: '1px solid ' + C.border, background: 'rgba(255,255,255,0.92)',
         backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 10 }}>
-        <div onClick={() => setStep(0)} style={{ cursor: 'pointer' }}><Logo /></div>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          {(orderMode === 'upload' ? ['Upload', 'Review', 'Details', 'Done'] : ['Upload', 'Customize', 'Details', 'Done']).map((label, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <div style={{ width: 26, height: 26, borderRadius: '50%', fontSize: 12, fontWeight: 700,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: step >= i + 1 ? C.brand : '#E5E7EB', color: step >= i + 1 ? '#fff' : '#9CA3AF',
-                transition: 'all 0.3s' }}>{i + 1}</div>
-              <span className="hide-mobile" style={{ fontSize: 12, color: step >= i + 1 ? C.text : '#bbb',
-                fontWeight: step === i + 1 ? 600 : 400 }}>{label}</span>
-              {i < 3 && <span style={{ color: '#ddd', margin: '0 2px', fontSize: 11 }}>›</span>}
-            </div>
-          ))}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div onClick={() => setStep(0)} style={{ cursor: 'pointer' }}><Logo /></div>
+          {/* Full node-by-node walk — desktop only. On mobile it overflows past
+              360px (4 nodes + chevrons + the wordmark logo don't fit; hiding
+              just the text labels via .hide-mobile wasn't enough), so mobile
+              gets a completely different, width-independent representation
+              below instead of a squeezed version of this one. */}
+          <div className="ep-stepper-desktop" style={{ gap: 6, alignItems: 'center' }}>
+            {stepLabels.map((label, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <div style={{ width: 26, height: 26, borderRadius: '50%', fontSize: 12, fontWeight: 700,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: step >= i + 1 ? C.brand : '#E5E7EB', color: step >= i + 1 ? '#fff' : '#9CA3AF',
+                  transition: 'all 0.3s' }}>{i + 1}</div>
+                <span style={{ fontSize: 12, color: step >= i + 1 ? C.text : '#bbb',
+                  fontWeight: step === i + 1 ? 600 : 400 }}>{label}</span>
+                {i < 3 && <span style={{ color: '#ddd', margin: '0 2px', fontSize: 11 }}>›</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+        {/* Current-step-only + progress bar — mobile only. Constant width
+            regardless of step count, label length, or logo size, so this
+            can't regress into the same overflow again. */}
+        <div className="ep-stepper-mobile">
+          <div style={{ marginTop: 10, fontSize: 12, fontWeight: 600, color: C.text }}>
+            Step {step} of {stepLabels.length}: {stepLabels[step - 1]}
+          </div>
+          <div style={{ marginTop: 6, height: 3, borderRadius: 2, background: '#E5E7EB', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: (step / stepLabels.length * 100) + '%',
+              background: C.brand, borderRadius: 2, transition: 'width 0.3s' }} />
+          </div>
         </div>
       </nav>
 
