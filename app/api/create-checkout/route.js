@@ -1,7 +1,7 @@
 import Stripe from 'stripe';
 import { NextResponse } from 'next/server';
 import { getShippingCost } from '../../../lib/shipping-config.js';
-import { PRINT_FORMAT_PRICES } from '../../../lib/print-format-prices.js';
+import { CATALOG_PRICES, customShapePrice } from '../../../lib/catalog-prices.js';
 
 const isTest = process.env.STRIPE_MODE === 'test';
 // NOTE: STRIPE_SECRET_KEY_LIVE must be sk_live_... (a full Secret Key).
@@ -37,17 +37,28 @@ export async function POST(request) {
     // trusted from the client, so the charged amount can't be tampered with.
     const shippingCost = getShippingCost(shippingMethod);
 
-    // Wafer paper is always a flat rate, and ANY design coming through the
-    // "I already have my design" upload flow has no price of its own — it's
-    // just an alternate entry point into these same three catalog formats —
-    // so both get their price enforced server-side rather than trusted from
-    // the client, the same way shipping already is.
+    // Every design's price is recomputed here from the catalog (by shape +
+    // sizeId, or the area formula for shape === 'custom') and never trusted
+    // from the client — the same principle already applied to shipping.
+    // Fails closed: an unrecognized shape/sizeId rejects the request rather
+    // than falling back to whatever price the client sent. Removing/editing
+    // a design client-side can only ever reduce what's in this request, and
+    // every remaining line still gets its own price recomputed here, so
+    // neither action can be used to change what Stripe actually charges.
+    let priceError = null;
     const designsSafe = designs.map((d) => {
-      const forcePrice = d.shape === 'waferletter' || d.sourceType === 'upload';
-      return forcePrice && PRINT_FORMAT_PRICES[d.shape] != null
-        ? { ...d, unitPrice: PRINT_FORMAT_PRICES[d.shape] }
-        : d;
+      const price = d.shape === 'custom'
+        ? customShapePrice(d.customW, d.customH)
+        : CATALOG_PRICES[d.shape]?.[d.sizeId];
+      if (price == null) {
+        priceError = `Unrecognized price for shape "${d.shape}" size "${d.sizeId}"`;
+        return d;
+      }
+      return { ...d, unitPrice: price };
     });
+    if (priceError) {
+      return NextResponse.json({ error: priceError }, { status: 400 });
+    }
 
     // Per-design line items
     const designLineItems = designsSafe.map((d, i) => ({

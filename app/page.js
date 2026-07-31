@@ -2645,6 +2645,30 @@ export default function EdiblePrintApp() {
      below, so a slow validation run can never accidentally patch whichever
      design happens to be active by the time it resolves. */
   const patchDesign = (id, patch) => setDesigns(ds => ds.map(d => d.id === id ? { ...d, ...patch } : d));
+  /* Shared by the design tabs (Change 1) and the Order Summary (Change 2).
+     Tabs never expose this when it's the last design (control hidden, not
+     disabled — enforced at the call site); the Order Summary intentionally
+     allows removing the last one, landing on the empty-cart state.
+     TODO: window.confirm() shows the site's raw domain in its dialog on
+     iOS Safari, which reads unprofessional for a storefront — swap for a
+     lightweight custom confirm dialog later. Left as native for now since
+     it's an unspoofable browser-level prompt, which matters more for a
+     destructive action than how it looks. */
+  const handleDeleteDesign = (id) => {
+    const idx = designs.findIndex(d => d.id === id);
+    if (idx === -1) return;
+    if (!window.confirm(`Remove Design ${idx + 1}? This can't be undone.`)) return;
+    const remaining = designs.filter(d => d.id !== id);
+    setDesigns(remaining);
+    if (activeDesignId === id) {
+      const next = remaining[idx] || remaining[remaining.length - 1] || null;
+      setActiveDesignId(next?.id ?? null);
+    }
+    // The design-confirmation checkbox on step 3 attests to whatever set of
+    // designs was reviewed — removing one changes that set, so it must be
+    // re-confirmed before the order can be placed again.
+    setAcceptedDesign(false);
+  };
   const setLayers      = (v) => updateActive({ layers: typeof v === 'function' ? v(layers) : v });
   const setShape       = (v) => updateActive({ shape: v });
   const setSizeId      = (v) => updateActive({ sizeId: v });
@@ -3231,6 +3255,12 @@ export default function EdiblePrintApp() {
             return {
               shape: d.shape,
               size: d.shape === 'custom' ? d.customW + '"x' + d.customH + '"' : (dSel?.label || ''),
+              // sizeId/customW/customH: additive, read by create-checkout to
+              // recompute this design's price from the catalog server-side —
+              // unitPrice below is a display convenience only, never trusted.
+              sizeId: d.sizeId || '',
+              customW: d.customW || '',
+              customH: d.customH || '',
               quantity: d.qty,
               unitPrice: dPrice,
               imageUrl: d.uploadedImageUrl || '',
@@ -4256,21 +4286,38 @@ export default function EdiblePrintApp() {
               <p style={{ color: C.muted, marginBottom: 16 }}>Choose shape, size, and adjust the crop area</p>
             </div>
 
-            {/* Design tabs */}
+            {/* Design tabs. Delete is a fully separate button with its own
+                bounded hit area (right segment, divider line), never an
+                overlapping corner badge — so switching designs on a phone
+                can't accidentally hit delete instead. Hidden entirely (not
+                disabled) when it's the only design left. */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 20, overflowX: 'auto', paddingBottom: 4 }}>
               {designs.map((d, i) => (
-                <button key={d.id}
-                  onClick={() => setActiveDesignId(d.id)}
-                  style={{
-                    padding: '8px 16px', borderRadius: 20, flexShrink: 0,
-                    border: activeDesignId === d.id ? '2px solid ' + C.brand : '2px solid ' + C.border,
-                    background: activeDesignId === d.id ? C.brandLight : C.white,
+                <div key={d.id} className="ep-tab-wrap" style={{
+                  display: 'flex', alignItems: 'stretch', borderRadius: 20, flexShrink: 0,
+                  border: activeDesignId === d.id ? '2px solid ' + C.brand : '2px solid ' + C.border,
+                  background: activeDesignId === d.id ? C.brandLight : C.white, overflow: 'hidden',
+                }}>
+                  <button onClick={() => setActiveDesignId(d.id)} style={{
+                    padding: designs.length > 1 ? '8px 10px 8px 16px' : '8px 16px', border: 'none', background: 'transparent',
                     fontWeight: activeDesignId === d.id ? 700 : 400,
                     fontSize: 13, cursor: 'pointer', color: activeDesignId === d.id ? C.brand : C.text,
                     fontFamily: "'Outfit', sans-serif",
                   }}>
-                  Design {i + 1}
-                </button>
+                    Design {i + 1}
+                  </button>
+                  {designs.length > 1 && (
+                    <button onClick={(e) => { e.stopPropagation(); handleDeleteDesign(d.id); }}
+                      aria-label={`Remove Design ${i + 1}`}
+                      className="ep-tab-remove"
+                      style={{
+                        width: 36, minWidth: 36, border: 'none', padding: 0,
+                        borderLeft: '1px solid ' + (activeDesignId === d.id ? C.brand : C.border),
+                        background: 'transparent', color: C.muted, fontSize: 13, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>✕</button>
+                  )}
+                </div>
               ))}
               {designs.length < 5 && (
                 <button onClick={() => setStep(1)} style={{
@@ -4663,7 +4710,17 @@ export default function EdiblePrintApp() {
         )}
 
         {/* STEP 3: SHIPPING & PAYMENT */}
-        {step === 3 && (
+        {step === 3 && (designs.length === 0 ? (
+          /* Removing the last line from the Order Summary lands here — a
+             clear empty state with a way forward, not a shipping form and
+             $0.00 totals for a cart that has nothing in it. */
+          <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+            <div style={{ fontSize: 44, marginBottom: 12 }}>🛒</div>
+            <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, margin: '0 0 8px', fontWeight: 700 }}>Your cart is empty</h2>
+            <p style={{ color: C.muted, marginBottom: 24 }}>You removed every design from this order. Start a new one to continue.</p>
+            <button onClick={() => setStep(1)} style={{ ...btnPrimary, padding: '12px 28px' }}>Start Over</button>
+          </div>
+        ) : (
           <div>
             <div style={{ textAlign: 'center' }}>
               <div style={stepBadge}>3</div>
@@ -4748,9 +4805,15 @@ export default function EdiblePrintApp() {
                     ? (parseFloat(d.customW || 0) * parseFloat(d.customH || 0) <= 36 ? 14.99 : 19.99)
                     : dSel?.price || 0;
                   return (
-                    <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Design {i + 1}: {d.qty}x {d.shape === 'custom' ? (d.customW + '"x' + d.customH + '"') : (dSel?.label || d.shape)}</span>
-                      <span style={{ fontWeight: 600 }}>{'$' + (dPrice * d.qty).toFixed(2)}</span>
+                    <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div>Design {i + 1}: {d.qty}x {d.shape === 'custom' ? (d.customW + '"x' + d.customH + '"') : (dSel?.label || d.shape)}</div>
+                        <div style={{ display: 'flex', gap: 12, marginTop: 3 }}>
+                          <button onClick={() => { setActiveDesignId(d.id); setStep(2); }} className="ep-summary-link">Edit</button>
+                          <button onClick={() => handleDeleteDesign(d.id)} className="ep-summary-link">Remove</button>
+                        </div>
+                      </div>
+                      <span style={{ fontWeight: 600, flexShrink: 0 }}>{'$' + (dPrice * d.qty).toFixed(2)}</span>
                     </div>
                   );
                 })}
@@ -4815,7 +4878,7 @@ export default function EdiblePrintApp() {
               🔒 Payment processed securely via Stripe
             </p>
           </div>
-        )}
+        ))}
       </div>
 
       {/* ── Email modal for paid PDF download ── */}

@@ -89,3 +89,25 @@ details summary { list-style: none; }
   .ep-stepper-mobile { display: block; }
 }
 
+/* Design-tab remove button — hidden until hover on desktop (mouse pointer,
+   precise targeting), always visible on mobile (no hover state to reveal
+   it). Its hit area is a separate bounded segment of the tab pill either
+   way (see the JSX), never an overlapping badge, so this visibility toggle
+   is purely cosmetic decluttering, not a safety mechanism. */
+.ep-tab-remove { opacity: 0; transition: opacity 0.15s; }
+.ep-tab-wrap:hover .ep-tab-remove,
+.ep-tab-remove:focus-visible { opacity: 1; }
+@media (max-width: 767px) {
+  .ep-tab-remove { opacity: 1; }
+}
+
+/* Order Summary "Edit · Remove" links — plain muted text links, no button
+   chrome, no red. Both actions get the same quiet treatment; the word
+   itself ("Remove") carries the meaning, not a loud color. */
+.ep-summary-link {
+  background: none; border: none; padding: 0; cursor: pointer;
+  font-family: 'Outfit', sans-serif; font-size: 11.5px; color: #6B7280;
+  text-decoration: underline; text-underline-offset: 2px;
+}
+.ep-summary-link:hover { color: #1B6B4A; }
+
