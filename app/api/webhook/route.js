@@ -1,8 +1,8 @@
 import Stripe from 'stripe';
 import { NextResponse, after } from 'next/server';
 import { buildOrderRecord, saveOrderRecord } from '../../../lib/order-record.js';
-import { generateProductionSlip, generatePrintPdf, extractPdfPage } from '../../../lib/generate-pdf.js';
-import { uploadRaw, orderFolderPath } from '../../../lib/cloudinary-ops.js';
+import { generateOrderPdfs } from '../../../lib/order-pdf-pipeline.js';
+import { withRetry } from '../../../lib/with-retry.js';
 
 export const maxDuration = 60;
 
@@ -28,21 +28,6 @@ const SHAPE_LABELS = {
   bwsheet: 'B&W Sheet (GRAYSCALE)',
   waferletter: 'Wafer Paper — Letter Sheet',
 };
-
-async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-async function withRetry(fn, label) {
-  const delays = [2000, 8000, 20000];
-  for (let attempt = 0; attempt <= delays.length; attempt++) {
-    try {
-      return await fn();
-    } catch (err) {
-      if (attempt === delays.length) throw err;
-      console.warn(`[${label}] attempt ${attempt + 1} failed, retrying in ${delays[attempt]}ms:`, err.message);
-      await sleep(delays[attempt]);
-    }
-  }
-}
 
 function parseDesigns(meta) {
   const designCount = parseInt(meta.designCount || '1', 10);
@@ -107,6 +92,97 @@ async function sendAlertEmail(orderId, errorMsg) {
   }
 }
 
+// The worst-case failure: payment was captured but order.json never got
+// created — the order literally does not exist anywhere except this email
+// and the raw Stripe session. Unlike sendAlertEmail() above (used for every
+// other failure, where order.json already exists and the admin UI/Cloudinary
+// folder can be opened to see what's there), this has to carry everything
+// needed to reconstruct the order by hand: nothing else to fall back on.
+// design.imageUrl here still works — the client uploads images to Cloudinary
+// as part of checkout submission, before this webhook ever runs, so those
+// files exist independently of whether order.json saved.
+async function sendCriticalOrderLossAlert(session, orderId, designs, err, isTest) {
+  const meta = session.metadata || {};
+  const totalAmt = (session.amount_total || 0) / 100;
+  const customerName = meta.customerName || session.customer_details?.name || 'unknown';
+  const customerEmail = session.customer_email || session.customer_details?.email || 'unknown';
+
+  const designRows = designs.map((d, i) => {
+    const shapeLabel = SHAPE_LABELS[d.shape] || d.shape || 'unknown shape';
+    return '<tr' + (i % 2 === 0 ? ' style="background:#f9fafb;"' : '') + '>'
+      + '<td style="padding:8px 14px;">' + (i + 1) + '</td>'
+      + '<td style="padding:8px 14px;">' + shapeLabel + (d.sourceType === 'upload' ? ' (customer-supplied file)' : '') + '</td>'
+      + '<td style="padding:8px 14px;">' + (d.size || '—') + '</td>'
+      + '<td style="padding:8px 14px;">' + (d.qty || '1') + '</td>'
+      + '<td style="padding:8px 14px;">$' + (parseFloat(d.price) || 0).toFixed(2) + '</td>'
+      + '<td style="padding:8px 14px;">'
+        + (d.imageUrl && d.imageUrl !== 'No image'
+            ? '<a href="' + d.imageUrl + '">' + d.imageUrl + '</a>'
+            : '<em>no image</em>')
+      + '</td>'
+      + '</tr>';
+  }).join('');
+
+  const html = '<div style="font-family:Arial,sans-serif;max-width:680px;margin:0 auto;">'
+    + '<div style="background:#DC2626;color:white;padding:20px;font-weight:bold;font-size:18px;">'
+    + '🚨 CRITICAL — payment captured, order record was never saved.'
+    + '<div style="font-weight:normal;font-size:14px;margin-top:6px;">This order does not exist in Cloudinary, order.json, or the admin dashboard. Everything below is what\'s needed to rebuild it by hand.</div>'
+    + '</div>'
+    + '<div style="border:1px solid #e5e7eb;border-top:none;padding:20px;">'
+    + (isTest ? '<p style="background:#F59E0B;color:white;padding:8px 12px;border-radius:6px;display:inline-block;"><strong>TEST MODE</strong> — not a real payment.</p>' : '')
+    + '<h3 style="color:#DC2626;margin-top:0;">Stripe references</h3>'
+    + '<p>'
+      + '<strong>Checkout Session ID:</strong> ' + session.id + '<br/>'
+      + '<strong>Payment Intent:</strong> ' + (session.payment_intent
+          ? '<a href="https://dashboard.stripe.com/' + (isTest ? 'test/' : '') + 'payments/' + session.payment_intent + '">' + session.payment_intent + '</a>'
+          : '—') + '<br/>'
+      + '<strong>Would-be Order ID:</strong> ' + orderId
+    + '</p>'
+    + '<h3 style="color:#DC2626;">Customer</h3>'
+    + '<p>'
+      + '<strong>Name:</strong> ' + customerName + '<br/>'
+      + '<strong>Email:</strong> ' + customerEmail + '<br/>'
+      + '<strong>Phone:</strong> ' + (meta.customerPhone || '—')
+    + '</p>'
+    + '<h3 style="color:#DC2626;">Payment</h3>'
+    + '<p><strong>Total charged:</strong> $' + totalAmt.toFixed(2) + ' CAD</p>'
+    + '<h3 style="color:#DC2626;">Shipping</h3>'
+    + '<p>' + (meta.shippingMethod === 'pickup'
+        ? 'PICKUP — East London'
+        : (meta.shippingAddress || '—') + '<br/>' + (meta.shippingCity || '') + ', ' + (meta.shippingProvince || '') + ' ' + (meta.shippingPostal || ''))
+      + '</p>'
+    + '<h3 style="color:#DC2626;">Designs — format, material, and image URLs</h3>'
+    + '<table style="width:100%;border-collapse:collapse;font-size:13px;">'
+    + '<thead><tr style="background:#DC2626;color:white;"><th style="padding:8px 14px;text-align:left;">#</th><th style="padding:8px 14px;text-align:left;">Format</th><th style="padding:8px 14px;text-align:left;">Size</th><th style="padding:8px 14px;text-align:left;">Qty</th><th style="padding:8px 14px;text-align:left;">Price</th><th style="padding:8px 14px;text-align:left;">Image URL</th></tr></thead>'
+    + '<tbody>' + designRows + '</tbody>'
+    + '</table>'
+    + '<h3 style="color:#DC2626;">What actually failed</h3>'
+    + '<p style="font-family:monospace;font-size:12px;background:#f3f4f6;padding:10px;border-radius:6px;white-space:pre-wrap;">' + String(err?.message || err).slice(0, 800) + '</p>'
+    + '<p style="font-size:13px;color:#6b7280;">Full stack trace is in Vercel logs for this invocation. To rebuild: create the order manually from the data above, or see if a Stripe-session replay tool has been built (ask about reconstructing order.json from the Checkout Session ID).</p>'
+    + '</div></div>';
+
+  try {
+    await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + process.env.RESEND_API_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'EdiblePrint.net <orders@edibleprint.net>',
+        to: [process.env.ORDER_NOTIFICATION_EMAIL || 'glenj.belmar@gmail.com', 'edibleprintorders@gmail.com'],
+        subject: '🚨 CRITICAL: ORDER LOST — payment captured, no record saved — ' + (session.id || orderId),
+        html,
+      }),
+    });
+  } catch (e) {
+    // Last-resort log — if even this fails, Vercel's own error log for this
+    // invocation (which includes the full session object via the console.error
+    // in the caller) is the only remaining trail.
+    console.error('CRITICAL: order-loss alert email itself failed to send:', e.message);
+  }
+}
+
 async function processOrder(session, orderId) {
   const meta = session.metadata || {};
   const designs = parseDesigns(meta);
@@ -118,94 +194,32 @@ async function processOrder(session, orderId) {
 
   const shippingLabel = meta.shippingMethod === 'pickup' ? 'Pickup — East London, ON' : 'Canada Post Shipping';
 
-  // 1. Build + save OrderRecord (order.json + notes.txt → Cloudinary)
+  // 1. Build + save OrderRecord (order.json + notes.txt → Cloudinary).
+  // Isolated in its own try/catch: if this specific step fails after
+  // retries, order.json never exists anywhere, so the alert has to carry
+  // everything needed to rebuild the order by hand — see
+  // sendCriticalOrderLossAlert. err.alreadyAlerted stops the generic
+  // catch in POST() below from also sending its much thinner alert.
   const record = buildOrderRecord(session, designs, orderId, isTest);
-  const savedRecord = await withRetry(
-    () => saveOrderRecord(record),
-    'saveOrderRecord:' + orderId,
-  );
+  let savedRecord;
+  try {
+    savedRecord = await withRetry(
+      () => saveOrderRecord(record),
+      'saveOrderRecord:' + orderId,
+    );
+  } catch (err) {
+    await sendCriticalOrderLossAlert(session, orderId, designs, err, isTest);
+    err.alreadyAlerted = true;
+    throw err;
+  }
 
-  // 2. Generate production slip PDF
-  const pdfOrder = {
-    orderNumber:   savedRecord.orderId,
-    isTest,
-    createdAt:     savedRecord.createdAt,
-    customerName:  savedRecord.customer.name,
-    customerEmail: savedRecord.customer.email,
-    customerPhone: savedRecord.customer.phone || '',
-    designs:       savedRecord.designs,
-    shippingLabel,
-    isPickup,
-    shippingLine1: savedRecord.shipping.address?.line1,
-    shippingCity:  savedRecord.shipping.address?.city,
-    shippingProv:  savedRecord.shipping.address?.province,
-    shippingPostal: savedRecord.shipping.address?.postalCode,
-    allNotes:      savedRecord.notes,
-  };
-  const pdfBytes = await withRetry(
-    () => generateProductionSlip(pdfOrder),
-    'generatePDF:' + orderId,
-  );
-
-  // 3. Upload PDF to Cloudinary
-  const folder = orderFolderPath(orderId);
-  const pdfPublicId = `${folder}/production-slip.pdf`;
-  const pdfUrl = await withRetry(
-    () => uploadRaw(pdfBytes, pdfPublicId),
-    'uploadPDF:' + orderId,
-  );
-
-  // 3b. Generate + upload print-ready PDFs (one per design with an image)
-  const printPdfUrls = [];
-  for (let i = 0; i < designs.length; i++) {
-    const d = designs[i];
-    if (!d.imageUrl || d.imageUrl === 'No image') continue;
-    const baseLabel = designs.length > 1 ? 'Design ' + (i + 1) : 'Print-Ready';
-
-    if (d.sourceType === 'upload') {
-      // Customer-supplied file: the ORIGINAL is always the print-ready asset
-      // (byte-for-byte, no re-encoding) unless it's a multi-page PDF, in
-      // which case the one selected page gets structurally extracted — see
-      // extractPdfPage(). Never routed through generatePrintPdf's
-      // image-embedding path, which is for editor-generated crops only.
-      try {
-        if (d.pageCount > 1) {
-          const extractedBytes = await withRetry(
-            () => extractPdfPage(d.imageUrl, d.selectedPage),
-            'extractPdfPage:' + orderId + ':' + i,
-          );
-          const printPublicId = `${folder}/print-design${designs.length > 1 ? '-' + (i + 1) : ''}.pdf`;
-          const printUrl = await withRetry(
-            () => uploadRaw(extractedBytes, printPublicId),
-            'uploadExtractedPage:' + orderId + ':' + i,
-          );
-          printPdfUrls.push({ url: printUrl, label: baseLabel + ' (page ' + d.selectedPage + ' of ' + d.pageCount + ', extracted)' });
-        } else {
-          printPdfUrls.push({ url: d.imageUrl, label: baseLabel + ' (customer’s original file)' });
-        }
-      } catch (printErr) {
-        console.error('[webhook] page extraction failed for design', i, printErr.message);
-      }
-      continue;
-    }
-
-    const sizeInches = parseFloat(d.size) || 6;
-    const customW = d.shape === 'custom' ? parseFloat(d.size.split('"x')[0]) : undefined;
-    const customH = d.shape === 'custom' ? parseFloat(d.size.split('"x')[1]) : undefined;
-    try {
-      const printBytes = await withRetry(
-        () => generatePrintPdf({ imageUrl: d.imageUrl, shape: d.shape, sizeInches, customW, customH }),
-        'generatePrintPdf:' + orderId + ':' + i,
-      );
-      const printPublicId = `${folder}/print-design${designs.length > 1 ? '-' + (i + 1) : ''}.pdf`;
-      const printUrl = await withRetry(
-        () => uploadRaw(printBytes, printPublicId),
-        'uploadPrintPdf:' + orderId + ':' + i,
-      );
-      printPdfUrls.push({ url: printUrl, label: baseLabel });
-    } catch (printErr) {
-      console.error('[webhook] print PDF failed for design', i, printErr.message);
-    }
+  // 2-3b. Production slip + per-design print-ready PDFs — generated,
+  // uploaded, and persisted onto order.json by the shared pipeline (also
+  // used by the admin "Regenerate PDFs" action), so this order's PDF state
+  // is computed in exactly one place regardless of which caller triggers it.
+  const { pdfUrl, printPdfUrls, missingAssets } = await generateOrderPdfs(savedRecord);
+  if (missingAssets) {
+    console.warn('[webhook] order', orderId, 'is missing its production slip and/or a print-ready PDF — flagged in the admin order list.');
   }
 
   // 4. Owner email with PDF attachment
@@ -419,7 +433,9 @@ export async function POST(request) {
         await processOrder(session, orderId);
       } catch (err) {
         console.error('Order pipeline failed for', orderId, err);
-        await sendAlertEmail(orderId, err.message);
+        if (!err.alreadyAlerted) {
+          await sendAlertEmail(orderId, err.message);
+        }
       }
     });
   }

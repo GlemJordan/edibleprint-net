@@ -21,6 +21,8 @@ export default function AdminOrderDetailPage({ params }) {
   const [statusDraft, setStatusDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
+  const [regenerating, setRegenerating] = useState(false);
+  const [regenerateMsg, setRegenerateMsg] = useState('');
 
   useEffect(() => {
     fetch('/api/admin/check')
@@ -58,6 +60,26 @@ export default function AdminOrderDetailPage({ params }) {
       setSaveMsg('Error: ' + e.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const regeneratePdfs = async () => {
+    setRegenerating(true);
+    setRegenerateMsg('');
+    try {
+      const res = await fetch(`/api/admin/orders/${id}/regenerate-pdf`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to regenerate PDFs');
+      // Re-fetch the order so the Assets section reflects the fresh URLs
+      // (regenerate-pdf patches order.json server-side but this page's
+      // local `order` state is a snapshot from load time).
+      const fresh = await fetch(`/api/admin/orders/${id}`).then((r) => r.json());
+      setOrder(fresh);
+      setRegenerateMsg(data.missingAssets ? '⚠️ Regenerated, but still incomplete — check Vercel logs.' : 'Regenerated ✓');
+    } catch (e) {
+      setRegenerateMsg('Error: ' + e.message);
+    } finally {
+      setRegenerating(false);
     }
   };
 
@@ -177,13 +199,63 @@ export default function AdminOrderDetailPage({ params }) {
               </Section>
             )}
 
-            {order.assets?.cloudinaryFolder && (
-              <Section title="Assets">
-                <a href={order.assets.cloudinaryFolder} target="_blank" rel="noopener noreferrer" style={{ color: C.brand, fontSize: 13.5 }}>
-                  Cloudinary folder →
-                </a>
-              </Section>
-            )}
+            {order.assets?.cloudinaryFolder && (() => {
+              const printReadyUrls = order.assets?.printReadyUrls || [];
+              const neededPrintReady = (order.designs || []).filter((d) => d.imageUrl).length;
+              const missing = !order.assets?.productionSlipUrl || printReadyUrls.length < neededPrintReady;
+              return (
+                <Section title="Assets">
+                  {missing && (
+                    <div style={{
+                      background: '#FEF3C7', border: '1px solid #F4D06F', borderLeft: '4px solid #B45309',
+                      borderRadius: 6, padding: '10px 14px', marginBottom: 12, fontSize: 13, color: '#5C4A1A',
+                    }}>
+                      ⚠️ {!order.assets?.productionSlipUrl ? 'Production slip is missing.' : ''}{' '}
+                      {printReadyUrls.length < neededPrintReady ? `${neededPrintReady - printReadyUrls.length} of ${neededPrintReady} print-ready PDF(s) missing.` : ''}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+                    <div style={{ fontSize: 13.5 }}>
+                      {order.assets?.productionSlipUrl ? (
+                        <a href={order.assets.productionSlipUrl} target="_blank" rel="noopener noreferrer" style={{ color: C.brand }}>📄 Production slip →</a>
+                      ) : (
+                        <span style={{ color: '#B45309' }}>📄 Production slip — missing</span>
+                      )}
+                    </div>
+                    {printReadyUrls.map((p, i) => (
+                      <div key={i} style={{ fontSize: 13.5 }}>
+                        <a href={p.url} target="_blank" rel="noopener noreferrer" style={{ color: C.brand }}>🖨️ {p.label} →</a>
+                      </div>
+                    ))}
+                    {printReadyUrls.length < neededPrintReady && (
+                      <div style={{ fontSize: 13.5, color: '#B45309' }}>
+                        🖨️ {neededPrintReady - printReadyUrls.length} print-ready PDF(s) missing
+                      </div>
+                    )}
+                    <a href={order.assets.cloudinaryFolder} target="_blank" rel="noopener noreferrer" style={{ color: C.brand, fontSize: 13.5 }}>
+                      Cloudinary folder →
+                    </a>
+                  </div>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <button
+                      onClick={regeneratePdfs}
+                      disabled={regenerating}
+                      style={{
+                        padding: '8px 16px', borderRadius: 8, border: 'none',
+                        background: missing ? '#B45309' : C.brand, color: '#fff',
+                        fontWeight: 600, fontFamily: 'inherit', fontSize: 13.5,
+                        cursor: regenerating ? 'not-allowed' : 'pointer', opacity: regenerating ? 0.6 : 1,
+                      }}
+                    >
+                      {regenerating ? 'Regenerating…' : (missing ? '⚠️ Regenerate missing PDFs' : 'Regenerate PDFs')}
+                    </button>
+                    {regenerateMsg && (
+                      <span style={{ fontSize: 13, color: regenerateMsg.startsWith('Error') ? '#DC2626' : '#059669' }}>{regenerateMsg}</span>
+                    )}
+                  </div>
+                </Section>
+              );
+            })()}
           </>
         )}
       </div>

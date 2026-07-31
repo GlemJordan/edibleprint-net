@@ -20,6 +20,7 @@ export default function AdminOrdersPage() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [scannedAllResults, setScannedAllResults] = useState(true);
 
   /* Same admin-session check every other admin surface in this app uses —
      the actual data fetch below is protected server-side regardless (the
@@ -39,7 +40,10 @@ export default function AdminOrdersPage() {
     // subsequent run that needs to flip it back on.
     fetch('/api/admin/orders')
       .then((r) => { if (!r.ok) throw new Error('Failed to load orders'); return r.json(); })
-      .then((d) => setOrders(d.orders || []))
+      .then((d) => {
+        setOrders(d.orders || []);
+        setScannedAllResults(d.scannedAllResults !== false);
+      })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [authChecked, isAdmin]);
@@ -64,6 +68,17 @@ export default function AdminOrdersPage() {
         {loading && <p style={{ color: C.muted }}>Loading…</p>}
         {error && <p style={{ color: '#DC2626' }}>{error}</p>}
 
+        {!loading && !error && !scannedAllResults && (
+          <div style={{
+            background: '#FFF8E6', border: '1px solid #F4D06F', borderLeft: '4px solid #E8873C',
+            borderRadius: 8, padding: '10px 16px', marginBottom: 16, fontSize: 13.5, color: '#5C4A1A',
+          }}>
+            ⚠️ There are more orders than this page can show right now — the list stopped after a safety
+            limit on how many results it scans. Some orders may be missing below. (Pagination for this
+            isn&apos;t wired up yet — noted as pending.)
+          </div>
+        )}
+
         {!loading && !error && (
           <div style={{ background: C.white, border: '1px solid ' + C.border, borderRadius: 12, overflow: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, minWidth: 640 }}>
@@ -74,6 +89,7 @@ export default function AdminOrdersPage() {
                   <th style={{ padding: '10px 14px' }}>Designs</th>
                   <th style={{ padding: '10px 14px', textAlign: 'right' }}>Total</th>
                   <th style={{ padding: '10px 14px' }}>Status</th>
+                  <th style={{ padding: '10px 14px' }}>PDFs</th>
                   <th style={{ padding: '10px 14px' }}>Date</th>
                 </tr>
               </thead>
@@ -95,13 +111,25 @@ export default function AdminOrdersPage() {
                         {o.status}
                       </span>
                     </td>
+                    <td style={{ padding: '10px 14px' }}>
+                      {o.missingAssets ? (
+                        <Link href={`/admin/orders/${o.orderId}`} style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700,
+                          color: '#B45309', background: '#FEF3C7', padding: '3px 8px', borderRadius: 4, textDecoration: 'none',
+                        }} title="Production slip or a print-ready PDF is missing — open the order to regenerate.">
+                          ⚠️ Missing
+                        </Link>
+                      ) : (
+                        <span style={{ color: C.muted, fontSize: 12 }}>✓</span>
+                      )}
+                    </td>
                     <td style={{ padding: '10px 14px', color: C.muted, fontSize: 12.5, whiteSpace: 'nowrap' }}>
                       {o.createdAt ? new Date(o.createdAt).toLocaleDateString('en-CA') : '—'}
                     </td>
                   </tr>
                 ))}
                 {orders.length === 0 && (
-                  <tr><td colSpan={6} style={{ padding: '24px 14px', textAlign: 'center', color: C.muted }}>No orders found.</td></tr>
+                  <tr><td colSpan={7} style={{ padding: '24px 14px', textAlign: 'center', color: C.muted }}>No orders found.</td></tr>
                 )}
               </tbody>
             </table>

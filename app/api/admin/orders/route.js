@@ -49,6 +49,12 @@ export async function GET(request) {
           hasUploadDesign: context.hasUploadDesign === 'true',
           designCount: context.designCount != null ? parseInt(context.designCount, 10) : null,
           createdAt: r.created_at,
+          // Set by lib/order-pdf-pipeline.js after PDF generation — absent
+          // on orders processed before that started (context.missingAssets
+          // is undefined then), which we deliberately read as "not flagged"
+          // rather than "missing", since the pipeline was already working
+          // for those and there's no evidence otherwise.
+          missingAssets: context.missingAssets === 'true',
         });
       }
       cursor = lastResult.next_cursor || null;
