@@ -6,9 +6,14 @@ import { PDFDocument, rgb } from 'pdf-lib';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { sheetSizeInForShape } from '../lib/paper-config.js';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 const TMP_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'ep-stage2-'));
+// "Full Sheet" (the target used throughout this file) is icing-sheet
+// material — true A4, not the old hardcoded 8"x11" this file used to
+// assume. Same source of truth the app itself uses, so this can't drift.
+const FULLSHEET_IN = sheetSizeInForShape('fullsheet');
 
 function writeFile(name, bytes) {
   const p = path.join(TMP_DIR, name);
@@ -46,7 +51,7 @@ async function makeSinglePagePdf(name, widthIn, heightIn) {
 async function makeMultiPagePdf(name, numPages) {
   const doc = await PDFDocument.create();
   for (let i = 0; i < numPages; i++) {
-    const page = doc.addPage([8.5 * 72, 11 * 72]);
+    const page = doc.addPage([FULLSHEET_IN.w * 72, FULLSHEET_IN.h * 72]);
     page.drawRectangle({ x: 40, y: 40, width: 100, height: 100, color: rgb(i * 0.3, 0.2, 0.5) });
   }
   return writeFile(name, await doc.save());
@@ -65,10 +70,13 @@ async function uploadViaFullSheet(page, imagePath) {
   const browser = await chromium.launch();
   const results = [];
 
-  // 1) PNG exact Full Sheet proportions (default sheet type = fullsheet, 8"x11"), high DPI
+  // 1) PNG exact Full Sheet proportions (default sheet type = fullsheet, true A4), high DPI
   {
     const page = await browser.newPage({ viewport: { width: 1280, height: 1400 } });
-    const p = await makePng(page, { name: 'exact-hidpi.png', w: 2400, h: 3300 });
+    const p = await makePng(page, {
+      name: 'exact-hidpi.png',
+      w: Math.round(FULLSHEET_IN.w * 300), h: Math.round(FULLSHEET_IN.h * 300),
+    });
     await uploadViaFullSheet(page, p);
     await page.waitForTimeout(1500);
     const goodSize = await page.getByText("proportions match this sheet", { exact: false }).isVisible().catch(() => false);
@@ -132,9 +140,11 @@ async function uploadViaFullSheet(page, imagePath) {
   // 5) Single-page PDF, exact size -> DPI disclaimer + CMYK note, no PNG transparency note
   {
     const page = await browser.newPage({ viewport: { width: 1280, height: 1400 } });
-    const p = await makeSinglePagePdf('exact.pdf', 8.5, 11);
+    const p = await makeSinglePagePdf('exact.pdf', FULLSHEET_IN.w, FULLSHEET_IN.h);
     await uploadViaFullSheet(page, p);
-    await page.waitForTimeout(1500);
+    // PDF validation loads pdf.js first, which takes longer than the plain
+    // image-based checks above — 1500ms was too tight and flaked here.
+    await page.waitForTimeout(4000);
     const dpiDisclaimer = await page.getByText("can't automatically check the resolution", { exact: false }).isVisible().catch(() => false);
     const cmykNote = await page.getByText('CMYK files may shift', { exact: false }).isVisible().catch(() => false);
     results.push({ test: '5a-pdf-dpi-disclaimer-shown', pass: dpiDisclaimer });
@@ -147,7 +157,7 @@ async function uploadViaFullSheet(page, imagePath) {
     const page = await browser.newPage({ viewport: { width: 1280, height: 1400 } });
     const p = await makeMultiPagePdf('multi.pdf', 3);
     await uploadViaFullSheet(page, p);
-    await page.waitForTimeout(2500); // thumbnail rendering takes a bit longer
+    await page.waitForTimeout(4500); // pdf.js load + multi-page thumbnail rendering takes a while
     const pickerVisible = await page.getByText('This PDF has 3 pages', { exact: false }).isVisible().catch(() => false);
     results.push({ test: '6a-multipage-picker-shown', pass: pickerVisible });
     const page2Btn = page.getByRole('button', { name: /Page 2/ });

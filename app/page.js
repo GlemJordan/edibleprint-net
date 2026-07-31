@@ -6,8 +6,16 @@ import './globals.css';
 import HeroSection from './_components/HeroSection';
 import { getShippingCost } from '../lib/shipping-config.js';
 import { WAFER_PAPER_PRICE } from '../lib/wafer-paper-config.js';
+import {
+  sheetSizeInForShape, computeSheetPlacement, isWholeSheetShape, BWSHEET_DESIGN_IN,
+} from '../lib/paper-config.js';
 
-/* ═══ PRICING CONFIG ═══ */
+/* ═══ PRICING CONFIG ═══
+   Sheet w/h below come from lib/paper-config.js (true A4 for icing sheet,
+   true Letter for wafer paper) — not hand-typed per format, so the catalog
+   can't drift from what the PDF pipeline and print-preview modal use. */
+const ICING_SHEET_IN = sheetSizeInForShape('fullsheet');
+const WAFER_SHEET_IN = sheetSizeInForShape('waferletter');
 const SIZES = {
   circular: [
     { id: 'c5', label: '5" Round (13cm)', w: 5, h: 5, price: 14.99 },
@@ -21,9 +29,9 @@ const SIZES = {
     { id: 'h8', label: '8" Heart (20cm)', w: 8, h: 8, price: 19.99 },
   ],
   multicircle: [
-    { id: 'mc125', label: '1.25” Circles on A4 Sheet', sublabel: '40 mini cookies/sheet', w: 8, h: 11, price: 19.99, circleSize: 1.25, cols: 5, rows: 8,  gap: 0.10 },
-    { id: 'mc2',   label: '2” Circles on A4 Sheet',   sublabel: '15 cookies/sheet',      w: 8, h: 11, price: 19.99, circleSize: 2,    cols: 3, rows: 5,  gap: 0.15 },
-    { id: 'mc3',   label: '3” Circles on A4 Sheet',   sublabel: '6 cookies/sheet',       w: 8, h: 11, price: 19.99, circleSize: 3,    cols: 2, rows: 3,  gap: 0.20 },
+    { id: 'mc125', label: '1.25” Circles on A4 Sheet', sublabel: '40 mini cookies/sheet', w: ICING_SHEET_IN.w, h: ICING_SHEET_IN.h, price: 19.99, circleSize: 1.25, cols: 5, rows: 8,  gap: 0.10 },
+    { id: 'mc2',   label: '2” Circles on A4 Sheet',   sublabel: '15 cookies/sheet',      w: ICING_SHEET_IN.w, h: ICING_SHEET_IN.h, price: 19.99, circleSize: 2,    cols: 3, rows: 5,  gap: 0.15 },
+    { id: 'mc3',   label: '3” Circles on A4 Sheet',   sublabel: '6 cookies/sheet',       w: ICING_SHEET_IN.w, h: ICING_SHEET_IN.h, price: 19.99, circleSize: 3,    cols: 2, rows: 3,  gap: 0.20 },
   ],
   square: [
     { id: 's5', label: '5"×5" (13cm)', w: 5, h: 5, price: 14.99 },
@@ -32,15 +40,20 @@ const SIZES = {
     { id: 's8', label: '8"×8" (20cm)', w: 8, h: 8, price: 19.99 },
   ],
   fullsheet: [
-    { id: 'a4', label: 'A4 Full Sheet (8"×11" / 20×28cm)', w: 8, h: 11, price: 19.99 },
+    { id: 'a4', label: 'A4 Full Sheet (210×297mm / 8.27"×11.69")', w: ICING_SHEET_IN.w, h: ICING_SHEET_IN.h, price: 19.99 },
   ],
   bwsheet: [
-    { id: 'bw1', label: '6.5"×6.5" B&W Square', sublabel: 'Centered on A4 sheet', w: 8, h: 11, printW: 6.5, printH: 6.5, price: 9.99, grayscale: true },
+    { id: 'bw1', label: '6.5"×6.5" B&W Square', sublabel: 'Centered on A4 sheet', w: ICING_SHEET_IN.w, h: ICING_SHEET_IN.h, printW: BWSHEET_DESIGN_IN, printH: BWSHEET_DESIGN_IN, price: 9.99, grayscale: true },
   ],
   waferletter: [
-    { id: 'wl1', label: 'Wafer Paper — Letter Sheet (8.5"×11")', w: 8.5, h: 11, price: WAFER_PAPER_PRICE },
+    { id: 'wl1', label: 'Wafer Paper — Letter Sheet (8.5"×11")', w: WAFER_SHEET_IN.w, h: WAFER_SHEET_IN.h, price: WAFER_PAPER_PRICE },
   ],
   custom: [{ id: 'custom', label: 'Custom Size', w: 0, h: 0, price: 0 }],
+};
+
+const SHAPE_LABEL = {
+  circular: 'Round', heart: 'Heart', square: 'Square', multicircle: 'Cookie Sheet',
+  fullsheet: 'Full Sheet', bwsheet: 'B&W Sheet', waferletter: 'Wafer Paper', custom: 'Custom',
 };
 
 /* ═══ "I ALREADY HAVE MY DESIGN" — customer-supplied print-ready file ═══
@@ -350,7 +363,7 @@ function drawShapeShadow(ctx, shape, canvasW, canvasH, isMobile) {
     drawHeartPath(ctx, 0, 0, canvasW, canvasH);
     ctx.fill();
   } else if (shape === 'bwsheet') {
-    const sq = canvasW * (6.5 / 8);
+    const sq = canvasW * (BWSHEET_DESIGN_IN / ICING_SHEET_IN.w);
     ctx.fillRect((canvasW - sq) / 2, (canvasH - sq) / 2, sq, sq);
   } else {
     ctx.fillRect(0, 0, canvasW, canvasH);
@@ -636,11 +649,11 @@ function computeMultiCircleLayout(cw, ch, isMultiCircle, sizeObj) {
   if (!isMultiCircle) return { circlePx: cw, mcCols: 1, mcRows: 1, mcGapPx: 0, mcStepPx: cw, mcOffsetX: 0, mcOffsetY: 0 };
   const circleSize = sizeObj.circleSize || 2;
   const mcGapInches = sizeObj.gap ?? MC_GAP;
-  const previewPPI = cw / (sizeObj.w || 8);
+  const previewPPI = cw / (sizeObj.w || ICING_SHEET_IN.w);
   const circlePx = Math.round(circleSize * previewPPI);
   const { cols: mcCols, rows: mcRows } = (sizeObj.cols && sizeObj.rows)
     ? { cols: sizeObj.cols, rows: sizeObj.rows }
-    : getCircleGrid(sizeObj.w || 8, sizeObj.h || 11, circleSize);
+    : getCircleGrid(sizeObj.w || ICING_SHEET_IN.w, sizeObj.h || ICING_SHEET_IN.h, circleSize);
   const mcGapPx = mcGapInches * previewPPI;
   const mcStepPx = circlePx + mcGapPx;
   const mcTotalW = mcCols * circlePx + Math.max(0, mcCols - 1) * mcGapPx;
@@ -760,7 +773,7 @@ function renderPreviewCore(ctx, cw, ch, {
   drawShapeShadow(ctx, shape, cw, ch, isMobile);
 
   if (isBWSheet) {
-    const squareSize = cw * (6.5 / 8);
+    const squareSize = cw * (BWSHEET_DESIGN_IN / ICING_SHEET_IN.w);
     const sqX = (cw - squareSize) / 2;
     const sqY = (ch - squareSize) / 2;
     const bwInteracting = showSelection && overlayOpacity > 0.002;
@@ -964,7 +977,7 @@ function renderPreviewCore(ctx, cw, ch, {
    public/bg-remove-worker.js (same flood-fill + feather algorithm, moved
    verbatim) and removeWhiteBackgroundViaWorker() inside ImageEditor below. */
 
-function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF', textOverlay = null, onTextPositionChange, removeWhiteBg = false, bgRemoveTolerance = 30, onBgProcessingChange, onWhiteBgSuggestion, sizeLabel = '', isMobile = false }) {
+function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF', textOverlay = null, onTextPositionChange, removeWhiteBg = false, bgRemoveTolerance = 30, onBgProcessingChange, onWhiteBgSuggestion, sizeLabel = '', isMobile = false, designs = [], activeDesignId = null }) {
   /* Declared early: several hooks below depend on these */
   const isMultiCircle = shape === 'multicircle';
   const isBWSheet = shape === 'bwsheet';
@@ -1122,22 +1135,13 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
 
   /* Multi-circle layout — computed early (needs only canvasW/canvasH/sizeObj)
      because the modal print-preview effect below needs it to derive its own
-     scale factor relative to the inline editor's layout. */
+     scale factor relative to the inline editor's layout. Delegates to
+     computeMultiCircleLayout() — the same function the hi-res export and the
+     print-preview modal use — instead of re-deriving the grid math here. */
   const circleSize = sizeObj.circleSize || 2;
   const mcGapInches = isMultiCircle ? (sizeObj.gap ?? MC_GAP) : 0;
-  const previewPPI = canvasW / (sizeObj.w || 8);
-  const circlePx = isMultiCircle ? Math.round(circleSize * previewPPI) : canvasW;
-  const { cols: mcCols, rows: mcRows } = isMultiCircle
-    ? (sizeObj.cols && sizeObj.rows
-        ? { cols: sizeObj.cols, rows: sizeObj.rows }
-        : getCircleGrid(sizeObj.w || 8, sizeObj.h || 11, circleSize))
-    : { cols: 1, rows: 1 };
-  const mcGapPx  = isMultiCircle ? mcGapInches * previewPPI : 0;
-  const mcStepPx = circlePx + mcGapPx;
-  const mcTotalW  = isMultiCircle ? mcCols * circlePx + Math.max(0, mcCols - 1) * mcGapPx : 0;
-  const mcTotalH  = isMultiCircle ? mcRows * circlePx + Math.max(0, mcRows - 1) * mcGapPx : 0;
-  const mcOffsetX = isMultiCircle ? (canvasW - mcTotalW) / 2 : 0;
-  const mcOffsetY = isMultiCircle ? (canvasH - mcTotalH) / 2 : 0;
+  const { circlePx, mcCols, mcRows, mcGapPx, mcStepPx, mcOffsetX, mcOffsetY } =
+    computeMultiCircleLayout(canvasW, canvasH, isMultiCircle, sizeObj);
 
   const [viewportHeight, setViewportHeight] = useState(
     typeof window !== 'undefined' ? window.innerHeight : 800
@@ -1153,6 +1157,61 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
   const modalPointers = useRef(new Map());
   const modalPinchRef = useRef(null);
   const modalDragRef = useRef(null);
+
+  /* Which design's SHEET the modal is showing — defaults to the one being
+     edited when opened, but the customer can page through every design in
+     the order without leaving the modal (each design gets its own sheet). */
+  const [previewDesignId, setPreviewDesignId] = useState(null);
+  useEffect(() => {
+    if (showPrintPreview) setPreviewDesignId(activeDesignId);
+  }, [showPrintPreview, activeDesignId]);
+  const previewIndex = Math.max(0, designs.findIndex(d => d.id === previewDesignId));
+  const previewDesign = designs[previewIndex] || designs.find(d => d.id === activeDesignId) || null;
+
+  /* Preview-only image cache, independent of imgRefs (which only ever holds
+     the ACTIVE design's images — see the layer-load effect above). Paging
+     to a different design in the modal loads straight from layer.src into
+     here, never touching the live editor's own image/auto-fit state. */
+  const previewImgCacheRef = useRef({});
+  const [previewImagesTick, setPreviewImagesTick] = useState(0);
+  useEffect(() => {
+    if (!showPrintPreview || !previewDesign) return;
+    const toLoad = (previewDesign.layers || []).filter(l => !previewImgCacheRef.current[l.id]);
+    if (toLoad.length === 0) return;
+    let cancelled = false;
+    Promise.all(toLoad.map(l => new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => { previewImgCacheRef.current[l.id] = img; resolve(); };
+      img.onerror = () => resolve();
+      img.src = l.src;
+    }))).then(() => { if (!cancelled) setPreviewImagesTick(t => t + 1); });
+    return () => { cancelled = true; };
+  }, [showPrintPreview, previewDesign]);
+  const getPreviewImg = (id) => previewImgCacheRef.current[id];
+  const getPreviewNativeSize = (id) => {
+    const img = previewImgCacheRef.current[id];
+    return img ? { width: img.width, height: img.height } : null;
+  };
+
+  /* The reference canvas size a design's layer.x/y/scale values are stored
+     relative to. For the active design that's the live canvasW/circlePx;
+     for any other design it's recomputed from its own shape/size against
+     the current container — accurate as long as the container hasn't
+     resized since that design was last edited (the common case). */
+  const referenceSizeFor = (design) => {
+    if (!design || design.id === activeDesignId) return { refW: canvasW, refCirclePx: circlePx };
+    const dShape = design.shape;
+    const dSizes = SIZES[dShape] || [];
+    const dSizeObj = dShape === 'custom'
+      ? { w: parseFloat(design.customW) || 2, h: parseFloat(design.customH) || 2 }
+      : (dSizes.find(s => s.id === design.sizeId) || dSizes[0] || {});
+    const { canvasW: refW, canvasH: refH } = computeCanvasSize(containerRef.current?.offsetWidth || 480, dShape, dSizeObj, viewportHeight);
+    const dIsMultiCircle = dShape === 'multicircle';
+    const refCirclePx = dIsMultiCircle
+      ? computeMultiCircleLayout(refW, refH, true, dSizeObj).circlePx
+      : refW;
+    return { refW, refCirclePx };
+  };
 
   /* Reset zoom/pan each time the modal opens. zoom=1 IS "fit to screen" —
      modalBaseSize (below) is computed to exactly fill the safe visible
@@ -1194,7 +1253,10 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
      visible on mobile independent of the layout viewport. Rechecked via
      rAF right after mount (layout may still be settling) plus a
      ResizeObserver + visualViewport listeners for anything later
-     (address-bar collapse, orientation change, on-screen keyboard). */
+     (address-bar collapse, orientation change, on-screen keyboard).
+     Aspect ratio is the PRINTED SHEET's (A4 or Letter, by material — see
+     lib/paper-config.js), not the design's own shape, so the modal shows
+     the whole sheet the customer receives, not just the isolated design. */
   useEffect(() => {
     if (!showPrintPreview) return;
     const el = modalViewportRef.current;
@@ -1213,14 +1275,8 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       const boxW = vv ? Math.min(rect.width, vv.width) : rect.width;
       const boxH = vv ? Math.min(rect.height, vv.height) : rect.height;
 
-      let aspect;
-      if (shape === 'circular' || shape === 'heart' || shape === 'square') aspect = 1;
-      else if (shape === 'custom') {
-        const cw = sizeObj.w || 8, ch = sizeObj.h || 11;
-        aspect = cw > 0 && ch > 0 ? cw / ch : 1;
-      } else {
-        aspect = (sizeObj.w || 8) / (sizeObj.h || 11);
-      }
+      const sheet = sheetSizeInForShape(previewDesign?.shape || shape);
+      const aspect = sheet.w / sheet.h;
       const availW = Math.max(120, boxW - padL - padR);
       const availH = Math.max(120, boxH - padT - padB);
       let w = availW;
@@ -1248,14 +1304,20 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       window.visualViewport?.removeEventListener('resize', update);
       window.visualViewport?.removeEventListener('scroll', update);
     };
-  }, [showPrintPreview, shape, sizeObj.id, sizeObj.w, sizeObj.h, isMobile]);
+  }, [showPrintPreview, previewDesign?.shape, shape, isMobile]);
 
-  /* Draw the modal canvas with the exact same high-quality preview pipeline
-     as the inline editor (Problem 1), just at a bigger fit-to-screen size.
-     Interactive zoom is a cheap CSS transform on top — see JSX below —
-     rather than re-rendering the canvas on every wheel/pinch tick. */
+  /* Draw the modal canvas: the WHOLE printed sheet (paper background, design
+     placed at its real position/size/margins, cut line, grid for cookie
+     sheet) — not just the isolated design. Whole-sheet shapes (fullsheet/
+     bwsheet/multicircle/waferletter) draw straight onto the full sheet via
+     renderPreviewCore, exactly like the hi-res export does (both call
+     computeMultiCircleLayout fed the destination's own pixel size).
+     Individual-item shapes (circular/heart/square/custom) render into a
+     sub-canvas at their physical size, then get placed on the sheet via
+     computeSheetPlacement() — the SAME function lib/generate-pdf.js calls
+     server-side, so this can't show a position that doesn't match the PDF. */
   useEffect(() => {
-    if (!showPrintPreview) return;
+    if (!showPrintPreview || !previewDesign) return;
     const canvas = modalCanvasRef.current;
     if (!canvas) return;
     const cw = modalBaseSize.w, ch = modalBaseSize.h;
@@ -1268,21 +1330,124 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    const layout = computeMultiCircleLayout(cw, ch, isMultiCircle, sizeObj);
-    /* Layers are fit to the inline editor's own canvasW/circlePx; scale them
-       into this modal's (differently sized) layout so it's a true mirror. */
-    const layerScale = computeLayerScale(isMultiCircle, cw, layout.circlePx, canvasW, circlePx);
-    renderPreviewCore(ctx, cw, ch, {
-      shape, isBWSheet, isMultiCircle, layers, getImg, getNativeSize, bgColor, textOverlay,
-      circlePx: layout.circlePx, mcCols: layout.mcCols, mcRows: layout.mcRows,
-      mcOffsetX: layout.mcOffsetX, mcOffsetY: layout.mcOffsetY, mcStepPx: layout.mcStepPx,
-      layerScale,
-      downscale: (key, img, w, h) => getDownscaledSource('modal:' + key, img, w, h),
-      renderScale, isMobile: false, showSelection: false, selectedLayer: null, selectedLayerImg: null,
-      showWatermark: true,
-    });
+
+    /* Paper background — reads as a physical sheet, not app chrome. */
+    ctx.fillStyle = '#FBFAF7';
+    ctx.fillRect(0, 0, cw, ch);
+    ctx.strokeStyle = '#E2E0D9';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0.5, 0.5, cw - 1, ch - 1);
+
+    const isActive = previewDesign.id === activeDesignId;
+    const pShape = previewDesign.shape;
+    const pIsMultiCircle = pShape === 'multicircle';
+    const pIsBWSheet = pShape === 'bwsheet';
+    const pLayers = previewDesign.layers || [];
+    const pBgColor = previewDesign.bgColor || '#FFFFFF';
+    const pTextOverlay = previewDesign.textOverlay || null;
+    const pSizes = SIZES[pShape] || [];
+    const pSizeObj = pShape === 'custom'
+      ? { w: parseFloat(previewDesign.customW) || 2, h: parseFloat(previewDesign.customH) || 2 }
+      : (pSizes.find(s => s.id === previewDesign.sizeId) || pSizes[0] || {});
+    /* The active design's images/removeWhiteBg live in the editor's own
+       refs; every other design draws from the modal-only preview cache
+       (see previewImgCacheRef above) — never the other way around. */
+    const pGetImg = isActive ? getImg : getPreviewImg;
+    const pGetNativeSize = isActive ? getNativeSize : getPreviewNativeSize;
+    const downscale = (key, img, w, h) => getDownscaledSource('modalPreview:' + key, img, w, h);
+    const { refW, refCirclePx } = referenceSizeFor(previewDesign);
+
+    if (isWholeSheetShape(pShape)) {
+      const layout = computeMultiCircleLayout(cw, ch, pIsMultiCircle, pSizeObj);
+      const layerScale = computeLayerScale(pIsMultiCircle, cw, layout.circlePx, refW, refCirclePx);
+      renderPreviewCore(ctx, cw, ch, {
+        shape: pShape, isBWSheet: pIsBWSheet, isMultiCircle: pIsMultiCircle,
+        layers: pLayers, getImg: pGetImg, getNativeSize: pGetNativeSize,
+        bgColor: pBgColor, textOverlay: pTextOverlay,
+        circlePx: layout.circlePx, mcCols: layout.mcCols, mcRows: layout.mcRows,
+        mcOffsetX: layout.mcOffsetX, mcOffsetY: layout.mcOffsetY, mcStepPx: layout.mcStepPx,
+        layerScale, downscale, renderScale, isMobile: false,
+        showSelection: false, selectedLayer: null, selectedLayerImg: null,
+        showWatermark: true,
+      });
+    } else {
+      const placement = computeSheetPlacement(pShape, pSizeObj, previewDesign.customW, previewDesign.customH);
+      const pxPerInX = cw / placement.sheetW, pxPerInY = ch / placement.sheetH;
+      const designPxW = Math.max(1, Math.round(placement.designW * pxPerInX));
+      const designPxH = Math.max(1, Math.round(placement.designH * pxPerInY));
+      const offPxX = placement.offsetX * pxPerInX, offPxY = placement.offsetY * pxPerInY;
+
+      const sub = document.createElement('canvas');
+      sub.width = Math.max(1, Math.round(designPxW * renderScale));
+      sub.height = Math.max(1, Math.round(designPxH * renderScale));
+      const sctx = sub.getContext('2d');
+      sctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
+      sctx.imageSmoothingEnabled = true;
+      sctx.imageSmoothingQuality = 'high';
+      const layerScale = computeLayerScale(false, designPxW, designPxW, refW, refCirclePx);
+      renderPreviewCore(sctx, designPxW, designPxH, {
+        shape: pShape, isBWSheet: false, isMultiCircle: false,
+        layers: pLayers, getImg: pGetImg, getNativeSize: pGetNativeSize,
+        bgColor: pBgColor, textOverlay: pTextOverlay,
+        circlePx: designPxW, mcCols: 1, mcRows: 1, mcOffsetX: 0, mcOffsetY: 0, mcStepPx: designPxW,
+        layerScale, downscale, renderScale, isMobile: false,
+        showSelection: false, selectedLayer: null, selectedLayerImg: null,
+        showWatermark: true,
+      });
+      ctx.drawImage(sub, offPxX, offPxY, designPxW, designPxH);
+
+      /* Cut line around the design's actual contour. */
+      ctx.save();
+      ctx.strokeStyle = '#BFBFBF';
+      ctx.setLineDash([4, 5]);
+      ctx.lineWidth = 1.25;
+      ctx.beginPath();
+      if (pShape === 'circular') {
+        ctx.arc(offPxX + designPxW / 2, offPxY + designPxH / 2, designPxW / 2, 0, Math.PI * 2);
+      } else if (pShape === 'heart') {
+        drawHeartPath(ctx, offPxX, offPxY, designPxW, designPxH);
+      } else {
+        ctx.rect(offPxX, offPxY, designPxW, designPxH);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
-  }, [showPrintPreview, modalBaseSize, layers, redrawTick, shape, sizeObj, bgColor, textOverlay, isMultiCircle, isBWSheet, removeWhiteBg, canvasW, circlePx]);
+  }, [showPrintPreview, modalBaseSize, previewDesign, previewImagesTick, redrawTick, layers, canvasW, circlePx, removeWhiteBg]);
+
+  /* "8" Round · A4" — the design's own dimensions plus the sheet material,
+     so it reads as a physical spec, not just a shape name. */
+  const previewSheetLabel = (() => {
+    if (!previewDesign) return '';
+    const pShape = previewDesign.shape;
+    const material = pShape === 'waferletter' ? 'Letter' : 'A4';
+    const pSizes = SIZES[pShape] || [];
+    const pSizeObj = pShape === 'custom'
+      ? { w: parseFloat(previewDesign.customW) || 2, h: parseFloat(previewDesign.customH) || 2 }
+      : (pSizes.find(s => s.id === previewDesign.sizeId) || pSizes[0] || {});
+    let designLabel;
+    if (pShape === 'circular' || pShape === 'heart' || pShape === 'square') {
+      designLabel = `${pSizeObj.w}" ${SHAPE_LABEL[pShape]}`;
+    } else if (pShape === 'custom') {
+      designLabel = `${pSizeObj.w}"×${pSizeObj.h}"`;
+    } else if (pShape === 'bwsheet') {
+      designLabel = `${BWSHEET_DESIGN_IN}" B&W Square`;
+    } else if (pShape === 'multicircle') {
+      designLabel = `${pSizeObj.circleSize}" Circles (${(pSizeObj.cols || 0) * (pSizeObj.rows || 0)})`;
+    } else {
+      designLabel = SHAPE_LABEL[pShape] || pShape;
+    }
+    return `${designLabel} · ${material}`;
+  })();
+
+  const goToPreviewDesign = (delta) => {
+    if (designs.length < 2) return;
+    const next = (previewIndex + delta + designs.length) % designs.length;
+    setPreviewDesignId(designs[next].id);
+    setModalZoom(1);
+    setModalPan({ x: 0, y: 0 });
+  };
 
   const onModalPointerDown = (e) => {
     modalPointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -1600,7 +1765,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     hctx.fillRect(0, 0, hiResW, hiResH);
 
     if (isBWSheet) {
-      const hrSquarePx = Math.round(6.5 * DPI);
+      const hrSquarePx = Math.round(BWSHEET_DESIGN_IN * DPI);
       const hrSqX = (hiResW - hrSquarePx) / 2;
       const hrSqY = (hiResH - hrSquarePx) / 2;
       hctx.save();
@@ -1653,14 +1818,14 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
         hctx.fillStyle = bgColor;
         hctx.fillRect(0, 0, hiResW, hiResH);
       }
-      const hrCirclePx = circleSize * DPI;
-      const hrSf       = hrCirclePx / circlePx; /* preview→hi-res scale for this circle */
-      const hrGapPx    = mcGapInches * DPI;
-      const hrStepPx   = hrCirclePx + hrGapPx;
-      const hrTotalW   = mcCols * hrCirclePx + Math.max(0, mcCols - 1) * hrGapPx;
-      const hrTotalH   = mcRows * hrCirclePx + Math.max(0, mcRows - 1) * hrGapPx;
-      const hrOffsetX  = (hiResW - hrTotalW) / 2;
-      const hrOffsetY  = (hiResH - hrTotalH) / 2;
+      /* Same shared function as the inline preview and the print-preview
+         modal, just fed the hi-res pixel dimensions — see the "Multi-circle
+         layout" block above for why this can't be recomputed separately. */
+      const {
+        circlePx: hrCirclePx, mcGapPx: hrGapPx, mcStepPx: hrStepPx,
+        mcOffsetX: hrOffsetX, mcOffsetY: hrOffsetY,
+      } = computeMultiCircleLayout(hiResW, hiResH, isMultiCircle, sizeObj);
+      const hrSf = hrCirclePx / circlePx; /* preview→hi-res scale for this circle */
       /* Build hi-res source crop canvas then tile it */
       const hsc = document.createElement('canvas');
       hsc.width = hrCirclePx; hsc.height = hrCirclePx;
@@ -2265,6 +2430,11 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
           }}>
             <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 600, fontSize: 14, color: C.text }}>
               Print Preview
+              {designs.length > 1 && (
+                <span style={{ fontWeight: 400, color: C.muted, marginLeft: 8 }}>
+                  — Design {previewIndex + 1} of {designs.length}
+                </span>
+              )}
             </span>
             <button onClick={() => setShowPrintPreview(false)} aria-label="Close preview" style={{
               width: 34, height: 34, borderRadius: '50%', border: '1px solid ' + C.border,
@@ -2290,15 +2460,31 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
               boxShadow: '0 8px 40px rgba(0,0,0,0.18)', borderRadius: 4,
               maxWidth: '100%', maxHeight: '100%',
             }} />
-            {sizeLabel && (
+            {previewSheetLabel && (
               <div style={{
                 position: 'absolute', top: 14, left: 14,
                 background: 'rgba(255,255,255,0.92)', padding: '6px 12px', borderRadius: 6,
                 fontSize: 11.5, fontWeight: 700, color: C.text, letterSpacing: 0.4,
                 pointerEvents: 'none', fontFamily: "'Outfit', sans-serif",
               }}>
-                {sizeLabel}
+                {previewSheetLabel}
               </div>
+            )}
+            {designs.length > 1 && (
+              <>
+                <button onClick={(e) => { e.stopPropagation(); goToPreviewDesign(-1); }}
+                  aria-label="Previous design" style={{
+                    position: 'absolute', left: isMobile ? 6 : 18, top: '50%', transform: 'translateY(-50%)',
+                    width: 38, height: 38, borderRadius: '50%', border: '1px solid ' + C.border,
+                    background: 'rgba(255,255,255,0.92)', fontSize: 16, cursor: 'pointer', color: C.text,
+                  }}>‹</button>
+                <button onClick={(e) => { e.stopPropagation(); goToPreviewDesign(1); }}
+                  aria-label="Next design" style={{
+                    position: 'absolute', right: isMobile ? 6 : 18, top: '50%', transform: 'translateY(-50%)',
+                    width: 38, height: 38, borderRadius: '50%', border: '1px solid ' + C.border,
+                    background: 'rgba(255,255,255,0.92)', fontSize: 16, cursor: 'pointer', color: C.text,
+                  }}>›</button>
+              </>
             )}
           </div>
 
@@ -2481,9 +2667,9 @@ export default function EdiblePrintApp() {
     : selectedSize?.price || 0;
   const subtotal = unitPrice * qty;
 
-  const sizeLabel = shape === 'fullsheet' ? 'FULL SHEET 8" × 11"'
-    : shape === 'bwsheet' ? 'B&W 6.5" × 6.5"'
-    : shape === 'waferletter' ? 'WAFER PAPER 8.5" × 11"'
+  const sizeLabel = shape === 'fullsheet' ? 'FULL SHEET · A4'
+    : shape === 'bwsheet' ? `B&W ${BWSHEET_DESIGN_IN}" × ${BWSHEET_DESIGN_IN}"`
+    : shape === 'waferletter' ? 'WAFER PAPER · LETTER'
     : shape === 'custom' ? `${customW || '?'}" × ${customH || '?'}"`
     : shape === 'multicircle' ? (selectedSize?.sublabel || '').toUpperCase()
     : shape === 'circular' ? `${(selectedSize?.label || '').split(' ')[0]} ROUND`
@@ -4132,6 +4318,8 @@ export default function EdiblePrintApp() {
                 onWhiteBgSuggestion={(layerId, detected) => setWhiteBgLayerFlags(prev => ({ ...prev, [layerId]: detected }))}
                 sizeLabel={sizeLabel}
                 isMobile={isMobile}
+                designs={designs}
+                activeDesignId={activeDesignId}
               />
               {whiteBgSuggestion && !removeWhiteBg && (
                 <div style={{

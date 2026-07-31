@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { Resend } from 'resend';
+import { pageSizePtForShape, computeSheetPlacement } from '../../../lib/paper-config.js';
 
 export async function POST(request) {
   const body = await request.json();
@@ -29,11 +30,11 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   }
 
-  // Build A4 PDF (595.28pt × 841.89pt = 210mm × 297mm)
+  // Page size by material (A4 for icing sheet, Letter for wafer paper —
+  // see lib/paper-config.js), not a single hardcoded A4 for everything.
+  const pageSize = pageSizePtForShape(shape);
   const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([595.28, 841.89]);
-  const pageW = page.getWidth();
-  const pageH = page.getHeight();
+  const page = pdfDoc.addPage([pageSize.w, pageSize.h]);
 
   const base64Data = imageDataUrl.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
   const imageBytes = Buffer.from(base64Data, 'base64');
@@ -42,35 +43,15 @@ export async function POST(request) {
     ? await pdfDoc.embedPng(imageBytes)
     : await pdfDoc.embedJpg(imageBytes);
 
-  // Physical size in PDF points (72pt = 1 inch)
-  let imgWidthPt, imgHeightPt;
-  if (shape === 'fullsheet' || shape === 'bwsheet' || shape === 'multicircle') {
-    imgWidthPt = 8 * 72;
-    imgHeightPt = 11 * 72;
-  } else if (shape === 'waferletter') {
-    imgWidthPt = 8.5 * 72;
-    imgHeightPt = 11 * 72;
-  } else if (shape === 'custom') {
-    imgWidthPt = (parseFloat(customW) || 6) * 72;
-    imgHeightPt = (parseFloat(customH) || 6) * 72;
-  } else {
-    // circular, heart, square — sizeInches × sizeInches
-    const sz = parseFloat(sizeInches) || 4;
-    imgWidthPt = sz * 72;
-    imgHeightPt = sz * 72;
-  }
-
-  // Clamp to page bounds with 18pt margin
-  const maxW = pageW - 36;
-  const maxH = pageH - 36;
-  if (imgWidthPt > maxW || imgHeightPt > maxH) {
-    const scale = Math.min(maxW / imgWidthPt, maxH / imgHeightPt);
-    imgWidthPt *= scale;
-    imgHeightPt *= scale;
-  }
-
-  const x = (pageW - imgWidthPt) / 2;
-  const y = (pageH - imgHeightPt) / 2;
+  // Same placement function the print-preview modal uses (app/page.js) — so
+  // this can't diverge from what the customer was shown before checkout.
+  const PT_PER_IN = 72;
+  const placement = computeSheetPlacement(shape, { w: sizeInches }, customW, customH);
+  const imgWidthPt  = placement.designW * PT_PER_IN;
+  const imgHeightPt = placement.designH * PT_PER_IN;
+  const x = placement.offsetX * PT_PER_IN;
+  // PDF origin is bottom-left; placement.offsetY is measured from the top.
+  const y = (placement.sheetH - placement.offsetY - placement.designH) * PT_PER_IN;
 
   page.drawImage(embeddedImage, { x, y, width: imgWidthPt, height: imgHeightPt });
 
@@ -102,7 +83,7 @@ export async function POST(request) {
         html: `
           <div style="font-family: sans-serif; max-width: 540px; padding: 24px;">
             <h2 style="color: #1B6B4A; margin-top: 0;">Your PDF is ready</h2>
-            <p>Thank you for your purchase. Attached is your custom edible print design as a print-ready PDF in A4 format.</p>
+            <p>Thank you for your purchase. Attached is your custom edible print design as a print-ready PDF in ${shape === 'waferletter' ? 'Letter (8.5"×11")' : 'A4'} format.</p>
             <div style="background: #F5F5F5; padding: 14px 18px; border-radius: 8px; margin: 18px 0; font-size: 14px;">
               <strong>Order details:</strong><br>
               Shape: ${shape}${sizeLabel ? `<br>Size: ${sizeLabel}` : ''}
