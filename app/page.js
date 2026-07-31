@@ -1154,7 +1154,10 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
   const modalPinchRef = useRef(null);
   const modalDragRef = useRef(null);
 
-  /* Reset zoom/pan each time the modal opens */
+  /* Reset zoom/pan each time the modal opens. zoom=1 IS "fit to screen" —
+     modalBaseSize (below) is computed to exactly fill the safe visible
+     area, so there's no separate "100% native" mode to guard against on
+     mobile; this always opens fit, on every screen size. */
   useEffect(() => {
     if (showPrintPreview) { setModalZoom(1); setModalPan({ x: 0, y: 0 }); }
   }, [showPrintPreview]);
@@ -1177,10 +1180,39 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     };
   }, [showPrintPreview]);
 
-  /* Size the modal canvas to fit the viewport (same aspect-ratio rule as the inline preview) */
+  /* Size the modal canvas to fit the *actual visible* area — never
+     window.innerWidth/innerHeight directly. Those don't reflect mobile
+     browser chrome (address bar) or safe-area insets during the first
+     frames after the modal mounts, which let the sheet compute wider than
+     the real safe width and get clipped by the viewport's overflow:hidden
+     (reported bug: sheet cut off on the right on Android, 8" ROUND).
+     Fix: measure modalViewportRef's own rendered box (already net of the
+     header/toolbar siblings via flex:1 — no more hardcoded "chrome" guess),
+     subtract its CSS padding (which encodes env(safe-area-inset-*) — see
+     the div's style below) via getComputedStyle, and clamp against
+     window.visualViewport when available, since that's what's actually
+     visible on mobile independent of the layout viewport. Rechecked via
+     rAF right after mount (layout may still be settling) plus a
+     ResizeObserver + visualViewport listeners for anything later
+     (address-bar collapse, orientation change, on-screen keyboard). */
   useEffect(() => {
     if (!showPrintPreview) return;
+    const el = modalViewportRef.current;
+    if (!el) return;
+
     const update = () => {
+      const node = modalViewportRef.current;
+      if (!node) return;
+      const rect = node.getBoundingClientRect();
+      const cs = getComputedStyle(node);
+      const padL = parseFloat(cs.paddingLeft) || 0;
+      const padR = parseFloat(cs.paddingRight) || 0;
+      const padT = parseFloat(cs.paddingTop) || 0;
+      const padB = parseFloat(cs.paddingBottom) || 0;
+      const vv = window.visualViewport;
+      const boxW = vv ? Math.min(rect.width, vv.width) : rect.width;
+      const boxH = vv ? Math.min(rect.height, vv.height) : rect.height;
+
       let aspect;
       if (shape === 'circular' || shape === 'heart' || shape === 'square') aspect = 1;
       else if (shape === 'custom') {
@@ -1189,18 +1221,33 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       } else {
         aspect = (sizeObj.w || 8) / (sizeObj.h || 11);
       }
-      const padX = isMobile ? 16 : 64;
-      const chrome = isMobile ? 118 : 148; /* header + zoom toolbar */
-      const availW = Math.max(120, window.innerWidth - padX * 2);
-      const availH = Math.max(120, window.innerHeight - chrome);
+      const availW = Math.max(120, boxW - padL - padR);
+      const availH = Math.max(120, boxH - padT - padB);
       let w = availW;
       let h = w / aspect;
       if (h > availH) { h = availH; w = h * aspect; }
       setModalBaseSize({ w: Math.floor(w), h: Math.floor(h) });
     };
+
     update();
+    let raf2 = null;
+    const raf1 = requestAnimationFrame(() => { raf2 = requestAnimationFrame(update); });
+
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
     window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
+    window.addEventListener('orientationchange', update);
+    window.visualViewport?.addEventListener('resize', update);
+    window.visualViewport?.addEventListener('scroll', update);
+    return () => {
+      cancelAnimationFrame(raf1);
+      if (raf2 != null) cancelAnimationFrame(raf2);
+      ro.disconnect();
+      window.removeEventListener('resize', update);
+      window.removeEventListener('orientationchange', update);
+      window.visualViewport?.removeEventListener('resize', update);
+      window.visualViewport?.removeEventListener('scroll', update);
+    };
   }, [showPrintPreview, shape, sizeObj.id, sizeObj.w, sizeObj.h, isMobile]);
 
   /* Draw the modal canvas with the exact same high-quality preview pipeline
@@ -2232,11 +2279,16 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
             style={{
               position: 'relative', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
               overflow: 'hidden', touchAction: 'none', cursor: modalZoom > 1 ? 'grab' : 'default',
+              boxSizing: 'border-box',
+              padding: isMobile
+                ? 'calc(8px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left))'
+                : 'calc(24px + env(safe-area-inset-top)) calc(64px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(64px + env(safe-area-inset-left))',
             }}>
             <canvas ref={modalCanvasRef} style={{
               transform: `translate(${modalPan.x}px, ${modalPan.y}px) scale(${modalZoom})`,
               transformOrigin: 'center center',
               boxShadow: '0 8px 40px rgba(0,0,0,0.18)', borderRadius: 4,
+              maxWidth: '100%', maxHeight: '100%',
             }} />
             {sizeLabel && (
               <div style={{
