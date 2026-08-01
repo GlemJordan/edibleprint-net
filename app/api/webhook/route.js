@@ -185,6 +185,26 @@ async function sendCriticalOrderLossAlert(session, orderId, designs, err, isTest
 
 async function processOrder(session, orderId) {
   const meta = session.metadata || {};
+
+  // "Download as PDF" purchases (app/api/create-download-checkout) are
+  // fully self-contained on the client: /download-pdf calls
+  // /api/generate-pdf right after payment, which streams the PDF straight
+  // back for an immediate browser download AND emails the customer a copy
+  // with printing instructions — see that route. There is no physical
+  // fulfillment for these (nothing to print, pack, or ship), so none of
+  // this pipeline applies. Before this check, a pdf_download session still
+  // ran the whole thing: parseDesigns() fell through to its generic-
+  // fallback branch (this metadata shape has no d{i}_shape keys), producing
+  // a garbled order.json (empty customer name, a fake "Canada Post
+  // Shipping" method with no address, a $0 line item despite the real
+  // amount charged), a production slip nobody needs, and "New Order" /
+  // "order confirmation" owner+customer emails implying a shipment that
+  // was never coming. See EP-LBWA9GQ3 for a real example of the fallout.
+  if (meta.type === 'pdf_download') {
+    console.log('[webhook]', orderId, 'is a PDF-download purchase — no physical fulfillment needed, skipping the order pipeline.');
+    return;
+  }
+
   const designs = parseDesigns(meta);
   const isPickup = meta.shippingMethod === 'pickup';
 
