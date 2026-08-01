@@ -49,19 +49,29 @@ export default function AdminOrdersPage() {
   }, [authChecked, isAdmin]);
 
   if (!authChecked) {
-    return <div style={{ padding: 40, textAlign: 'center', color: C.muted, fontFamily: "'Outfit', sans-serif" }}>Checking session…</div>;
+    return (
+      <>
+        <meta name="robots" content="noindex, nofollow" />
+        <div style={{ padding: 40, textAlign: 'center', color: C.muted, fontFamily: "'Outfit', sans-serif" }}>Checking session…</div>
+      </>
+    );
   }
   if (!isAdmin) {
     return (
-      <div style={{ padding: 60, textAlign: 'center', fontFamily: "'Outfit', sans-serif" }}>
-        <p style={{ marginBottom: 16, color: C.text }}>You need to be signed in as admin to view this page.</p>
-        <Link href="/admin-login" style={{ color: C.brand, fontWeight: 600 }}>Go to admin login →</Link>
-      </div>
+      <>
+        <meta name="robots" content="noindex, nofollow" />
+        <div style={{ padding: 60, textAlign: 'center', fontFamily: "'Outfit', sans-serif" }}>
+          <p style={{ marginBottom: 16, color: C.text }}>You need to be signed in as admin to view this page.</p>
+          <Link href="/admin-login" style={{ color: C.brand, fontWeight: 600 }}>Go to admin login →</Link>
+        </div>
+      </>
     );
   }
 
   return (
-    <div style={{ fontFamily: "'Outfit', sans-serif", background: C.bg, minHeight: '100vh', padding: '32px 24px' }}>
+    <>
+      <meta name="robots" content="noindex, nofollow" />
+      <div style={{ fontFamily: "'Outfit', sans-serif", background: C.bg, minHeight: '100vh', padding: '32px 24px' }}>
       <div style={{ maxWidth: 1000, margin: '0 auto' }}>
         <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 700, marginBottom: 24, color: C.text }}>Orders</h1>
 
@@ -136,6 +146,7 @@ export default function AdminOrdersPage() {
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </>
   );
 }
