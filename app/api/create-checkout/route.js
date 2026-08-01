@@ -2,6 +2,7 @@ import Stripe from 'stripe';
 import { NextResponse } from 'next/server';
 import { getShippingCost } from '../../../lib/shipping-config.js';
 import { CATALOG_PRICES, customShapePrice } from '../../../lib/catalog-prices.js';
+import { isValidEmail } from '../../../lib/validate-email.js';
 
 const isTest = process.env.STRIPE_MODE === 'test';
 // NOTE: STRIPE_SECRET_KEY_LIVE must be sk_live_... (a full Secret Key).
@@ -31,6 +32,10 @@ export async function POST(request) {
 
     if (!designs || designs.length === 0) {
       return NextResponse.json({ error: 'No designs provided' }, { status: 400 });
+    }
+
+    if (!isValidEmail(customerEmail)) {
+      return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
     }
 
     // Shipping cost is computed server-side from the flat-rate config, never

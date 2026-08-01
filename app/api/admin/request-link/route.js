@@ -1,6 +1,7 @@
 import { SignJWT } from 'jose';
 import { Resend } from 'resend';
 import { NextResponse } from 'next/server';
+import { BUSINESS_ADDRESS_ONE_LINE } from '../../../../lib/business-info.js';
 
 export async function POST(request) {
   console.log('[MAGIC LINK] Request received');
@@ -84,8 +85,16 @@ export async function POST(request) {
           <p style="color: #888; font-size: 12px;">
             This link expires in 15 minutes.
           </p>
+          <p style="color: #888; font-size: 12px; margin-top: 24px;">
+            EdiblePrint.net — ${BUSINESS_ADDRESS_ONE_LINE}
+          </p>
         </div>
       `,
+      text: `Admin Login\n\n`
+        + `Click the link below to enable admin mode for the next 30 days:\n`
+        + `${magicLink}\n\n`
+        + `This link expires in 15 minutes.\n\n`
+        + `EdiblePrint.net — ${BUSINESS_ADDRESS_ONE_LINE}`,
     });
 
     console.log('[MAGIC LINK] Resend response:', JSON.stringify(result));

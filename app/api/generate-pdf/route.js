@@ -4,6 +4,7 @@ import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { Resend } from 'resend';
 import { pageSizePtForShape, computeSheetPlacement } from '../../../lib/paper-config.js';
+import { BUSINESS_ADDRESS_ONE_LINE } from '../../../lib/business-info.js';
 
 export async function POST(request) {
   const body = await request.json();
@@ -93,10 +94,16 @@ export async function POST(request) {
             </p>
             <p style="font-size: 12px; color: #888; margin-top: 24px;">
               Need help? Reply to this email.<br>
-              EdiblePrint · London, Ontario
+              EdiblePrint.net — ${BUSINESS_ADDRESS_ONE_LINE}
             </p>
           </div>
         `,
+        text: `Your PDF is ready\n\n`
+          + `Thank you for your purchase. Attached is your custom edible print design as a print-ready PDF in ${shape === 'waferletter' ? 'Letter (8.5"x11")' : 'A4'} format.\n\n`
+          + `Order details:\nShape: ${shape}${sizeLabel ? `\nSize: ${sizeLabel}` : ''}\n\n`
+          + `How to print: Open the attached PDF and print at 100% scale (no fit-to-page) on ${shape === 'waferletter' ? 'edible wafer paper' : 'edible icing sheets'} using a food-safe printer.\n\n`
+          + `Need help? Reply to this email.\n`
+          + `EdiblePrint.net — ${BUSINESS_ADDRESS_ONE_LINE}`,
         attachments: [
           {
             filename: `edibleprint-${shape}-${Date.now()}.pdf`,

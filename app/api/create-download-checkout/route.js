@@ -1,5 +1,6 @@
 import Stripe from 'stripe';
 import { NextResponse } from 'next/server';
+import { isValidEmail } from '../../../lib/validate-email.js';
 
 const isTest = process.env.STRIPE_MODE === 'test';
 const stripeKey = isTest
@@ -9,6 +10,13 @@ const stripe = new Stripe(stripeKey);
 
 export async function POST(request) {
   const { imageDataUrl, shape, sizeInches, customW, customH, email } = await request.json();
+
+  // This purchase's whole point is emailing the customer their PDF (see
+  // app/api/generate-pdf/route.js) — unlike checkout's customerEmail, this
+  // field isn't optional in practice, so it's required here too.
+  if (!isValidEmail(email)) {
+    return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
+  }
 
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://edibleprint.net';
 

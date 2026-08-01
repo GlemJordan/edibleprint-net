@@ -1,5 +1,6 @@
 import GoogleAnalytics from './_components/analytics/GoogleAnalytics';
 import MetaPixel from './_components/analytics/MetaPixel';
+import { BUSINESS_ADDRESS, BUSINESS_PHONE_E164 } from '../lib/business-info.js';
 
 const OG_IMAGE_URL = 'https://edibleprint.net/logo-assets/og-image.png';
 
@@ -45,13 +46,14 @@ export default function RootLayout({ children }) {
     name: 'EdiblePrint.net',
     description: 'Custom edible image printing on premium icing sheets or wafer paper. Upload any photo, logo or design.',
     url: 'https://edibleprint.net',
-    telephone: '+15196949266',
+    telephone: BUSINESS_PHONE_E164,
     address: {
       '@type': 'PostalAddress',
-      addressLocality: 'London',
-      addressRegion: 'ON',
-      postalCode: 'N5W 2V7',
-      addressCountry: 'CA',
+      streetAddress: BUSINESS_ADDRESS.line1,
+      addressLocality: BUSINESS_ADDRESS.city,
+      addressRegion: BUSINESS_ADDRESS.province,
+      postalCode: BUSINESS_ADDRESS.postalCode,
+      addressCountry: BUSINESS_ADDRESS.country,
     },
     areaServed: [
       { '@type': 'City', name: 'London', containedInPlace: { '@type': 'AdministrativeArea', name: 'Ontario' } },

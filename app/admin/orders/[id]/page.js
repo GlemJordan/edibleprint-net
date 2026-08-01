@@ -209,6 +209,25 @@ export default function AdminOrderDetailPage({ params }) {
               </Section>
             )}
 
+            <Section title="Notifications">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13.5 }}>
+                <div>
+                  Owner email: {order.notifications?.ownerEmailSent === true
+                    ? <span style={{ color: '#059669' }}>✓ Sent</span>
+                    : order.notifications?.ownerEmailSent === false
+                      ? <span style={{ color: '#DC2626' }}>✗ Failed</span>
+                      : <span style={{ color: C.muted }}>— Unknown (order predates tracking)</span>}
+                </div>
+                <div>
+                  Customer confirmation email: {order.notifications?.customerEmailSent === true
+                    ? <span style={{ color: '#059669' }}>✓ Sent</span>
+                    : order.notifications?.customerEmailSent === false
+                      ? <span style={{ color: '#DC2626' }}>✗ Failed{order.notifications?.customerEmailError ? ' — ' + order.notifications.customerEmailError : ''}</span>
+                      : <span style={{ color: C.muted }}>— Unknown (order predates tracking)</span>}
+                </div>
+              </div>
+            </Section>
+
             {order.assets?.cloudinaryFolder && (() => {
               const printReadyUrls = order.assets?.printReadyUrls || [];
               const neededPrintReady = (order.designs || []).filter((d) => d.imageUrl).length;

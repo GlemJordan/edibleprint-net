@@ -1,8 +1,18 @@
 import Stripe from 'stripe';
 import { NextResponse, after } from 'next/server';
-import { buildOrderRecord, saveOrderRecord } from '../../../lib/order-record.js';
+import { buildOrderRecord, saveOrderRecord, recordNotification } from '../../../lib/order-record.js';
 import { generateOrderPdfs } from '../../../lib/order-pdf-pipeline.js';
 import { withRetry } from '../../../lib/with-retry.js';
+import { BUSINESS_ADDRESS_ONE_LINE, BUSINESS_PHONE_DISPLAY } from '../../../lib/business-info.js';
+
+// CASL sender-identification footer for the 4 customer/admin-facing
+// templates (owner order email, customer confirmation, magic link,
+// generate-pdf's customer email) — NOT added to sendAlertEmail/
+// sendCriticalOrderLossAlert below, since those are internal operational
+// alerts to the business owner, not commercial electronic messages to a
+// third party.
+const CASL_FOOTER_HTML = '<p style="font-size:12px;color:#9ca3af;text-align:center;margin:8px 0 0;line-height:1.6;">EdiblePrint.net — ' + BUSINESS_ADDRESS_ONE_LINE + '</p>';
+const CASL_FOOTER_TEXT = '\nEdiblePrint.net — ' + BUSINESS_ADDRESS_ONE_LINE + '\n';
 
 export const maxDuration = 60;
 
@@ -85,10 +95,48 @@ async function sendAlertEmail(orderId, errorMsg) {
         html: '<p><strong>Order ' + orderId + ' failed to process fully.</strong></p>'
           + '<p>Error: ' + String(errorMsg).slice(0, 500) + '</p>'
           + '<p>Check Vercel logs and Stripe dashboard. Customer payment was captured successfully.</p>',
+        text: 'Order ' + orderId + ' failed to process fully.\n\n'
+          + 'Error: ' + String(errorMsg).slice(0, 500) + '\n\n'
+          + 'Check Vercel logs and Stripe dashboard. Customer payment was captured successfully.',
       }),
     });
   } catch (e) {
     console.error('Alert email failed:', e.message);
+  }
+}
+
+// Item 1 of the deliverability hardening pass: the customer confirmation
+// email previously failed silently (console.error only, nobody notified).
+// This mirrors sendAlertEmail's shape but is specific enough to act on
+// immediately — it names the customer's email and the exact error, since
+// the fix is usually "manually resend/contact the customer," not "check logs."
+async function sendCustomerEmailFailedAlert(orderId, customerEmail, err) {
+  const errorMsg = String(err?.message || err).slice(0, 500);
+  try {
+    await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + process.env.RESEND_API_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'EdiblePrint.net <orders@edibleprint.net>',
+        to: [process.env.ORDER_NOTIFICATION_EMAIL || 'glenj.belmar@gmail.com', 'edibleprintorders@gmail.com'],
+        subject: '⚠️ Customer confirmation email FAILED — #' + orderId,
+        html: '<p><strong>The order confirmation email to the customer for order ' + orderId + ' failed to send after retries.</strong></p>'
+          + '<p>The order itself was processed successfully — this only affects the customer\'s confirmation email.</p>'
+          + '<p><strong>Customer email:</strong> ' + (customerEmail || 'unknown') + '</p>'
+          + '<p><strong>Error:</strong> ' + errorMsg + '</p>'
+          + '<p>Consider contacting the customer directly to confirm their order, since they may not know it went through.</p>',
+        text: 'The order confirmation email to the customer for order ' + orderId + ' failed to send after retries.\n\n'
+          + 'The order itself was processed successfully — this only affects the customer\'s confirmation email.\n\n'
+          + 'Customer email: ' + (customerEmail || 'unknown') + '\n'
+          + 'Error: ' + errorMsg + '\n\n'
+          + 'Consider contacting the customer directly to confirm their order, since they may not know it went through.',
+      }),
+    });
+  } catch (e) {
+    console.error('Customer-email-failed alert itself failed to send:', e.message);
   }
 }
 
@@ -161,6 +209,27 @@ async function sendCriticalOrderLossAlert(session, orderId, designs, err, isTest
     + '<p style="font-size:13px;color:#6b7280;">Full stack trace is in Vercel logs for this invocation. To rebuild: create the order manually from the data above, or see if a Stripe-session replay tool has been built (ask about reconstructing order.json from the Checkout Session ID).</p>'
     + '</div></div>';
 
+  const text = 'CRITICAL — payment captured, order record was never saved.\n'
+    + 'This order does not exist in Cloudinary, order.json, or the admin dashboard.\n\n'
+    + (isTest ? 'TEST MODE — not a real payment.\n\n' : '')
+    + 'Stripe references\n'
+    + 'Checkout Session ID: ' + session.id + '\n'
+    + 'Payment Intent: ' + (session.payment_intent || '—') + '\n'
+    + 'Would-be Order ID: ' + orderId + '\n\n'
+    + 'Customer\n'
+    + 'Name: ' + customerName + '\n'
+    + 'Email: ' + customerEmail + '\n'
+    + 'Phone: ' + (meta.customerPhone || '—') + '\n\n'
+    + 'Payment\n'
+    + 'Total charged: $' + totalAmt.toFixed(2) + ' CAD\n\n'
+    + 'Shipping\n'
+    + (meta.shippingMethod === 'pickup'
+        ? 'PICKUP — East London'
+        : (meta.shippingAddress || '—') + ', ' + (meta.shippingCity || '') + ', ' + (meta.shippingProvince || '') + ' ' + (meta.shippingPostal || '')) + '\n\n'
+    + 'What actually failed\n'
+    + String(err?.message || err).slice(0, 800) + '\n\n'
+    + 'Full stack trace is in Vercel logs for this invocation.';
+
   try {
     await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -173,6 +242,7 @@ async function sendCriticalOrderLossAlert(session, orderId, designs, err, isTest
         to: [process.env.ORDER_NOTIFICATION_EMAIL || 'glenj.belmar@gmail.com', 'edibleprintorders@gmail.com'],
         subject: '🚨 CRITICAL: ORDER LOST — payment captured, no record saved — ' + (session.id || orderId),
         html,
+        text,
       }),
     });
   } catch (e) {
@@ -308,28 +378,47 @@ async function processOrder(session, orderId) {
     + (meta.designConfirmed === 'true' ? '<p style="font-size:13px;color:#059669;background:#ECFDF5;padding:8px 12px;border-radius:6px;">✓ Design responsibility accepted by customer at: ' + (meta.designConfirmedAt || 'unknown time') + '</p>' : '<p style="font-size:13px;color:#DC2626;background:#FEF2F2;padding:8px 12px;border-radius:6px;">⚠️ Design confirmation not recorded.</p>')
     + '<p style="font-size:13px;color:#6b7280;"><a href="https://dashboard.stripe.com/payments/' + session.payment_intent + '">View in Stripe Dashboard</a>'
     + ' &nbsp;|&nbsp; <a href="' + savedRecord.assets.cloudinaryFolder + '">Cloudinary Folder</a></p>'
+    + CASL_FOOTER_HTML
     + '</div></div>';
 
-  await withRetry(async () => {
-    const r = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + process.env.RESEND_API_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        from: 'EdiblePrint.net Orders <orders@edibleprint.net>',
-        to: [process.env.ORDER_NOTIFICATION_EMAIL || 'glenj.belmar@gmail.com'],
-        reply_to: 'edibleprintorders@gmail.com',
-        subject: (isTest ? '[TEST] ' : '') + 'New Order ' + orderId + ' — ' + designs.length + ' design' + (designs.length > 1 ? 's' : '') + ' — $' + totalAmt.toFixed(2) + ' CAD',
-        html: ownerHtml,
-      }),
-    });
-    if (!r.ok) {
-      const body = await r.text();
-      console.error('Resend owner email error:', r.status, body);
-      throw new Error('Owner email HTTP ' + r.status + ': ' + body);
-    }
-  }, 'ownerEmail:' + orderId);
+  const ownerText = 'New Order: ' + orderId + '\n'
+    + 'Total: $' + totalAmt.toFixed(2) + ' CAD | ' + designs.length + ' design' + (designs.length > 1 ? 's' : '') + '\n\n'
+    + 'Production Slip: ' + pdfUrl + '\n'
+    + (printPdfUrls.length > 0 ? printPdfUrls.map(p => p.label + ': ' + p.url).join('\n') + '\n' : '')
+    + '\nCustomer\n' + meta.customerName + '\n' + session.customer_email + '\n' + (meta.customerPhone || '—') + '\n'
+    + '\nShipping\n' + (isPickup ? 'PICKUP — East London' : (meta.shippingAddress + ', ' + meta.shippingCity + ', ' + meta.shippingProvince + ' ' + meta.shippingPostal)) + '\nMethod: ' + shippingLabel + '\n'
+    + '\nDesigns\n' + designs.map((d, i) => (designs.length > 1 ? 'Design ' + (i + 1) : 'Print') + ': ' + d.qty + 'x ' + d.size + ' (' + (SHAPE_LABELS[d.shape] || d.shape) + ') — $' + (parseFloat(d.price) * parseInt(d.qty, 10)).toFixed(2)).join('\n')
+    + '\n\nStripe: https://dashboard.stripe.com/payments/' + session.payment_intent
+    + '\nCloudinary Folder: ' + savedRecord.assets.cloudinaryFolder
+    + '\n' + CASL_FOOTER_TEXT;
 
-  // 5. Customer confirmation email (unchanged logic)
+  try {
+    await withRetry(async () => {
+      const r = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + process.env.RESEND_API_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: 'EdiblePrint.net Orders <orders@edibleprint.net>',
+          to: [process.env.ORDER_NOTIFICATION_EMAIL || 'glenj.belmar@gmail.com'],
+          reply_to: 'edibleprintorders@gmail.com',
+          subject: (isTest ? '[TEST] ' : '') + 'New Order ' + orderId + ' — ' + designs.length + ' design' + (designs.length > 1 ? 's' : '') + ' — $' + totalAmt.toFixed(2) + ' CAD',
+          html: ownerHtml,
+          text: ownerText,
+        }),
+      });
+      if (!r.ok) {
+        const body = await r.text();
+        console.error('Resend owner email error:', r.status, body);
+        throw new Error('Owner email HTTP ' + r.status + ': ' + body);
+      }
+    }, 'ownerEmail:' + orderId);
+    await recordNotification(orderId, { ownerEmailSent: true });
+  } catch (err) {
+    await recordNotification(orderId, { ownerEmailSent: false });
+    throw err;
+  }
+
+  // 5. Customer confirmation email
   const buildDesignRowsCustomer = (d, i) => {
     const shapeLabel = SHAPE_LABELS[d.shape] || d.shape;
     const lineTotal  = (parseFloat(d.price) * parseInt(d.qty, 10)).toFixed(2);
@@ -386,14 +475,35 @@ async function processOrder(session, orderId) {
     + (isPickup
       ? '<div style="background:#FFF4EB;border-left:4px solid #E8873C;padding:14px 16px;border-radius:0 6px 6px 0;margin-bottom:20px;">'
         + '<p style="margin:0 0 6px;font-size:14px;font-weight:600;color:#374151;">Pickup Address</p>'
-        + '<p style="margin:0;font-size:14px;line-height:1.6;color:#374151;">40 Burslem St, N5W 2V7, London, ON.<br/>Please wait for our confirmation email with pickup time and exact unit.</p>'
+        + '<p style="margin:0;font-size:16px;font-weight:700;line-height:1.6;color:#374151;">' + BUSINESS_ADDRESS_ONE_LINE + '</p>'
+        + '<p style="margin:6px 0 0;font-size:13px;line-height:1.6;color:#6b7280;">Please wait for our confirmation email with your pickup time.</p>'
         + '</div>'
       : '')
+    + '<div style="background:#E8F5EE;border-radius:6px;padding:14px 16px;margin-bottom:20px;text-align:center;">'
+    + '<p style="margin:0;font-size:14px;color:#374151;">Questions about your order? Call us at <a href="tel:' + BUSINESS_PHONE_DISPLAY.replace(/-/g, '') + '" style="color:#1B6B4A;font-weight:700;font-size:16px;">' + BUSINESS_PHONE_DISPLAY + '</a></p>'
+    + '</div>'
     + '<hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;" />'
     + '<p style="font-size:13px;color:#6b7280;text-align:center;margin:0;">Questions? Reply to this email or contact <a href="mailto:edibleprintorders@gmail.com" style="color:#1B6B4A;">edibleprintorders@gmail.com</a></p>'
     + '<hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0;" />'
-    + '<p style="font-size:12px;color:#9ca3af;text-align:center;margin:0;line-height:1.6;">This email serves as your official receipt.<br/>EdiblePrint.net — London, Ontario.</p>'
+    + '<p style="font-size:12px;color:#9ca3af;text-align:center;margin:0;line-height:1.6;">This email serves as your official receipt.<br/>EdiblePrint.net — ' + BUSINESS_ADDRESS_ONE_LINE + '</p>'
     + '</div></div>';
+
+  const customerText = 'Thank you for your order!\n'
+    + 'Order #' + orderId + '\n\n'
+    + designs.map((d, i) => (designs.length > 1 ? 'Design ' + (i + 1) : 'Your Print') + ': ' + d.qty + 'x ' + d.size + ' (' + (SHAPE_LABELS[d.shape] || d.shape) + ') — $' + (parseFloat(d.price) * parseInt(d.qty, 10)).toFixed(2)).join('\n')
+    + '\n\n' + (designs.length > 1 ? 'Subtotal: $' + subtotalAmt.toFixed(2) + '\n' : '')
+    + 'Shipping (' + shippingLabel + '): ' + (shippingAmt === 0 ? 'Free' : '$' + shippingAmt.toFixed(2)) + '\n'
+    + 'Total: $' + totalAmt.toFixed(2) + ' CAD (final price — no tax charged)\n\n'
+    + (designs.every(d => d.sourceType === 'upload')
+        ? 'Your file' + (designs.length > 1 ? 's' : '') + ' will be printed exactly as you approved — no review or changes needed.\n\n'
+        : 'We\'ll review your image' + (designs.length > 1 ? 's' : '') + ' within 24 hours and contact you if any adjustments are needed.\n\n')
+    + (isPickup
+        ? 'Pickup Address\n' + BUSINESS_ADDRESS_ONE_LINE + '\nPlease wait for our confirmation email with your pickup time.\n\n'
+        : '')
+    + 'Questions about your order? Call us at ' + BUSINESS_PHONE_DISPLAY + '\n\n'
+    + 'Questions? Reply to this email or contact edibleprintorders@gmail.com\n\n'
+    + 'This email serves as your official receipt.\n'
+    + 'EdiblePrint.net — ' + BUSINESS_ADDRESS_ONE_LINE;
 
   try {
     await withRetry(async () => {
@@ -406,6 +516,7 @@ async function processOrder(session, orderId) {
           reply_to: 'edibleprintorders@gmail.com',
           subject: 'Order Confirmed — EdiblePrint.net #' + orderId,
           html: customerHtml,
+          text: customerText,
         }),
       });
       if (!r.ok) {
@@ -414,8 +525,11 @@ async function processOrder(session, orderId) {
         throw new Error('Customer email HTTP ' + r.status + ': ' + body);
       }
     }, 'customerEmail:' + orderId);
+    await recordNotification(orderId, { customerEmailSent: true });
   } catch (err) {
     console.error('Customer confirmation email failed for', orderId, '— order already processed, not failing pipeline:', err.message);
+    await recordNotification(orderId, { customerEmailSent: false, customerEmailError: err.message });
+    await sendCustomerEmailFailedAlert(orderId, session.customer_email, err);
   }
 
   console.log('Order pipeline complete:', orderId, '| PDF:', pdfUrl);

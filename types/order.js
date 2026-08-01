@@ -49,6 +49,11 @@
  *   },
  *   notes?: string,
  *   urgentFlags?: string[],
+ *   notifications?: {
+ *     ownerEmailSent?: boolean,
+ *     customerEmailSent?: boolean,
+ *     customerEmailError?: string,
+ *   },
  * }} OrderRecord
  */
 
