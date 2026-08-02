@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAdminSession } from '../../../../../lib/admin-auth.js';
 import { fetchRawText, orderFolderPath } from '../../../../../lib/cloudinary-ops.js';
+import { resolvePrintReadyUrls } from '../../../../../lib/order-record.js';
 
 // Full order.json for one order — customer PII, shipping address, and (for
 // upload-flow designs) sourceType/selectedPage/pageCount/approvedAt. Same
@@ -20,6 +21,16 @@ export async function GET(request, { params }) {
   try {
     const text = await fetchRawText(`${orderFolderPath(orderId)}/order`);
     const record = JSON.parse(text);
+
+    // assets.printReadyUrls can be stale — see resolvePrintReadyUrls — so
+    // this page (the one place an admin actually downloads the print file)
+    // must not trust it blindly. Read-only patch of the response only;
+    // order.json itself is untouched here.
+    const printReadyUrls = await resolvePrintReadyUrls(record);
+    if (printReadyUrls.length > (record.assets?.printReadyUrls?.length || 0)) {
+      record.assets = { ...record.assets, printReadyUrls };
+    }
+
     return NextResponse.json(record);
   } catch (err) {
     if (String(err.message).includes('404')) {
