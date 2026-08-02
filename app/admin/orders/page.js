@@ -73,7 +73,23 @@ export default function AdminOrdersPage() {
       <meta name="robots" content="noindex, nofollow" />
       <div style={{ fontFamily: "'Outfit', sans-serif", background: C.bg, minHeight: '100vh', padding: '32px 24px' }}>
       <div style={{ maxWidth: 1000, margin: '0 auto' }}>
-        <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 700, marginBottom: 24, color: C.text }}>Orders</h1>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 24 }}>
+          <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 700, margin: 0, color: C.text }}>Orders</h1>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <Link href="/api/admin/orders/export?format=csv" style={{
+              fontSize: 13, fontWeight: 600, color: C.brand, border: '1.5px solid ' + C.brand,
+              borderRadius: 8, padding: '7px 14px', textDecoration: 'none',
+            }}>
+              Export CSV
+            </Link>
+            <Link href="/api/admin/orders/export?format=json" style={{
+              fontSize: 13, fontWeight: 600, color: C.brand, border: '1.5px solid ' + C.brand,
+              borderRadius: 8, padding: '7px 14px', textDecoration: 'none',
+            }}>
+              Export JSON
+            </Link>
+          </div>
+        </div>
 
         {loading && <p style={{ color: C.muted }}>Loading…</p>}
         {error && <p style={{ color: '#DC2626' }}>{error}</p>}
