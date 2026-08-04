@@ -30,6 +30,9 @@ export async function GET(request) {
 
   try {
     const result = await sendOrderBackupEmail();
+    if (result.skipped) {
+      console.log('[cron/orders-backup] skipped — no new or changed orders since last backup');
+    }
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     console.error('[cron/orders-backup] failed:', err);
