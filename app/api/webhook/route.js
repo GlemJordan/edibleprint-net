@@ -1,6 +1,6 @@
 import Stripe from 'stripe';
 import { NextResponse, after } from 'next/server';
-import { buildOrderRecord, saveOrderRecord, recordNotification } from '../../../lib/order-record.js';
+import { buildOrderRecord, saveOrderRecord, recordNotification, urgentFlagLabel } from '../../../lib/order-record.js';
 import { generateOrderPdfs } from '../../../lib/order-pdf-pipeline.js';
 import { withRetry } from '../../../lib/with-retry.js';
 import { BUSINESS_ADDRESS_ONE_LINE, BUSINESS_PHONE_DISPLAY } from '../../../lib/business-info.js';
@@ -344,7 +344,7 @@ async function processOrder(session, orderId) {
 
   const urgentBanner = savedRecord.urgentFlags?.length
     ? '<div style="background:#FEF3C7;border-left:4px solid #F59E0B;padding:12px 16px;margin-bottom:16px;border-radius:0 6px 6px 0;">'
-      + '<strong>⚡ Urgent:</strong> ' + savedRecord.urgentFlags.join(' · ')
+      + '<strong>⚡ Urgent:</strong> ' + savedRecord.urgentFlags.map(urgentFlagLabel).join(' · ')
       + '</div>'
     : '';
 
@@ -357,7 +357,6 @@ async function processOrder(session, orderId) {
     + '</div>'
     + '<div style="border:1px solid #e5e7eb;border-top:none;padding:20px;border-radius:0 0 8px 8px;">'
     + urgentBanner
-    + '<p><a href="' + pdfUrl + '" style="background:#1B6B4A;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:15px;display:inline-block;">📄 Download Production Slip (PDF)</a></p>'
     + (printPdfUrls.length > 0
         ? '<p>' + printPdfUrls.map(p =>
             '<a href="' + p.url + '" style="background:#1D4ED8;color:white;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:14px;display:inline-block;margin-right:8px;">🖨️ ' + p.label + ' — Print-Ready PDF</a>'
@@ -383,7 +382,6 @@ async function processOrder(session, orderId) {
 
   const ownerText = 'New Order: ' + orderId + '\n'
     + 'Total: $' + totalAmt.toFixed(2) + ' CAD | ' + designs.length + ' design' + (designs.length > 1 ? 's' : '') + '\n\n'
-    + 'Production Slip: ' + pdfUrl + '\n'
     + (printPdfUrls.length > 0 ? printPdfUrls.map(p => p.label + ': ' + p.url).join('\n') + '\n' : '')
     + '\nCustomer\n' + meta.customerName + '\n' + session.customer_email + '\n' + (meta.customerPhone || '—') + '\n'
     + '\nShipping\n' + (isPickup ? 'PICKUP — East London' : (meta.shippingAddress + ', ' + meta.shippingCity + ', ' + meta.shippingProvince + ' ' + meta.shippingPostal)) + '\nMethod: ' + shippingLabel + '\n'
@@ -480,7 +478,7 @@ async function processOrder(session, orderId) {
         + '</div>'
       : '')
     + '<div style="background:#E8F5EE;border-radius:6px;padding:14px 16px;margin-bottom:20px;text-align:center;">'
-    + '<p style="margin:0;font-size:14px;color:#374151;">Questions about your order? Call us at <a href="tel:' + BUSINESS_PHONE_DISPLAY.replace(/-/g, '') + '" style="color:#1B6B4A;font-weight:700;font-size:16px;">' + BUSINESS_PHONE_DISPLAY + '</a></p>'
+    + '<p style="margin:0;font-size:14px;color:#374151;">Questions about your order? Text or WhatsApp us at <a href="sms:' + BUSINESS_PHONE_DISPLAY.replace(/-/g, '') + '" style="color:#1B6B4A;font-weight:700;font-size:16px;">' + BUSINESS_PHONE_DISPLAY + '</a></p>'
     + '</div>'
     + '<hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;" />'
     + '<p style="font-size:13px;color:#6b7280;text-align:center;margin:0;">Questions? Reply to this email or contact <a href="mailto:edibleprintorders@gmail.com" style="color:#1B6B4A;">edibleprintorders@gmail.com</a></p>'
@@ -500,7 +498,7 @@ async function processOrder(session, orderId) {
     + (isPickup
         ? 'Pickup Address\n' + BUSINESS_ADDRESS_ONE_LINE + '\nPlease wait for our confirmation email with your pickup time.\n\n'
         : '')
-    + 'Questions about your order? Call us at ' + BUSINESS_PHONE_DISPLAY + '\n\n'
+    + 'Questions about your order? Text or WhatsApp us at ' + BUSINESS_PHONE_DISPLAY + '\n\n'
     + 'Questions? Reply to this email or contact edibleprintorders@gmail.com\n\n'
     + 'This email serves as your official receipt.\n'
     + 'EdiblePrint.net — ' + BUSINESS_ADDRESS_ONE_LINE;

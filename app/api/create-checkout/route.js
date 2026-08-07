@@ -97,7 +97,7 @@ export async function POST(request) {
       designMeta['d' + i + '_size']     = String(d.size  || '').slice(0, 500);
       designMeta['d' + i + '_qty']      = String(d.quantity);
       designMeta['d' + i + '_price']    = String(d.unitPrice);
-      designMeta['d' + i + '_notes']    = 'N/A';
+      designMeta['d' + i + '_notes']    = String(d.notes || '').slice(0, 500);
       designMeta['d' + i + '_imageUrl'] = String(d.imageUrl || 'No image').slice(0, 500);
       if (d.sourceType === 'upload') {
         designMeta['d' + i + '_uploadMeta'] = (
