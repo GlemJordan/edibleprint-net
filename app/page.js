@@ -3263,6 +3263,7 @@ export default function EdiblePrintApp() {
               customH: d.customH || '',
               quantity: d.qty,
               unitPrice: dPrice,
+              notes: d.notes || '',
               imageUrl: d.uploadedImageUrl || '',
               ...(d.sourceType === 'upload' ? {
                 sourceType: 'upload',
