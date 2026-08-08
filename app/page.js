@@ -7,7 +7,7 @@ import HeroSection from './_components/HeroSection';
 import { getShippingCost } from '../lib/shipping-config.js';
 import { WAFER_PAPER_PRICE } from '../lib/wafer-paper-config.js';
 import {
-  sheetSizeInForShape, computeSheetPlacement, isWholeSheetShape, BWSHEET_DESIGN_IN,
+  sheetSizeInForShape, computeSheetPlacement, isWholeSheetShape, hasSheetMargin, BWSHEET_DESIGN_IN,
 } from '../lib/paper-config.js';
 
 /* ═══ PRICING CONFIG ═══
@@ -1308,14 +1308,17 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
 
   /* Draw the modal canvas: the WHOLE printed sheet (paper background, design
      placed at its real position/size/margins, cut line, grid for cookie
-     sheet) — not just the isolated design. Whole-sheet shapes (fullsheet/
-     bwsheet/multicircle/waferletter) draw straight onto the full sheet via
-     renderPreviewCore, exactly like the hi-res export does (both call
-     computeMultiCircleLayout fed the destination's own pixel size).
-     Individual-item shapes (circular/heart/square/custom) render into a
-     sub-canvas at their physical size, then get placed on the sheet via
+     sheet) — not just the isolated design. Full-bleed whole-sheet shapes
+     with no print margin (bwsheet/multicircle/waferletter) draw straight
+     onto the full sheet via renderPreviewCore, exactly like the hi-res
+     export does (both call computeMultiCircleLayout fed the destination's
+     own pixel size). Every other shape — individual-item ones
+     (circular/heart/square/custom) AND whole-sheet shapes that DO have a
+     margin (fullsheet, see hasSheetMargin()/paper-config.js) — render into
+     a sub-canvas at their placed size, then get positioned on the sheet via
      computeSheetPlacement() — the SAME function lib/generate-pdf.js calls
-     server-side, so this can't show a position that doesn't match the PDF. */
+     server-side, so this can't show a position/margin that doesn't match
+     the PDF. */
   useEffect(() => {
     if (!showPrintPreview || !previewDesign) return;
     const canvas = modalCanvasRef.current;
@@ -1357,7 +1360,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     const downscale = (key, img, w, h) => getDownscaledSource('modalPreview:' + key, img, w, h);
     const { refW, refCirclePx } = referenceSizeFor(previewDesign);
 
-    if (isWholeSheetShape(pShape)) {
+    if (isWholeSheetShape(pShape) && !hasSheetMargin(pShape)) {
       const layout = computeMultiCircleLayout(cw, ch, pIsMultiCircle, pSizeObj);
       const layerScale = computeLayerScale(pIsMultiCircle, cw, layout.circlePx, refW, refCirclePx);
       renderPreviewCore(ctx, cw, ch, {
