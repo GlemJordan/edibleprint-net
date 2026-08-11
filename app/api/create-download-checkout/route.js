@@ -1,7 +1,7 @@
 import Stripe from 'stripe';
 import { NextResponse } from 'next/server';
 import { isValidEmail } from '../../../lib/validate-email.js';
-import { isWholeSheetShape, sheetFormatLabel } from '../../../lib/paper-config.js';
+import { isWholeSheetShape, sheetFormatLabel, shapeDisplayLabel } from '../../../lib/paper-config.js';
 
 const isTest = process.env.STRIPE_MODE === 'test';
 const stripeKey = isTest
@@ -48,7 +48,7 @@ export async function POST(request) {
         currency: 'cad',
         product_data: {
           name: 'EdiblePrint Digital Download',
-          description: `${shape} ${sizeLabel} — print-ready PDF (A4)`,
+          description: `${shapeDisplayLabel(shape)} ${sizeLabel} — print-ready PDF (A4)`,
         },
         unit_amount: parseInt(process.env.DOWNLOAD_PDF_PRICE_CENTS || '399'),
       },

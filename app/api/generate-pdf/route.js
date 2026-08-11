@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { Resend } from 'resend';
-import { pageSizePtForShape, computeSheetPlacement, isWholeSheetShape, sheetFormatLabel } from '../../../lib/paper-config.js';
+import { pageSizePtForShape, computeSheetPlacement, isWholeSheetShape, sheetFormatLabel, shapeDisplayLabel } from '../../../lib/paper-config.js';
 import { BUSINESS_ADDRESS_ONE_LINE } from '../../../lib/business-info.js';
 
 export async function POST(request) {
@@ -66,7 +66,7 @@ export async function POST(request) {
     ? `${customW}" × ${customH}"`
     : isWholeSheet ? sheetFormatLabel(shape)
     : sizeInches ? `${sizeInches}"` : '';
-  page.drawText(`EdiblePrint · ${shape.toUpperCase()}${isWholeSheet ? ' · ' : ' '}${sizeLabel}`, {
+  page.drawText(`EdiblePrint · ${shapeDisplayLabel(shape).toUpperCase()}${isWholeSheet ? ' · ' : ' '}${sizeLabel}`, {
     x: 30,
     y: 18,
     size: 7,
@@ -91,7 +91,7 @@ export async function POST(request) {
             <p>Thank you for your purchase. Attached is your custom edible print design as a print-ready PDF in ${shape === 'waferletter' ? 'Letter (8.5"×11")' : 'A4'} format.</p>
             <div style="background: #F5F5F5; padding: 14px 18px; border-radius: 8px; margin: 18px 0; font-size: 14px;">
               <strong>Order details:</strong><br>
-              Shape: ${shape}${sizeLabel ? `<br>Size: ${sizeLabel}` : ''}
+              Shape: ${shapeDisplayLabel(shape)}${sizeLabel ? `<br>Size: ${sizeLabel}` : ''}
             </div>
             <p style="font-size: 13px; color: #666;">
               <strong>How to print:</strong> Open the attached PDF and print at 100% scale (no fit-to-page) on ${shape === 'waferletter' ? 'edible wafer paper' : 'edible icing sheets'} using a food-safe printer.
@@ -104,7 +104,7 @@ export async function POST(request) {
         `,
         text: `Your PDF is ready\n\n`
           + `Thank you for your purchase. Attached is your custom edible print design as a print-ready PDF in ${shape === 'waferletter' ? 'Letter (8.5"x11")' : 'A4'} format.\n\n`
-          + `Order details:\nShape: ${shape}${sizeLabel ? `\nSize: ${sizeLabel}` : ''}\n\n`
+          + `Order details:\nShape: ${shapeDisplayLabel(shape)}${sizeLabel ? `\nSize: ${sizeLabel}` : ''}\n\n`
           + `How to print: Open the attached PDF and print at 100% scale (no fit-to-page) on ${shape === 'waferletter' ? 'edible wafer paper' : 'edible icing sheets'} using a food-safe printer.\n\n`
           + `Need help? Reply to this email.\n`
           + `EdiblePrint.net — ${BUSINESS_ADDRESS_ONE_LINE}`,
