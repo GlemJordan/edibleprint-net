@@ -1,6 +1,7 @@
 import Stripe from 'stripe';
 import { NextResponse } from 'next/server';
 import { isValidEmail } from '../../../lib/validate-email.js';
+import { isWholeSheetShape, sheetFormatLabel } from '../../../lib/paper-config.js';
 
 const isTest = process.env.STRIPE_MODE === 'test';
 const stripeKey = isTest
@@ -31,8 +32,13 @@ export async function POST(request) {
   });
   const { url: cloudinaryUrl } = await uploadResp.json();
 
+  // Whole-sheet shapes (fullsheet/bwsheet/multicircle/waferletter) have no
+  // per-item size — labeling them with the sheet's own raw width would show
+  // a long unformatted number in the Stripe line item, so they get the
+  // sheet format (A4/LETTER) instead.
   const sizeLabel = shape === 'custom'
     ? `${customW}" × ${customH}"`
+    : isWholeSheetShape(shape) ? sheetFormatLabel(shape)
     : sizeInches ? `${sizeInches}"` : '';
 
   const session = await stripe.checkout.sessions.create({

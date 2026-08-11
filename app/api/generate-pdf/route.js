@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { Resend } from 'resend';
-import { pageSizePtForShape, computeSheetPlacement } from '../../../lib/paper-config.js';
+import { pageSizePtForShape, computeSheetPlacement, isWholeSheetShape, sheetFormatLabel } from '../../../lib/paper-config.js';
 import { BUSINESS_ADDRESS_ONE_LINE } from '../../../lib/business-info.js';
 
 export async function POST(request) {
@@ -56,10 +56,17 @@ export async function POST(request) {
 
   page.drawImage(embeddedImage, { x, y, width: imgWidthPt, height: imgHeightPt });
 
+  // Whole-sheet shapes (fullsheet/bwsheet/multicircle/waferletter) have no
+  // per-item size — labeling them with the sheet's own raw width would
+  // print a long unformatted number, so they get the sheet format
+  // (A4/LETTER) instead. Computed once here and reused below for the
+  // customer email so both can't drift or repeat the same bug separately.
+  const isWholeSheet = isWholeSheetShape(shape);
   const sizeLabel = shape === 'custom'
     ? `${customW}" × ${customH}"`
+    : isWholeSheet ? sheetFormatLabel(shape)
     : sizeInches ? `${sizeInches}"` : '';
-  page.drawText(`EdiblePrint · ${shape.toUpperCase()} ${sizeLabel}`, {
+  page.drawText(`EdiblePrint · ${shape.toUpperCase()}${isWholeSheet ? ' · ' : ' '}${sizeLabel}`, {
     x: 30,
     y: 18,
     size: 7,
@@ -73,9 +80,6 @@ export async function POST(request) {
     try {
       const resend = new Resend(process.env.RESEND_API_KEY);
       const pdfBase64 = Buffer.from(pdfBytes).toString('base64');
-      const sizeLabel = shape === 'custom'
-        ? `${customW}" × ${customH}"`
-        : sizeInches ? `${sizeInches}"` : '';
 
       const emailResult = await resend.emails.send({
         from: 'EdiblePrint.net <orders@edibleprint.net>',
