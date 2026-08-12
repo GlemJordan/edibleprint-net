@@ -14,6 +14,14 @@ const STATUS_COLORS = {
   unknown: '#9CA3AF',
 };
 
+const CHANNEL_LABELS = {
+  website: 'Website', marketplace: 'Marketplace', instagram: 'Instagram',
+  referral: 'Referral', walk_in: 'Walk-in', other: 'Other',
+};
+const PAYMENT_METHOD_LABELS = {
+  stripe_card: 'Card (Stripe)', cash: 'Cash', e_transfer: 'E-transfer', other: 'Other',
+};
+
 export default function AdminOrdersPage() {
   const [authChecked, setAuthChecked] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -21,6 +29,8 @@ export default function AdminOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [scannedAllResults, setScannedAllResults] = useState(true);
+  const [channelFilter, setChannelFilter] = useState('');
+  const [paymentFilter, setPaymentFilter] = useState('');
 
   /* Same admin-session check every other admin surface in this app uses —
      the actual data fetch below is protected server-side regardless (the
@@ -68,6 +78,11 @@ export default function AdminOrdersPage() {
     );
   }
 
+  const filteredOrders = orders.filter((o) =>
+    (!channelFilter || (o.channel || 'website') === channelFilter)
+    && (!paymentFilter || (o.paymentMethod || 'stripe_card') === paymentFilter)
+  );
+
   return (
     <>
       <meta name="robots" content="noindex, nofollow" />
@@ -75,7 +90,13 @@ export default function AdminOrdersPage() {
       <div style={{ maxWidth: 1000, margin: '0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 24 }}>
           <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 700, margin: 0, color: C.text }}>Orders</h1>
-          <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <Link href="/admin/orders/manual" style={{
+              fontSize: 13, fontWeight: 600, color: '#fff', background: C.brand,
+              borderRadius: 8, padding: '7px 14px', textDecoration: 'none',
+            }}>
+              + Add manual order
+            </Link>
             <Link href="/api/admin/orders/export?format=csv" style={{
               fontSize: 13, fontWeight: 600, color: C.brand, border: '1.5px solid ' + C.brand,
               borderRadius: 8, padding: '7px 14px', textDecoration: 'none',
@@ -90,6 +111,21 @@ export default function AdminOrdersPage() {
             </Link>
           </div>
         </div>
+
+        {!loading && !error && (
+          <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+            <select value={channelFilter} onChange={(e) => setChannelFilter(e.target.value)}
+              style={{ padding: '7px 10px', borderRadius: 8, border: '1.5px solid ' + C.border, fontFamily: 'inherit', fontSize: 13 }}>
+              <option value="">All channels</option>
+              {Object.entries(CHANNEL_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+            <select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)}
+              style={{ padding: '7px 10px', borderRadius: 8, border: '1.5px solid ' + C.border, fontFamily: 'inherit', fontSize: 13 }}>
+              <option value="">All payment methods</option>
+              {Object.entries(PAYMENT_METHOD_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </div>
+        )}
 
         {loading && <p style={{ color: C.muted }}>Loading…</p>}
         {error && <p style={{ color: '#DC2626' }}>{error}</p>}
@@ -112,6 +148,7 @@ export default function AdminOrdersPage() {
                 <tr style={{ background: C.brand, color: '#fff', textAlign: 'left' }}>
                   <th style={{ padding: '10px 14px' }}>Order</th>
                   <th style={{ padding: '10px 14px' }}>Customer</th>
+                  <th style={{ padding: '10px 14px' }}>Source</th>
                   <th style={{ padding: '10px 14px' }}>Designs</th>
                   <th style={{ padding: '10px 14px', textAlign: 'right' }}>Total</th>
                   <th style={{ padding: '10px 14px' }}>Status</th>
@@ -120,7 +157,7 @@ export default function AdminOrdersPage() {
                 </tr>
               </thead>
               <tbody>
-                {orders.map((o, i) => (
+                {filteredOrders.map((o, i) => (
                   <tr key={o.orderId} style={{ background: i % 2 === 0 ? C.white : C.bg, borderTop: '1px solid ' + C.border }}>
                     <td style={{ padding: '10px 14px' }}>
                       <Link href={`/admin/orders/${o.orderId}`} style={{ color: C.brand, fontWeight: 600, textDecoration: 'none' }}>
@@ -128,6 +165,20 @@ export default function AdminOrdersPage() {
                       </Link>
                     </td>
                     <td style={{ padding: '10px 14px' }}>{o.customerName || '—'}</td>
+                    <td style={{ padding: '10px 14px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        {o.source === 'manual' && (
+                          <span style={{
+                            display: 'inline-block', fontSize: 11, fontWeight: 700, color: '#7C3AED',
+                            background: '#F3E8FF', padding: '2px 6px', borderRadius: 4, width: 'fit-content',
+                          }}>
+                            MANUAL
+                          </span>
+                        )}
+                        <span style={{ fontSize: 12.5, color: C.muted }}>{CHANNEL_LABELS[o.channel] || o.channel || 'Website'}</span>
+                        <span style={{ fontSize: 12.5, color: C.muted }}>{PAYMENT_METHOD_LABELS[o.paymentMethod] || o.paymentMethod || 'Card (Stripe)'}</span>
+                      </div>
+                    </td>
                     <td style={{ padding: '10px 14px' }}>
                       {o.designCount ?? '—'}{o.hasUploadDesign ? ' 📄' : ''}
                     </td>
@@ -154,8 +205,8 @@ export default function AdminOrdersPage() {
                     </td>
                   </tr>
                 ))}
-                {orders.length === 0 && (
-                  <tr><td colSpan={7} style={{ padding: '24px 14px', textAlign: 'center', color: C.muted }}>No orders found.</td></tr>
+                {filteredOrders.length === 0 && (
+                  <tr><td colSpan={8} style={{ padding: '24px 14px', textAlign: 'center', color: C.muted }}>No orders found.</td></tr>
                 )}
               </tbody>
             </table>

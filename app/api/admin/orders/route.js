@@ -49,6 +49,13 @@ export async function GET(request) {
           hasUploadDesign: context.hasUploadDesign === 'true',
           designCount: context.designCount != null ? parseInt(context.designCount, 10) : null,
           createdAt: r.created_at,
+          // Absent on orders saved before these existed — same 'stripe' /
+          // 'website' / 'stripe_card' defaults deriveSearchContext() applies
+          // when writing context, so a pre-existing order's row can't show
+          // a blank/different value than what it actually was.
+          source: context.source || 'stripe',
+          channel: context.channel || 'website',
+          paymentMethod: context.paymentMethod || 'stripe_card',
           // Set by lib/order-pdf-pipeline.js after PDF generation — absent
           // on orders processed before that started (context.missingAssets
           // is undefined then), which we deliberately read as "not flagged"

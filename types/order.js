@@ -24,7 +24,7 @@
  *   orderNumber: string,
  *   createdAt: string,
  *   isTest: boolean,
- *   customer: { name: string, email: string, phone?: string },
+ *   customer: { name: string, email?: string, phone?: string },
  *   designs: DesignRecord[],
  *   shipping: {
  *     method: 'pickup' | 'local_delivery' | 'canada_post_standard' | 'canada_post_express',
@@ -32,11 +32,12 @@
  *     address?: ShippingAddress,
  *   },
  *   payment: {
- *     stripeSessionId: string,
+ *     stripeSessionId?: string,
  *     stripePaymentIntentId?: string,
  *     amountCents: number,
  *     currency: 'CAD',
  *     status: 'paid' | 'refunded' | 'failed',
+ *     method?: 'stripe_card' | 'cash' | 'e_transfer' | 'other',
  *   },
  *   assets: {
  *     orderJsonUrl?: string,
@@ -54,6 +55,9 @@
  *     customerEmailSent?: boolean,
  *     customerEmailError?: string,
  *   },
+ *   source?: 'stripe' | 'manual',
+ *   channel?: 'website' | 'marketplace' | 'instagram' | 'referral' | 'walk_in' | 'other',
+ *   saleDate?: string,
  * }} OrderRecord
  */
 

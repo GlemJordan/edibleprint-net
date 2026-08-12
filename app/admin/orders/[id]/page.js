@@ -10,6 +10,14 @@ const C = {
 
 const VALID_STATUSES = ['paid', 'file_received', 'ready_to_print', 'printed', 'packed', 'shipped', 'pickup_ready'];
 
+const CHANNEL_LABELS = {
+  website: 'Website', marketplace: 'Marketplace', instagram: 'Instagram',
+  referral: 'Referral', walk_in: 'Walk-in', other: 'Other',
+};
+const PAYMENT_METHOD_LABELS = {
+  stripe_card: 'Card (Stripe)', cash: 'Cash', e_transfer: 'E-transfer', other: 'Other',
+};
+
 export default function AdminOrderDetailPage({ params }) {
   const { id } = use(params);
 
@@ -109,7 +117,17 @@ export default function AdminOrderDetailPage({ params }) {
       <div style={{ fontFamily: "'Outfit', sans-serif", background: C.bg, minHeight: '100vh', padding: '32px 24px' }}>
       <div style={{ maxWidth: 760, margin: '0 auto' }}>
         <Link href="/admin/orders" style={{ color: C.muted, fontSize: 13, textDecoration: 'none' }}>← All orders</Link>
-        <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 700, margin: '10px 0 24px', color: C.text }}>{id}</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '10px 0 24px', flexWrap: 'wrap' }}>
+          <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 700, margin: 0, color: C.text }}>{id}</h1>
+          {order?.source === 'manual' && (
+            <span style={{
+              fontSize: 12, fontWeight: 700, color: '#7C3AED', background: '#F3E8FF',
+              padding: '3px 9px', borderRadius: 5,
+            }}>
+              MANUAL — {CHANNEL_LABELS[order.channel] || order.channel}
+            </span>
+          )}
+        </div>
 
         {loading && <p style={{ color: C.muted }}>Loading…</p>}
         {error && <p style={{ color: '#DC2626' }}>{error}</p>}
@@ -136,9 +154,11 @@ export default function AdminOrderDetailPage({ params }) {
               {(order.designs || []).map((d, i) => (
                 <div key={i} style={{ padding: '10px 0', borderBottom: i < order.designs.length - 1 ? '1px solid ' + C.border : 'none' }}>
                   <div style={{ fontWeight: 600 }}>{d.shapeLabel} — {d.size} × {d.quantity}</div>
-                  <div style={{ fontSize: 13, color: C.muted }}>
-                    ${d.unitPrice?.toFixed(2)} each{d.notes ? ' · Note: ' + d.notes : ''}
-                  </div>
+                  {(d.unitPrice > 0 || d.notes) && (
+                    <div style={{ fontSize: 13, color: C.muted }}>
+                      {d.unitPrice > 0 ? '$' + d.unitPrice.toFixed(2) + ' each' : ''}{d.unitPrice > 0 && d.notes ? ' · ' : ''}{d.notes ? 'Note: ' + d.notes : ''}
+                    </div>
+                  )}
                   {d.sourceType === 'upload' && (
                     <div style={{
                       fontSize: 12.5, color: '#B45309', background: '#FEF3C7',
@@ -162,7 +182,9 @@ export default function AdminOrderDetailPage({ params }) {
                 label="Total"
                 value={order.payment?.amountCents != null ? '$' + (order.payment.amountCents / 100).toFixed(2) + ' ' + order.payment.currency : undefined}
               />
+              <Row label="Method" value={PAYMENT_METHOD_LABELS[order.payment?.method] || order.payment?.method} />
               <Row label="Status" value={order.payment?.status} />
+              <Row label="Sale date" value={order.saleDate ? new Date(order.saleDate).toLocaleDateString('en-CA') : undefined} />
               {order.payment?.stripePaymentIntentId && (
                 <Row
                   label="Stripe"
