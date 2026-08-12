@@ -58,6 +58,7 @@
  *   source?: 'stripe' | 'manual',
  *   channel?: 'website' | 'marketplace' | 'instagram' | 'referral' | 'walk_in' | 'other',
  *   saleDate?: string,
+ *   externalRef?: string,
  * }} OrderRecord
  */
 

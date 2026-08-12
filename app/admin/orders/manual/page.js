@@ -71,6 +71,7 @@ export default function AddManualOrderPage() {
   const [shipProvince, setShipProvince] = useState('Ontario');
   const [shipPostal, setShipPostal] = useState('');
   const [saleDate, setSaleDate] = useState(todayLocalDate());
+  const [externalRef, setExternalRef] = useState('');
   const [notes, setNotes] = useState('');
   const [file, setFile] = useState(null);
   const [fileError, setFileError] = useState('');
@@ -147,28 +148,50 @@ export default function AddManualOrderPage() {
         imageUrl = await uploadFileDirect(file);
       }
 
-      const res = await fetch('/api/admin/orders/manual', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customerName: customerName.trim(),
-          customerEmail: customerEmail.trim() || undefined,
-          customerPhone: customerPhone.trim() || undefined,
-          channel, paymentMethod,
-          shape, material: material.trim() || undefined,
-          size: size.trim(), quantity: parseInt(quantity, 10) || 1,
-          amountCents,
-          isPickup,
-          shippingAddress: isPickup ? undefined : {
-            line1: shipLine1.trim(), city: shipCity.trim(),
-            province: shipProvince.trim(), postalCode: shipPostal.trim(), country: 'CA',
-          },
-          saleDate: saleDate ? new Date(saleDate).toISOString() : undefined,
-          notes: notes.trim() || undefined,
-          imageUrl,
-        }),
+      const buildPayload = (confirmDuplicate) => ({
+        customerName: customerName.trim(),
+        customerEmail: customerEmail.trim() || undefined,
+        customerPhone: customerPhone.trim() || undefined,
+        channel, paymentMethod,
+        shape, material: material.trim() || undefined,
+        size: size.trim(), quantity: parseInt(quantity, 10) || 1,
+        amountCents,
+        isPickup,
+        shippingAddress: isPickup ? undefined : {
+          line1: shipLine1.trim(), city: shipCity.trim(),
+          province: shipProvince.trim(), postalCode: shipPostal.trim(), country: 'CA',
+        },
+        saleDate: saleDate ? new Date(saleDate).toISOString() : undefined,
+        notes: notes.trim() || undefined,
+        imageUrl,
+        externalRef: externalRef.trim() || undefined,
+        confirmDuplicate,
       });
-      const data = await res.json();
+
+      const postOrder = async (confirmDuplicate) => {
+        const res = await fetch('/api/admin/orders/manual', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(buildPayload(confirmDuplicate)),
+        });
+        const data = await res.json();
+        return { res, data };
+      };
+
+      let { res, data } = await postOrder(false);
+
+      // Warn-only: a manual order for the same customer + same total was
+      // saved in the last 24h. Ask once, then resubmit with the file
+      // already uploaded above (never re-uploaded) if the admin confirms.
+      if (res.status === 409 && data.duplicateWarning) {
+        const list = data.matches.map((m) => `${m.orderId} (${new Date(m.createdAt).toLocaleString('en-CA')})`).join('\n');
+        const proceed = window.confirm(
+          `A manual order for this same customer and amount was saved in the last 24 hours:\n\n${list}\n\nSave this one anyway?`
+        );
+        if (!proceed) return;
+        ({ res, data } = await postOrder(true));
+      }
+
       if (!res.ok) throw new Error(data.error || 'Failed to save order');
       setResult(data);
     } catch (err) {
@@ -264,7 +287,12 @@ export default function AddManualOrderPage() {
                   </select>
                 </Field>
               </Row2>
-              <Field label="Sale date"><input type="date" style={inputStyle} value={saleDate} onChange={(e) => setSaleDate(e.target.value)} /></Field>
+              <Row2>
+                <Field label="Sale date"><input type="date" style={inputStyle} value={saleDate} onChange={(e) => setSaleDate(e.target.value)} /></Field>
+                <Field label="External reference (optional)">
+                  <input style={inputStyle} placeholder="e.g. Marketplace order #" value={externalRef} onChange={(e) => setExternalRef(e.target.value)} />
+                </Field>
+              </Row2>
             </Section>
 
             <Section title="Product">

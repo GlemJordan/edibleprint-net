@@ -1,15 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAdminSession } from '../../../../lib/admin-auth.js';
-import { searchOrders } from '../../../../lib/cloudinary-ops.js';
-
-// Only a public_id shaped EXACTLY like "edibleprint/orders/{orderId}/order"
-// is a real order record. Cloudinary's Search expression is a fuzzy/coarse
-// pre-filter (see lib/cloudinary-ops.js) that also returns unrelated
-// resources — e.g. customer photo uploads from the editor flow's
-// "edibleprint-orders/" folder, and each order's own production-slip.pdf/
-// notes/print-design*.pdf siblings — so this regex is the actual source of
-// truth for "is this an order", not the search expression.
-const ORDER_PUBLIC_ID_RE = /^edibleprint\/orders\/([^/]+)\/order$/;
+import { searchOrders, ORDER_PUBLIC_ID_RE } from '../../../../lib/cloudinary-ops.js';
 
 const MAX_PAGES = 10; // safety cap: up to 1000 raw search results scanned per request
 

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAdminSession } from '../../../../../lib/admin-auth.js';
-import { buildManualOrderRecord, generateManualOrderId, saveOrderRecord } from '../../../../../lib/order-record.js';
+import { buildManualOrderRecord, generateManualOrderId, saveOrderRecord, findRecentDuplicateManualOrders } from '../../../../../lib/order-record.js';
 import { generateOrderPdfs } from '../../../../../lib/order-pdf-pipeline.js';
 import { isValidEmail } from '../../../../../lib/validate-email.js';
 
@@ -38,6 +38,8 @@ export async function POST(request) {
     isPickup, shippingAddress,
     saleDate, notes,
     imageUrl,
+    externalRef,
+    confirmDuplicate,
   } = body;
 
   if (!customerName) {
@@ -62,6 +64,17 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Shipping address is required when not picking up' }, { status: 400 });
   }
 
+  // Warn-only duplicate check — same customer name + same total, saved
+  // manually within the last 24h. Skipped entirely once the admin has
+  // already seen the warning and resubmitted with confirmDuplicate: true;
+  // never blocks on its own.
+  if (!confirmDuplicate) {
+    const duplicates = await findRecentDuplicateManualOrders({ customerName, amountCents });
+    if (duplicates.length > 0) {
+      return NextResponse.json({ duplicateWarning: true, matches: duplicates }, { status: 409 });
+    }
+  }
+
   const orderId = generateManualOrderId();
   const record = buildManualOrderRecord({
     customerName, customerEmail, customerPhone,
@@ -71,6 +84,7 @@ export async function POST(request) {
     isPickup, shippingAddress,
     saleDate, notes,
     imageUrl,
+    externalRef,
   }, orderId);
 
   const savedRecord = await saveOrderRecord(record);

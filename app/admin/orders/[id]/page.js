@@ -185,6 +185,7 @@ export default function AdminOrderDetailPage({ params }) {
               <Row label="Method" value={PAYMENT_METHOD_LABELS[order.payment?.method] || order.payment?.method} />
               <Row label="Status" value={order.payment?.status} />
               <Row label="Sale date" value={order.saleDate ? new Date(order.saleDate).toLocaleDateString('en-CA') : undefined} />
+              <Row label="External ref" value={order.externalRef} />
               {order.payment?.stripePaymentIntentId && (
                 <Row
                   label="Stripe"
