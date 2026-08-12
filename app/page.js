@@ -8,6 +8,7 @@ import { getShippingCost } from '../lib/shipping-config.js';
 import { WAFER_PAPER_PRICE } from '../lib/wafer-paper-config.js';
 import {
   sheetSizeInForShape, computeSheetPlacement, isWholeSheetShape, hasSheetMargin, BWSHEET_DESIGN_IN,
+  customShapeLabel,
 } from '../lib/paper-config.js';
 
 /* ═══ PRICING CONFIG ═══
@@ -55,6 +56,22 @@ const SHAPE_LABEL = {
   circular: 'Round', heart: 'Heart', square: 'Square', multicircle: 'Cookie Sheet',
   fullsheet: 'Full Sheet', bwsheet: 'B&W Sheet', waferletter: 'Wafer Paper', custom: 'Custom',
 };
+
+// Figures selectable within shape === 'custom'. 'rectangle' is the default
+// (matches every Custom design created before this picker existed — see
+// the customShapeKind accessor below, which leaves the field undefined
+// rather than defaulting it, so old designs keep rendering exactly as
+// before). Labels come from paper-config.js's customShapeLabel() — the
+// same map the server-side PDF footer/email and Stripe line item read —
+// so a figure can't be called something different there than it's called
+// here.
+const CUSTOM_SHAPES = [
+  { key: 'rectangle', icon: '▭' },
+  { key: 'circle',    icon: '⭕' },
+  { key: 'oval',      icon: '⬭' },
+  { key: 'triangle',  icon: '🔺' },
+  { key: 'hexagon',   icon: '⬡' },
+].map((s) => ({ ...s, label: customShapeLabel(s.key) }));
 
 /* ═══ "I ALREADY HAVE MY DESIGN" — customer-supplied print-ready file ═══
    No price of its own: an alternate entry point into the same three flat
@@ -245,6 +262,50 @@ function drawHeartPath(ctx, x, y, width, height, asSubpath = false) {
   ctx.closePath();
 }
 
+/* Clip/cut-line path for a Custom design's chosen sub-shape (circle/oval/
+   triangle/hexagon/rectangle), sized to the x,y,w,h box. Only called for
+   shape === 'custom' — circular/heart/square keep their own existing
+   inline arc/drawHeartPath/rect code untouched at every call site below,
+   so this addition can't change how any pre-existing format renders.
+   'rectangle' (and any unrecognized/undefined kind) falls through to a
+   plain rect — the same shape a Custom design without this field already
+   rendered before this picker existed, so legacy designs and an explicit
+   "Rectangle" choice draw identically. asSubpath mirrors drawHeartPath's
+   own flag: true appends to an already-open path, false starts a fresh
+   beginPath() first. */
+function appendCustomShapeClipPath(ctx, customShapeKind, x, y, w, h, asSubpath = false) {
+  const cx = x + w / 2, cy = y + h / 2;
+  if (!asSubpath) ctx.beginPath();
+  if (customShapeKind === 'circle' || customShapeKind === 'oval') {
+    ctx.moveTo(cx + w / 2, cy);
+    ctx.ellipse(cx, cy, w / 2, h / 2, 0, 0, Math.PI * 2);
+  } else if (customShapeKind === 'triangle') {
+    ctx.moveTo(cx, y);
+    ctx.lineTo(x + w, y + h);
+    ctx.lineTo(x, y + h);
+    ctx.closePath();
+  } else if (customShapeKind === 'hexagon') {
+    for (let i = 0; i < 6; i++) {
+      const angle = -Math.PI / 2 + i * (Math.PI / 3);
+      const px = cx + (w / 2) * Math.cos(angle);
+      const py = cy + (h / 2) * Math.sin(angle);
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+  } else {
+    ctx.rect(x, y, w, h);
+  }
+}
+
+/* Custom designs with a real "outside the shape but inside its bounding
+   box" region (everything except 'rectangle', which fills the whole box)
+   — used to decide whether the crop-interaction mask/overlay and cut-line
+   stroke apply, matching how circular/heart are already treated below. */
+function isCustomShapeClipped(customShapeKind) {
+  return customShapeKind === 'circle' || customShapeKind === 'oval'
+    || customShapeKind === 'triangle' || customShapeKind === 'hexagon';
+}
+
 function drawText(ctx, textOverlay, w, h, sf = 1) {
   if (!textOverlay?.text) return;
   const px   = (Number(textOverlay.fontSize) || 24) * sf;
@@ -348,7 +409,7 @@ function drawWatermark(ctx, canvasW, canvasH) {
   ctx.restore();
 }
 
-function drawShapeShadow(ctx, shape, canvasW, canvasH, isMobile) {
+function drawShapeShadow(ctx, shape, canvasW, canvasH, isMobile, customShapeKind) {
   ctx.save();
   ctx.shadowColor = 'rgba(0, 0, 0, 0.12)';
   ctx.shadowBlur = isMobile ? 10 : 16;
@@ -365,6 +426,9 @@ function drawShapeShadow(ctx, shape, canvasW, canvasH, isMobile) {
   } else if (shape === 'bwsheet') {
     const sq = canvasW * (BWSHEET_DESIGN_IN / ICING_SHEET_IN.w);
     ctx.fillRect((canvasW - sq) / 2, (canvasH - sq) / 2, sq, sq);
+  } else if (shape === 'custom' && isCustomShapeClipped(customShapeKind)) {
+    appendCustomShapeClipPath(ctx, customShapeKind, 0, 0, canvasW, canvasH);
+    ctx.fill();
   } else {
     ctx.fillRect(0, 0, canvasW, canvasH);
   }
@@ -767,10 +831,10 @@ function renderPreviewCore(ctx, cw, ch, {
   shape, isBWSheet, isMultiCircle, layers, getImg, getNativeSize, bgColor, textOverlay,
   circlePx, mcCols, mcRows, mcOffsetX, mcOffsetY, mcStepPx, layerScale = 1,
   downscale, renderScale, isMobile, showSelection, selectedLayer, selectedLayerImg,
-  showWatermark, overlayOpacity = 0,
+  showWatermark, overlayOpacity = 0, customShapeKind,
 }) {
   ctx.clearRect(0, 0, cw, ch);
-  drawShapeShadow(ctx, shape, cw, ch, isMobile);
+  drawShapeShadow(ctx, shape, cw, ch, isMobile, customShapeKind);
 
   if (isBWSheet) {
     const squareSize = cw * (BWSHEET_DESIGN_IN / ICING_SHEET_IN.w);
@@ -899,14 +963,18 @@ function renderPreviewCore(ctx, cw, ch, {
       ctx.setLineDash([]);
     }
   } else {
-    /* Circle/heart have a real "outside the shape but inside the canvas"
-       region to mask; a full-bleed rect crop doesn't (the shape already
-       covers the whole canvas), so it gets a boundary line only. */
+    /* Circle/heart (and a clipped Custom sub-shape) have a real "outside
+       the shape but inside the canvas" region to mask; a full-bleed rect
+       crop doesn't (the shape already covers the whole canvas), so it
+       gets a boundary line only. */
+    const customClipped = shape === 'custom' && isCustomShapeClipped(customShapeKind);
     const boundsFn = shape === 'circular'
       ? (c) => appendCirclePath(c, cw / 2, ch / 2, cw / 2)
       : shape === 'heart'
         ? (c) => drawHeartPath(c, 0, 0, cw, ch, true)
-        : null;
+        : customClipped
+          ? (c) => appendCustomShapeClipPath(c, customShapeKind, 0, 0, cw, ch, true)
+          : null;
     const interacting = showSelection && overlayOpacity > 0.002;
 
     if (interacting && boundsFn) {
@@ -922,6 +990,9 @@ function renderPreviewCore(ctx, cw, ch, {
       ctx.clip();
     } else if (shape === 'heart') {
       drawHeartPath(ctx, 0, 0, cw, ch);
+      ctx.clip();
+    } else if (customClipped) {
+      appendCustomShapeClipPath(ctx, customShapeKind, 0, 0, cw, ch);
       ctx.clip();
     } else {
       ctx.beginPath();
@@ -963,6 +1034,9 @@ function renderPreviewCore(ctx, cw, ch, {
       } else if (shape === 'heart') {
         drawHeartPath(ctx, 1, 1, cw - 2, ch - 2);
         ctx.stroke();
+      } else if (customClipped) {
+        appendCustomShapeClipPath(ctx, customShapeKind, 1, 1, cw - 2, ch - 2);
+        ctx.stroke();
       } else {
         ctx.strokeRect(0.5, 0.5, cw - 1, ch - 1);
       }
@@ -977,7 +1051,7 @@ function renderPreviewCore(ctx, cw, ch, {
    public/bg-remove-worker.js (same flood-fill + feather algorithm, moved
    verbatim) and removeWhiteBackgroundViaWorker() inside ImageEditor below. */
 
-function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF', textOverlay = null, onTextPositionChange, removeWhiteBg = false, bgRemoveTolerance = 30, onBgProcessingChange, onWhiteBgSuggestion, sizeLabel = '', isMobile = false, designs = [], activeDesignId = null }) {
+function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF', textOverlay = null, onTextPositionChange, removeWhiteBg = false, bgRemoveTolerance = 30, onBgProcessingChange, onWhiteBgSuggestion, sizeLabel = '', isMobile = false, designs = [], activeDesignId = null, customShapeKind = undefined }) {
   /* Declared early: several hooks below depend on these */
   const isMultiCircle = shape === 'multicircle';
   const isBWSheet = shape === 'bwsheet';
@@ -1395,7 +1469,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
         circlePx: designPxW, mcCols: 1, mcRows: 1, mcOffsetX: 0, mcOffsetY: 0, mcStepPx: designPxW,
         layerScale, downscale, renderScale, isMobile: false,
         showSelection: false, selectedLayer: null, selectedLayerImg: null,
-        showWatermark: true,
+        showWatermark: true, customShapeKind: previewDesign.customShapeKind,
       });
       ctx.drawImage(sub, offPxX, offPxY, designPxW, designPxH);
 
@@ -1409,6 +1483,8 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
         ctx.arc(offPxX + designPxW / 2, offPxY + designPxH / 2, designPxW / 2, 0, Math.PI * 2);
       } else if (pShape === 'heart') {
         drawHeartPath(ctx, offPxX, offPxY, designPxW, designPxH);
+      } else if (pShape === 'custom' && isCustomShapeClipped(previewDesign.customShapeKind)) {
+        appendCustomShapeClipPath(ctx, previewDesign.customShapeKind, offPxX, offPxY, designPxW, designPxH, true);
       } else {
         ctx.rect(offPxX, offPxY, designPxW, designPxH);
       }
@@ -1746,7 +1822,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       layerScale: computeLayerScale(isMultiCircle, canvasW, circlePx, canvasW, circlePx),
       downscale: getDownscaledSource, renderScale, isMobile,
       showSelection: true, selectedLayer: sel, selectedLayerImg: selImg,
-      showWatermark: true,
+      showWatermark: true, customShapeKind,
     };
     /* Snapshot for the crop-interaction fade loop, which redraws the
        low-res canvas directly (bypassing this effect and the hi-res pass
@@ -1884,6 +1960,9 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       } else if (shape === 'heart') {
         drawHeartPath(hctx, 0, 0, hiResW, hiResH);
         hctx.clip();
+      } else if (shape === 'custom' && isCustomShapeClipped(customShapeKind)) {
+        appendCustomShapeClipPath(hctx, customShapeKind, 0, 0, hiResW, hiResH);
+        hctx.clip();
       } else {
         hctx.beginPath();
         hctx.rect(0, 0, hiResW, hiResH);
@@ -1921,12 +2000,20 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       } else if (shape === 'heart') {
         drawHeartPath(hctx, 2, 2, hiResW - 4, hiResH - 4);
         hctx.stroke();
+      } else if (shape === 'custom' && customShapeKind) {
+        /* Any explicitly-chosen Custom figure gets a printed cut-line
+           guide, including 'rectangle' — a Custom design predating this
+           picker (customShapeKind left undefined, see the accessor in the
+           parent component) falls through here and keeps its old
+           no-cut-line output untouched. */
+        appendCustomShapeClipPath(hctx, customShapeKind, 2, 2, hiResW - 4, hiResH - 4);
+        hctx.stroke();
       }
       hctx.setLineDash([]);
     }
 
     if (onHiResCrop) onHiResCrop(hiResCanvas.toDataURL('image/jpeg', 0.92));
-  }, [layers, redrawTick, effectiveSelectedId, shape, hiResW, hiResH, scaleFactor, bgColor, textOverlay, isMultiCircle, isBWSheet, circlePx, mcCols, mcRows, mcOffsetX, mcOffsetY, mcStepPx, circleSize, canvasW, canvasH]);
+  }, [layers, redrawTick, effectiveSelectedId, shape, hiResW, hiResH, scaleFactor, bgColor, textOverlay, isMultiCircle, isBWSheet, circlePx, mcCols, mcRows, mcOffsetX, mcOffsetY, mcStepPx, circleSize, canvasW, canvasH, customShapeKind]);
 
   const handlePointerDown = (e) => {
     const canvas = canvasRef.current;
@@ -2633,6 +2720,13 @@ export default function EdiblePrintApp() {
   const sizeId      = activeDesign?.sizeId      ?? 'c8';
   const customW     = activeDesign?.customW     ?? '';
   const customH     = activeDesign?.customH     ?? '';
+  /* No fallback default — stays undefined for any Custom design created
+     before this field existed, so appendCustomShapeClipPath's callers can
+     tell "legacy, render as plain rectangle with no cut-line" apart from
+     "explicitly chose rectangle" (which does get a cut-line). New designs
+     get 'rectangle' explicitly at creation time instead (see
+     handleAddDesign/handlePricingCardClick below). */
+  const customShapeKind = activeDesign?.customShapeKind;
   const qty         = activeDesign?.qty         ?? 1;
   const notes       = activeDesign?.notes       ?? '';
   const bgColor     = activeDesign?.bgColor     ?? '#FFFFFF';
@@ -2677,6 +2771,7 @@ export default function EdiblePrintApp() {
   const setSizeId      = (v) => updateActive({ sizeId: v });
   const setCustomW     = (v) => updateActive({ customW: v });
   const setCustomH     = (v) => updateActive({ customH: v });
+  const setCustomShapeKind = (v) => updateActive({ customShapeKind: v });
   const setQty         = (v) => updateActive({ qty: v });
   const setNotes       = (v) => updateActive({ notes: v });
   const setBgColor     = (v) => updateActive({ bgColor: v });
@@ -2697,7 +2792,7 @@ export default function EdiblePrintApp() {
   const sizeLabel = shape === 'fullsheet' ? 'FULL SHEET · A4'
     : shape === 'bwsheet' ? `B&W ${BWSHEET_DESIGN_IN}" × ${BWSHEET_DESIGN_IN}"`
     : shape === 'waferletter' ? 'WAFER PAPER · LETTER'
-    : shape === 'custom' ? `${customW || '?'}" × ${customH || '?'}"`
+    : shape === 'custom' ? `${customShapeKind && customShapeKind !== 'rectangle' ? customShapeLabel(customShapeKind).toUpperCase() + ' ' : ''}${customW || '?'}" × ${customH || '?'}"`
     : shape === 'multicircle' ? (selectedSize?.sublabel || '').toUpperCase()
     : shape === 'circular' ? `${(selectedSize?.label || '').split(' ')[0]} ROUND`
     : shape === 'heart' ? `${(selectedSize?.label || '').split(' ')[0]} HEART`
@@ -2755,6 +2850,7 @@ export default function EdiblePrintApp() {
         sizeId: newSizeId,
         customW: '',
         customH: '',
+        customShapeKind: 'rectangle',
         qty: 1,
         notes: '',
         bgColor: '#FFFFFF',
@@ -2782,6 +2878,7 @@ export default function EdiblePrintApp() {
       sizeId: newSizeId,
       customW: '',
       customH: '',
+      customShapeKind: 'rectangle',
       qty: 1,
       notes: '',
       bgColor: '#FFFFFF',
@@ -3116,7 +3213,7 @@ export default function EdiblePrintApp() {
       const resp = await fetch('/api/generate-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageDataUrl: hiResDataUrl, shape, sizeInches: sizeW, customW, customH, paymentVerified: false }),
+        body: JSON.stringify({ imageDataUrl: hiResDataUrl, shape, sizeInches: sizeW, customW, customH, customShapeKind, paymentVerified: false }),
       });
       if (!resp.ok) throw new Error('PDF generation failed');
       const blob = await resp.blob();
@@ -3144,7 +3241,7 @@ export default function EdiblePrintApp() {
       const resp = await fetch('/api/create-download-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageDataUrl: hiResDataUrl, shape, sizeInches: sizeW, customW, customH, email: customerEmail }),
+        body: JSON.stringify({ imageDataUrl: hiResDataUrl, shape, sizeInches: sizeW, customW, customH, customShapeKind, email: customerEmail }),
       });
       const { url } = await resp.json();
       window.location.href = url;
@@ -3255,15 +3352,19 @@ export default function EdiblePrintApp() {
             const dPrice = d.shape === 'custom'
               ? (parseFloat(d.customW || 0) * parseFloat(d.customH || 0) <= 36 ? 14.99 : 19.99)
               : dSel?.price || 0;
+            const customShapePrefix = d.shape === 'custom' && d.customShapeKind && d.customShapeKind !== 'rectangle'
+              ? customShapeLabel(d.customShapeKind) + ' ' : '';
             return {
               shape: d.shape,
-              size: d.shape === 'custom' ? d.customW + '"x' + d.customH + '"' : (dSel?.label || ''),
-              // sizeId/customW/customH: additive, read by create-checkout to
-              // recompute this design's price from the catalog server-side —
-              // unitPrice below is a display convenience only, never trusted.
+              size: d.shape === 'custom' ? customShapePrefix + d.customW + '"x' + d.customH + '"' : (dSel?.label || ''),
+              // sizeId/customW/customH/customShapeKind: additive, read by
+              // create-checkout to recompute this design's price from the
+              // catalog server-side — unitPrice below is a display
+              // convenience only, never trusted.
               sizeId: d.sizeId || '',
               customW: d.customW || '',
               customH: d.customH || '',
+              customShapeKind: d.customShapeKind || '',
               quantity: d.qty,
               unitPrice: dPrice,
               notes: d.notes || '',
@@ -4371,6 +4472,7 @@ export default function EdiblePrintApp() {
                 isMobile={isMobile}
                 designs={designs}
                 activeDesignId={activeDesignId}
+                customShapeKind={customShapeKind}
               />
               {whiteBgSuggestion && !removeWhiteBg && (
                 <div style={{
@@ -4481,15 +4583,40 @@ export default function EdiblePrintApp() {
               </div>
             ) : (
               <div style={{ marginBottom: 22 }}>
+                <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>Figure</label>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+                  {CUSTOM_SHAPES.map((cs) => (
+                    <button key={cs.key} onClick={() => {
+                      setCustomShapeKind(cs.key);
+                      // Circle needs W === H to actually be a circle, not an
+                      // oval — sync height to width immediately on pick.
+                      if (cs.key === 'circle' && customW) setCustomH(customW);
+                    }} style={{
+                      flex: 1, minWidth: 64, padding: '10px 6px', borderRadius: 10,
+                      border: (customShapeKind || 'rectangle') === cs.key ? '2.5px solid ' + C.brand : '2px solid ' + C.border,
+                      background: (customShapeKind || 'rectangle') === cs.key ? C.brandLight : C.white,
+                      cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: "'Outfit', sans-serif", transition: 'all 0.2s' }}>
+                      <div style={{ fontSize: 18, marginBottom: 2 }}>{cs.icon}</div>
+                      {cs.label}
+                    </button>
+                  ))}
+                </div>
                 <div style={{ display: 'flex', gap: 12, marginBottom: 8 }}>
                   <div style={{ flex: 1 }}>
-                    <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>Width (inches)</label>
-                    <input type="number" value={customW} onChange={(e) => { const v = parseFloat(e.target.value); setCustomW(isNaN(v) ? '' : String(Math.min(8, v))); }} placeholder="e.g. 5" style={inputStyle} />
+                    <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>{customShapeKind === 'circle' ? 'Diameter (inches)' : 'Width (inches)'}</label>
+                    <input type="number" value={customW} onChange={(e) => {
+                      const v = parseFloat(e.target.value);
+                      const clamped = isNaN(v) ? '' : String(Math.min(8, v));
+                      setCustomW(clamped);
+                      if (customShapeKind === 'circle') setCustomH(clamped);
+                    }} placeholder="e.g. 5" style={inputStyle} />
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>Height (inches)</label>
-                    <input type="number" value={customH} onChange={(e) => { const v = parseFloat(e.target.value); setCustomH(isNaN(v) ? '' : String(Math.min(11, v))); }} placeholder="e.g. 7" style={inputStyle} />
-                  </div>
+                  {customShapeKind !== 'circle' && (
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>Height (inches)</label>
+                      <input type="number" value={customH} onChange={(e) => { const v = parseFloat(e.target.value); setCustomH(isNaN(v) ? '' : String(Math.min(11, v))); }} placeholder="e.g. 7" style={inputStyle} />
+                    </div>
+                  )}
                 </div>
                 <p style={{ fontSize: 12, color: C.muted, margin: '0 0 0', textAlign: 'center' }}>Max size: 8″ × 11″ (A4 sheet)</p>
               </div>

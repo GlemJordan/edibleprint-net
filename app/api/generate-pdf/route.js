@@ -3,12 +3,12 @@ import { NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { Resend } from 'resend';
-import { pageSizePtForShape, computeSheetPlacement, isWholeSheetShape, sheetFormatLabel, shapeDisplayLabel } from '../../../lib/paper-config.js';
+import { pageSizePtForShape, computeSheetPlacement, isWholeSheetShape, sheetFormatLabel, shapeDisplayLabel, customShapeLabel } from '../../../lib/paper-config.js';
 import { BUSINESS_ADDRESS_ONE_LINE } from '../../../lib/business-info.js';
 
 export async function POST(request) {
   const body = await request.json();
-  const { imageDataUrl, shape, sizeInches, customW, customH, paymentVerified, customerEmail } = body;
+  const { imageDataUrl, shape, sizeInches, customW, customH, customShapeKind, paymentVerified, customerEmail } = body;
 
   // Verify auth: admin cookie OR payment verified flag
   const cookieStore = await cookies();
@@ -62,8 +62,10 @@ export async function POST(request) {
   // (A4/LETTER) instead. Computed once here and reused below for the
   // customer email so both can't drift or repeat the same bug separately.
   const isWholeSheet = isWholeSheetShape(shape);
+  const customPrefix = shape === 'custom' && customShapeKind && customShapeKind !== 'rectangle'
+    ? customShapeLabel(customShapeKind) + ' ' : '';
   const sizeLabel = shape === 'custom'
-    ? `${customW}" × ${customH}"`
+    ? `${customPrefix}${customW}" × ${customH}"`
     : isWholeSheet ? sheetFormatLabel(shape)
     : sizeInches ? `${sizeInches}"` : '';
   page.drawText(`EdiblePrint · ${shapeDisplayLabel(shape).toUpperCase()}${isWholeSheet ? ' · ' : ' '}${sizeLabel}`, {

@@ -25,6 +25,7 @@ export async function GET(request) {
         sizeInches: parseFloat(session.metadata.sizeInches) || null,
         customW: parseFloat(session.metadata.customW) || null,
         customH: parseFloat(session.metadata.customH) || null,
+        customShapeKind: session.metadata.customShapeKind || '',
         cloudinaryUrl: session.metadata.cloudinaryUrl,
         customerEmail: session.customer_email || session.customer_details?.email || null,
       });

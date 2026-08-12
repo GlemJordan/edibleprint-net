@@ -46,6 +46,7 @@ function DownloadPdfContent() {
             sizeInches: verified.sizeInches,
             customW: verified.customW,
             customH: verified.customH,
+            customShapeKind: verified.customShapeKind,
             paymentVerified: true,
             customerEmail: verified.customerEmail,
           }),

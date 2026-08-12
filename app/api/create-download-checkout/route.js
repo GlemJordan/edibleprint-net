@@ -1,7 +1,7 @@
 import Stripe from 'stripe';
 import { NextResponse } from 'next/server';
 import { isValidEmail } from '../../../lib/validate-email.js';
-import { isWholeSheetShape, sheetFormatLabel, shapeDisplayLabel } from '../../../lib/paper-config.js';
+import { isWholeSheetShape, sheetFormatLabel, shapeDisplayLabel, customShapeLabel } from '../../../lib/paper-config.js';
 
 const isTest = process.env.STRIPE_MODE === 'test';
 const stripeKey = isTest
@@ -10,7 +10,7 @@ const stripeKey = isTest
 const stripe = new Stripe(stripeKey);
 
 export async function POST(request) {
-  const { imageDataUrl, shape, sizeInches, customW, customH, email } = await request.json();
+  const { imageDataUrl, shape, sizeInches, customW, customH, customShapeKind, email } = await request.json();
 
   // This purchase's whole point is emailing the customer their PDF (see
   // app/api/generate-pdf/route.js) — unlike checkout's customerEmail, this
@@ -36,8 +36,10 @@ export async function POST(request) {
   // per-item size — labeling them with the sheet's own raw width would show
   // a long unformatted number in the Stripe line item, so they get the
   // sheet format (A4/LETTER) instead.
+  const customPrefix = shape === 'custom' && customShapeKind && customShapeKind !== 'rectangle'
+    ? customShapeLabel(customShapeKind) + ' ' : '';
   const sizeLabel = shape === 'custom'
-    ? `${customW}" × ${customH}"`
+    ? `${customPrefix}${customW}" × ${customH}"`
     : isWholeSheetShape(shape) ? sheetFormatLabel(shape)
     : sizeInches ? `${sizeInches}"` : '';
 
@@ -64,6 +66,7 @@ export async function POST(request) {
       sizeInches: String(sizeInches || ''),
       customW: String(customW || ''),
       customH: String(customH || ''),
+      customShapeKind: customShapeKind || '',
       cloudinaryUrl: cloudinaryUrl || '',
     },
   });
