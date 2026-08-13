@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 
 const SLIDES = [
   { tag: 'Photo cake',     after: '/hero/ejemplo-1-after.jpg', before: '/hero/ejemplo-1-before.jpg' },
@@ -192,22 +193,34 @@ export default function HeroSection({ onOrderClick, onUploadFileClick, cutoffMsg
               </button>
             </div>
 
-            {/* Secondary path — deliberately subordinate to the primary CTA above:
-                plain text link, no button chrome, smaller. Most customers should
-                use the editor; this is only for people who already have a
-                finished print-ready file and don't want/need it. */}
-            {onUploadFileClick && (
-              <button
-                onClick={onUploadFileClick}
+            {/* Secondary paths — deliberately subordinate to the primary CTA
+                above: plain text links, no button chrome, smaller. Most
+                customers should use the editor; these are for people who
+                already have a finished file, or would rather start from one
+                of our own designs than upload their own. */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', columnGap: 16, rowGap: 6, marginBottom: 20 }}>
+              {onUploadFileClick && (
+                <button
+                  onClick={onUploadFileClick}
+                  style={{
+                    background: 'none', border: 'none', padding: 0,
+                    color: '#5c6b62', fontSize: 13.5, fontWeight: 500, cursor: 'pointer',
+                    fontFamily: 'inherit', textDecoration: 'underline', textUnderlineOffset: 3,
+                  }}
+                >
+                  Already have a print-ready file? Upload it directly →
+                </button>
+              )}
+              <Link
+                href="/designs"
                 style={{
-                  background: 'none', border: 'none', padding: 0, marginBottom: 20,
-                  color: '#5c6b62', fontSize: 13.5, fontWeight: 500, cursor: 'pointer',
+                  color: '#5c6b62', fontSize: 13.5, fontWeight: 500,
                   fontFamily: 'inherit', textDecoration: 'underline', textUnderlineOffset: 3,
                 }}
               >
-                Already have a print-ready file? Upload it directly →
-              </button>
-            )}
+                Or choose a ready-made design →
+              </Link>
+            </div>
 
             {/* Trust line */}
             <div style={{
