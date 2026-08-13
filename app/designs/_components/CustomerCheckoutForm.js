@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, cloneElement } from 'react';
 import { getShippingCost } from '../../../lib/shipping-config.js';
 
 const C = {
@@ -165,7 +165,13 @@ function Section({ title, children }) {
   );
 }
 function Field({ label, children }) {
-  return <div style={{ marginBottom: 12, flex: 1 }}><label style={labelStyle}>{label}</label>{children}</div>;
+  const id = 'ep-field-' + label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  return (
+    <div style={{ marginBottom: 12, flex: 1 }}>
+      <label htmlFor={id} style={labelStyle}>{label}</label>
+      {cloneElement(children, { id })}
+    </div>
+  );
 }
 function Row2({ children }) {
   return <div style={{ display: 'flex', gap: 12 }}>{children}</div>;

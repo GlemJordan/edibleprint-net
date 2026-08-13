@@ -84,13 +84,15 @@ export async function POST(request) {
 
     const shippingAmount = Math.round(shippingCost * 100);
 
-    // Per-design metadata (max 5 designs × 6 keys = 30 + 9 customer keys = 39
-    // total; Stripe's hard cap is 50 keys). d{i}_uploadMeta is only added for
-    // upload-flow designs, so ordinary editor orders never get closer to the
-    // cap than they already were — it also doubles as the sourceType marker:
-    // its presence on a design means "customer-supplied file", its absence
-    // means the existing editor flow, so no separate d{i}_sourceType key
-    // is needed.
+    // Per-design metadata (max 5 designs × 6 base keys = 30 + 9 customer
+    // keys = 39 total; Stripe's hard cap is 50 keys). d{i}_uploadMeta and
+    // d{i}_catalogId/d{i}_customText are each only added for their own flow
+    // (upload / catalog respectively — a design is never both), so ordinary
+    // editor orders never get closer to the cap than they already were.
+    // Each pair also doubles as its own sourceType marker: presence on a
+    // design means "customer-supplied file" / "ready-made catalog design",
+    // absence means the existing editor flow, so no separate
+    // d{i}_sourceType key is needed for either.
     const designMeta = { designCount: String(designs.length) };
     designsSafe.slice(0, 5).forEach((d, i) => {
       designMeta['d' + i + '_shape']    = String(d.shape || '').slice(0, 500);
@@ -105,6 +107,13 @@ export async function POST(request) {
           ';pages=' + (d.pageCount || 1) +
           ';approvedAt=' + (d.approvedAt || '')
         ).slice(0, 500);
+      }
+      // catalogDesignId's mere presence marks this as a ready-made-design
+      // order (app/designs/[id]/page.js) — same "presence is the marker,
+      // no separate d{i}_sourceType key" convention as d{i}_uploadMeta above.
+      if (d.catalogDesignId) {
+        designMeta['d' + i + '_catalogId']   = String(d.catalogDesignId).slice(0, 200);
+        designMeta['d' + i + '_customText']  = String(d.customText || '').slice(0, 200);
       }
     });
 

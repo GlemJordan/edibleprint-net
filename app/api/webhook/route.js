@@ -65,6 +65,14 @@ function parseDesigns(meta) {
         design.pageCount    = parseInt(parts.pages, 10) || 1;
         design.approvedAt   = parts.approvedAt || '';
       }
+      // d{i}_catalogId's mere presence marks this as a ready-made catalog
+      // design order (app/designs/[id]/page.js) — same marker convention as
+      // d{i}_uploadMeta above; a design is never both.
+      const catalogId = meta['d' + i + '_catalogId'];
+      if (catalogId) {
+        design.catalogDesignId = catalogId;
+        design.customText      = meta['d' + i + '_customText'] || '';
+      }
       designs.push(design);
     } else {
       designs.push({

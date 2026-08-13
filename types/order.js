@@ -17,6 +17,8 @@
  *   selectedPage?: number,
  *   pageCount?: number,
  *   approvedAt?: string,
+ *   catalogDesignId?: string,
+ *   customText?: string,
  * }} DesignRecord
  *
  * @typedef {{
