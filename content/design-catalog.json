@@ -1,0 +1,51 @@
+{
+  "categories": [
+    { "id": "birthday", "label": "Birthday" },
+    { "id": "kids", "label": "Kids" },
+    { "id": "elegant", "label": "Elegant" },
+    { "id": "baby-christening", "label": "Baby & Christening" },
+    { "id": "sports", "label": "Sports" },
+    { "id": "floral", "label": "Floral" }
+  ],
+  "designs": [
+    {
+      "id": "birthday-confetti-01",
+      "name": "Confetti Burst",
+      "category": "birthday",
+      "sourceFile": "/designs/birthday/birthday-confetti-01.png",
+      "supportedShapes": ["circular", "fullsheet"],
+      "textZone": {
+        "position": { "x": 50, "y": 50 },
+        "maxWidthPercent": 55,
+        "align": "center"
+      },
+      "active": true
+    },
+    {
+      "id": "floral-wreath-01",
+      "name": "Garden Wreath",
+      "category": "floral",
+      "sourceFile": "/designs/floral/floral-wreath-01.png",
+      "supportedShapes": ["circular", "heart", "square"],
+      "textZone": {
+        "position": { "x": 50, "y": 50 },
+        "maxWidthPercent": 50,
+        "align": "center"
+      },
+      "active": true
+    },
+    {
+      "id": "elegant-frame-01",
+      "name": "Gilded Frame",
+      "category": "elegant",
+      "sourceFile": "/designs/elegant/elegant-frame-01.png",
+      "supportedShapes": ["square", "fullsheet"],
+      "textZone": {
+        "position": { "x": 50, "y": 50 },
+        "maxWidthPercent": 65,
+        "align": "center"
+      },
+      "active": true
+    }
+  ]
+}
