@@ -3520,16 +3520,28 @@ export default function EdiblePrintApp() {
             {(SIZES[pricingTab] || []).map((sz) => {
               const popular = sz.id === 'c8';
               const cookieGrid = sz.circleSize ? getCircleGrid(sz.w, sz.h, sz.circleSize) : null;
+              // Round/Heart/Square: a topper sits ON a frosted cake's surface,
+              // so it must be smaller than the cake itself — these used to
+              // suggest cupcakes/brownies for toppers as large as 5"-6",
+              // which don't fit any cupcake. Each size now names the cake
+              // diameter it's actually meant for (topper diameter -> cake
+              // diameter it's cut to sit on, one size up) plus a serving
+              // count, since customers usually know their guest count before
+              // they know a cake's diameter. Serving counts are standard
+              // party-serving (1"x2" slice) estimates — round/square from the
+              // commonly published Wilton-style chart; heart has no
+              // industry-standard chart, so its counts are approximated at
+              // ~85-90% of round (same nominal size) for the notch/shape.
               const descriptions = {
-                c5: 'Perfect for cupcakes', c6: 'Great for small cakes',
-                c7: 'Popular choice for cakes', c8: 'Most popular — birthday cakes',
-                h6: 'Romantic touch for cupcakes', h7: 'Perfect for occasion cakes', h8: 'Statement piece for celebrations',
-                s5: 'Great for brownies & cookies', s6: 'Ideal for square cakes',
-                s7: 'Perfect for layer cakes', s8: 'Large format prints',
-                mc125: '40 mini cookies per sheet',
-                mc2: '15 cookies per sheet',
-                mc3: '6 large cookies per sheet',
-                a4: 'Covers the full 8″×11″ sheet',
+                c5: 'Fits 6″ round cakes · serves 8–10', c6: 'Fits 7″ round cakes · serves 10–12',
+                c7: 'Fits 8″ round cakes · serves 12–16', c8: 'Fits 9″–10″ round cakes · serves 16–24',
+                h6: 'Fits 7″ heart cakes · serves 8–10', h7: 'Fits 8″ heart cakes · serves 10–14', h8: 'Fits 9″–10″ heart cakes · serves 14–20',
+                s5: 'Fits 6″ square cakes · serves 10–12', s6: 'Fits 7″ square cakes · serves 12–16',
+                s7: 'Fits 8″ square cakes · serves 16–20', s8: 'Fits 9″–10″ square cakes · serves 20–28',
+                mc125: '40 mini toppers/sheet — cupcakes & mini cookies',
+                mc2: '15 toppers/sheet — cupcakes & cookies',
+                mc3: '6 toppers/sheet — cookies & mini treats',
+                a4: 'For full sheet cakes & large projects',
                 bw1: 'Economy grayscale — text, logos & portraits',
                 wl1: 'A lighter, more economical alternative to icing sheets',
               };
