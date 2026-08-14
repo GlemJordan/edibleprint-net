@@ -4,10 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "npm run validate:catalog && next build",
     "start": "next start",
     "lint": "eslint",
-    "test:e2e": "node tests/run-all.mjs"
+    "test:e2e": "node tests/run-all.mjs",
+    "validate:catalog": "node scripts/validate-design-catalog.mjs"
   },
   "dependencies": {
     "jose": "^6.2.2",
