@@ -5,52 +5,30 @@ import NextImage from 'next/image';
 import './globals.css';
 import HeroSection from './_components/HeroSection';
 import { getShippingCost } from '../lib/shipping-config.js';
-import { WAFER_PAPER_PRICE } from '../lib/wafer-paper-config.js';
+import { CATALOG_SIZES } from '../lib/catalog-sizes.js';
+import { CATALOG_PRICES } from '../lib/catalog-prices.js';
 import {
-  sheetSizeInForShape, computeSheetPlacement, isWholeSheetShape, hasSheetMargin, BWSHEET_DESIGN_IN,
-  customShapeLabel, sheetFormatLabel,
+  computeSheetPlacement, isWholeSheetShape, hasSheetMargin, BWSHEET_DESIGN_IN,
+  customShapeLabel, sheetFormatLabel, sheetSizeInForShape,
 } from '../lib/paper-config.js';
 
 /* ═══ PRICING CONFIG ═══
-   Sheet w/h below come from lib/paper-config.js (true A4 for every format,
-   icing sheet or wafer paper) — not hand-typed per format, so the catalog
-   can't drift from what the PDF pipeline and print-preview modal use. */
+   id/label/w/h (+ per-shape extras) come from lib/catalog-sizes.js — the
+   same source lib/catalog-design-sizes.js's ready-made design picker reads
+   — so the two catalogs can't drift apart. Price is merged in here from
+   lib/catalog-prices.js, the server-authoritative price table
+   create-checkout enforces against, so the price shown here and the price
+   actually charged can't be typed in two different places either. 'custom'
+   has no fixed size/price (both come from user input), so it's defined
+   locally below instead of living in either shared file. */
 const ICING_SHEET_IN = sheetSizeInForShape('fullsheet');
-const WAFER_SHEET_IN = sheetSizeInForShape('waferletter');
-const SIZES = {
-  circular: [
-    { id: 'c5', label: '5" Round Topper (13cm)', w: 5, h: 5, price: 14.99 },
-    { id: 'c6', label: '6" Round Topper (15cm)', w: 6, h: 6, price: 14.99 },
-    { id: 'c7', label: '7" Round Topper (18cm)', w: 7, h: 7, price: 19.99 },
-    { id: 'c8', label: '8" Round Topper (20cm)', w: 8, h: 8, price: 19.99 },
-  ],
-  heart: [
-    { id: 'h6', label: '6" Heart Topper (15cm)', w: 6, h: 6, price: 14.99 },
-    { id: 'h7', label: '7" Heart Topper (18cm)', w: 7, h: 7, price: 19.99 },
-    { id: 'h8', label: '8" Heart Topper (20cm)', w: 8, h: 8, price: 19.99 },
-  ],
-  multicircle: [
-    { id: 'mc125', label: '1.25” Circles on A4 Sheet', sublabel: '40 mini cookies/sheet', w: ICING_SHEET_IN.w, h: ICING_SHEET_IN.h, price: 19.99, circleSize: 1.25, cols: 5, rows: 8,  gap: 0.10 },
-    { id: 'mc2',   label: '2” Circles on A4 Sheet',   sublabel: '15 cookies/sheet',      w: ICING_SHEET_IN.w, h: ICING_SHEET_IN.h, price: 19.99, circleSize: 2,    cols: 3, rows: 5,  gap: 0.15 },
-    { id: 'mc3',   label: '3” Circles on A4 Sheet',   sublabel: '6 cookies/sheet',       w: ICING_SHEET_IN.w, h: ICING_SHEET_IN.h, price: 19.99, circleSize: 3,    cols: 2, rows: 3,  gap: 0.20 },
-  ],
-  square: [
-    { id: 's5', label: '5"×5" Topper (13cm)', w: 5, h: 5, price: 14.99 },
-    { id: 's6', label: '6"×6" Topper (15cm)', w: 6, h: 6, price: 14.99 },
-    { id: 's7', label: '7"×7" Topper (18cm)', w: 7, h: 7, price: 19.99 },
-    { id: 's8', label: '8"×8" Topper (20cm)', w: 8, h: 8, price: 19.99 },
-  ],
-  fullsheet: [
-    { id: 'a4', label: 'A4 Full Sheet (210×297mm / 8.27"×11.69")', w: ICING_SHEET_IN.w, h: ICING_SHEET_IN.h, price: 19.99 },
-  ],
-  bwsheet: [
-    { id: 'bw1', label: '6.5"×6.5" B&W Square', sublabel: 'Centered on A4 sheet', w: ICING_SHEET_IN.w, h: ICING_SHEET_IN.h, printW: BWSHEET_DESIGN_IN, printH: BWSHEET_DESIGN_IN, price: 9.99, grayscale: true },
-  ],
-  waferletter: [
-    { id: 'wl1', label: 'Wafer Paper — A4 Sheet (210×297mm / 8.27"×11.69")', w: WAFER_SHEET_IN.w, h: WAFER_SHEET_IN.h, price: WAFER_PAPER_PRICE },
-  ],
-  custom: [{ id: 'custom', label: 'Custom Size', w: 0, h: 0, price: 0 }],
-};
+const SIZES = Object.fromEntries(
+  Object.entries(CATALOG_SIZES).map(([shape, sizes]) => [
+    shape,
+    sizes.map((s) => ({ ...s, price: CATALOG_PRICES[shape]?.[s.id] })),
+  ])
+);
+SIZES.custom = [{ id: 'custom', label: 'Custom Size', w: 0, h: 0, price: 0 }];
 
 const SHAPE_LABEL = {
   circular: 'Round', heart: 'Heart', square: 'Square', multicircle: 'Cookie Sheet',
