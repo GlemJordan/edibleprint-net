@@ -19,15 +19,15 @@ const ICING_SHEET_IN = sheetSizeInForShape('fullsheet');
 const WAFER_SHEET_IN = sheetSizeInForShape('waferletter');
 const SIZES = {
   circular: [
-    { id: 'c5', label: '5" Round (13cm)', w: 5, h: 5, price: 14.99 },
-    { id: 'c6', label: '6" Round (15cm)', w: 6, h: 6, price: 14.99 },
-    { id: 'c7', label: '7" Round (18cm)', w: 7, h: 7, price: 19.99 },
-    { id: 'c8', label: '8" Round (20cm)', w: 8, h: 8, price: 19.99 },
+    { id: 'c5', label: '5" Round Topper (13cm)', w: 5, h: 5, price: 14.99 },
+    { id: 'c6', label: '6" Round Topper (15cm)', w: 6, h: 6, price: 14.99 },
+    { id: 'c7', label: '7" Round Topper (18cm)', w: 7, h: 7, price: 19.99 },
+    { id: 'c8', label: '8" Round Topper (20cm)', w: 8, h: 8, price: 19.99 },
   ],
   heart: [
-    { id: 'h6', label: '6" Heart (15cm)', w: 6, h: 6, price: 14.99 },
-    { id: 'h7', label: '7" Heart (18cm)', w: 7, h: 7, price: 19.99 },
-    { id: 'h8', label: '8" Heart (20cm)', w: 8, h: 8, price: 19.99 },
+    { id: 'h6', label: '6" Heart Topper (15cm)', w: 6, h: 6, price: 14.99 },
+    { id: 'h7', label: '7" Heart Topper (18cm)', w: 7, h: 7, price: 19.99 },
+    { id: 'h8', label: '8" Heart Topper (20cm)', w: 8, h: 8, price: 19.99 },
   ],
   multicircle: [
     { id: 'mc125', label: '1.25” Circles on A4 Sheet', sublabel: '40 mini cookies/sheet', w: ICING_SHEET_IN.w, h: ICING_SHEET_IN.h, price: 19.99, circleSize: 1.25, cols: 5, rows: 8,  gap: 0.10 },
@@ -35,10 +35,10 @@ const SIZES = {
     { id: 'mc3',   label: '3” Circles on A4 Sheet',   sublabel: '6 cookies/sheet',       w: ICING_SHEET_IN.w, h: ICING_SHEET_IN.h, price: 19.99, circleSize: 3,    cols: 2, rows: 3,  gap: 0.20 },
   ],
   square: [
-    { id: 's5', label: '5"×5" (13cm)', w: 5, h: 5, price: 14.99 },
-    { id: 's6', label: '6"×6" (15cm)', w: 6, h: 6, price: 14.99 },
-    { id: 's7', label: '7"×7" (18cm)', w: 7, h: 7, price: 19.99 },
-    { id: 's8', label: '8"×8" (20cm)', w: 8, h: 8, price: 19.99 },
+    { id: 's5', label: '5"×5" Topper (13cm)', w: 5, h: 5, price: 14.99 },
+    { id: 's6', label: '6"×6" Topper (15cm)', w: 6, h: 6, price: 14.99 },
+    { id: 's7', label: '7"×7" Topper (18cm)', w: 7, h: 7, price: 19.99 },
+    { id: 's8', label: '8"×8" Topper (20cm)', w: 8, h: 8, price: 19.99 },
   ],
   fullsheet: [
     { id: 'a4', label: 'A4 Full Sheet (210×297mm / 8.27"×11.69")', w: ICING_SHEET_IN.w, h: ICING_SHEET_IN.h, price: 19.99 },
@@ -3526,12 +3526,17 @@ export default function EdiblePrintApp() {
               // which don't fit any cupcake. Each size now names the cake
               // diameter it's actually meant for (topper diameter -> cake
               // diameter it's cut to sit on, one size up).
+              // "round"/"heart"/"square" and "cakes" are joined with a
+              // non-breaking space ( ) — a line break landing between
+              // them leaves "cakes" orphaned alone on its own line, which
+              // reads as if the number above it were the topper's own size
+              // instead of the cake it fits.
               const descriptions = {
-                c5: 'Fits 6″ round cakes', c6: 'Fits 7″ round cakes',
-                c7: 'Fits 8″ round cakes', c8: 'Fits 9″–10″ round cakes',
-                h6: 'Fits 7″ heart cakes', h7: 'Fits 8″ heart cakes', h8: 'Fits 9″–10″ heart cakes',
-                s5: 'Fits 6″ square cakes', s6: 'Fits 7″ square cakes',
-                s7: 'Fits 8″ square cakes', s8: 'Fits 9″–10″ square cakes',
+                c5: 'Fits 6″ round cakes', c6: 'Fits 7″ round cakes',
+                c7: 'Fits 8″ round cakes', c8: 'Fits 9″–10″ round cakes',
+                h6: 'Fits 7″ heart cakes', h7: 'Fits 8″ heart cakes', h8: 'Fits 9″–10″ heart cakes',
+                s5: 'Fits 6″ square cakes', s6: 'Fits 7″ square cakes',
+                s7: 'Fits 8″ square cakes', s8: 'Fits 9″–10″ square cakes',
                 mc125: '40 mini toppers/sheet — cupcakes & mini cookies',
                 mc2: '15 toppers/sheet — cupcakes & cookies',
                 mc3: '6 toppers/sheet — cookies & mini treats',
