@@ -35,7 +35,7 @@ export async function POST(request) {
   // Whole-sheet shapes (fullsheet/bwsheet/multicircle/waferletter) have no
   // per-item size — labeling them with the sheet's own raw width would show
   // a long unformatted number in the Stripe line item, so they get the
-  // sheet format (A4/LETTER) instead.
+  // sheet format (A4) instead.
   const customPrefix = shape === 'custom' && customShapeKind && customShapeKind !== 'rectangle'
     ? customShapeLabel(customShapeKind) + ' ' : '';
   const sizeLabel = shape === 'custom'

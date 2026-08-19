@@ -8,12 +8,12 @@ import { getShippingCost } from '../lib/shipping-config.js';
 import { WAFER_PAPER_PRICE } from '../lib/wafer-paper-config.js';
 import {
   sheetSizeInForShape, computeSheetPlacement, isWholeSheetShape, hasSheetMargin, BWSHEET_DESIGN_IN,
-  customShapeLabel,
+  customShapeLabel, sheetFormatLabel,
 } from '../lib/paper-config.js';
 
 /* ═══ PRICING CONFIG ═══
-   Sheet w/h below come from lib/paper-config.js (true A4 for icing sheet,
-   true Letter for wafer paper) — not hand-typed per format, so the catalog
+   Sheet w/h below come from lib/paper-config.js (true A4 for every format,
+   icing sheet or wafer paper) — not hand-typed per format, so the catalog
    can't drift from what the PDF pipeline and print-preview modal use. */
 const ICING_SHEET_IN = sheetSizeInForShape('fullsheet');
 const WAFER_SHEET_IN = sheetSizeInForShape('waferletter');
@@ -47,7 +47,7 @@ const SIZES = {
     { id: 'bw1', label: '6.5"×6.5" B&W Square', sublabel: 'Centered on A4 sheet', w: ICING_SHEET_IN.w, h: ICING_SHEET_IN.h, printW: BWSHEET_DESIGN_IN, printH: BWSHEET_DESIGN_IN, price: 9.99, grayscale: true },
   ],
   waferletter: [
-    { id: 'wl1', label: 'Wafer Paper — Letter Sheet (8.5"×11")', w: WAFER_SHEET_IN.w, h: WAFER_SHEET_IN.h, price: WAFER_PAPER_PRICE },
+    { id: 'wl1', label: 'Wafer Paper — A4 Sheet (210×297mm / 8.27"×11.69")', w: WAFER_SHEET_IN.w, h: WAFER_SHEET_IN.h, price: WAFER_PAPER_PRICE },
   ],
   custom: [{ id: 'custom', label: 'Custom Size', w: 0, h: 0, price: 0 }],
 };
@@ -87,7 +87,7 @@ const UPLOAD_MIN_DPI = 300;
    whichever axis isn't the constraining one, never as lost content. */
 function getUploadTargetSizeIn(shape) {
   const sz = (SIZES[shape] || [])[0];
-  if (!sz) return { w: 8.5, h: 11 };
+  if (!sz) return sheetSizeInForShape(shape); // A4 — see lib/paper-config.js
   if (shape === 'bwsheet') return { w: sz.printW || 6.5, h: sz.printH || 6.5 };
   return { w: sz.w, h: sz.h };
 }
@@ -1328,7 +1328,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
      rAF right after mount (layout may still be settling) plus a
      ResizeObserver + visualViewport listeners for anything later
      (address-bar collapse, orientation change, on-screen keyboard).
-     Aspect ratio is the PRINTED SHEET's (A4 or Letter, by material — see
+     Aspect ratio is the PRINTED SHEET's (always A4 — see
      lib/paper-config.js), not the design's own shape, so the modal shows
      the whole sheet the customer receives, not just the isolated design. */
   useEffect(() => {
@@ -1495,12 +1495,12 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, [showPrintPreview, modalBaseSize, previewDesign, previewImagesTick, redrawTick, layers, canvasW, circlePx, removeWhiteBg]);
 
-  /* "8" Round · A4" — the design's own dimensions plus the sheet material,
+  /* "8" Round · A4" — the design's own dimensions plus the sheet format,
      so it reads as a physical spec, not just a shape name. */
   const previewSheetLabel = (() => {
     if (!previewDesign) return '';
     const pShape = previewDesign.shape;
-    const material = pShape === 'waferletter' ? 'Letter' : 'A4';
+    const material = sheetFormatLabel(pShape);
     const pSizes = SIZES[pShape] || [];
     const pSizeObj = pShape === 'custom'
       ? { w: parseFloat(previewDesign.customW) || 2, h: parseFloat(previewDesign.customH) || 2 }
@@ -2791,7 +2791,7 @@ export default function EdiblePrintApp() {
 
   const sizeLabel = shape === 'fullsheet' ? 'FULL SHEET · A4'
     : shape === 'bwsheet' ? `B&W ${BWSHEET_DESIGN_IN}" × ${BWSHEET_DESIGN_IN}"`
-    : shape === 'waferletter' ? 'WAFER PAPER · LETTER'
+    : shape === 'waferletter' ? 'WAFER PAPER · A4'
     : shape === 'custom' ? `${customShapeKind && customShapeKind !== 'rectangle' ? customShapeLabel(customShapeKind).toUpperCase() + ' ' : ''}${customW || '?'}" × ${customH || '?'}"`
     : shape === 'multicircle' ? (selectedSize?.sublabel || '').toUpperCase()
     : shape === 'circular' ? `${(selectedSize?.label || '').split(' ')[0]} ROUND`
@@ -3823,7 +3823,7 @@ export default function EdiblePrintApp() {
           <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, textAlign: 'center', marginBottom: 8, fontWeight: 700 }}>Frequently Asked Questions</h2>
           <p style={{ textAlign: 'center', color: C.muted, marginBottom: 36, fontSize: 15 }}>Everything you need to know about edible printing</p>
           {[
-            ['What are edible prints made of?', 'We print on two food-safe materials: edible icing sheets (frosting sheets) for our Round, Heart, Square, Cookie Sheet, Full Sheet, and B&W Sheet formats, and wafer paper for our Wafer Paper Letter Sheet option. Both use vibrant, water-based edible inks, are FDA-approved, and are tasteless \u2014 so they won\u2019t affect the flavour of your baked goods. Wafer paper is thinner and more delicate, with slightly softer colour, but it\u2019s a lighter, more economical option.'],
+            ['What are edible prints made of?', 'We print on two food-safe materials: edible icing sheets (frosting sheets) for our Round, Heart, Square, Cookie Sheet, Full Sheet, and B&W Sheet formats, and wafer paper for our Wafer Paper A4 Sheet option. Both use vibrant, water-based edible inks, are FDA-approved, and are tasteless \u2014 so they won\u2019t affect the flavour of your baked goods. Wafer paper is thinner and more delicate, with slightly softer colour, but it\u2019s a lighter, more economical option.'],
             ['How do I apply the edible print?', 'Peel the backing sheet gently and lay the print directly onto a freshly frosted or fondant-covered surface. Press lightly from the centre outward to remove air bubbles. For best results, apply within 30 minutes of frosting and keep refrigerated until serving.'],
             ['How long does shipping take?', 'Free pickup is available at our London, Ontario location. Canada Post shipping is a flat rate of $9.99 anywhere in Canada — approx. 3–5 business days, no tracking number included.'],
             ['What image resolution do I need for good quality?', 'We recommend a minimum of 1000×1000 pixels at 300 DPI. We review every order before printing — if we spot a quality issue with your file, we\'ll reach out before proceeding.'],

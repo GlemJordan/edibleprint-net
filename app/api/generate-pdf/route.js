@@ -31,8 +31,8 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   }
 
-  // Page size by material (A4 for icing sheet, Letter for wafer paper —
-  // see lib/paper-config.js), not a single hardcoded A4 for everything.
+  // Page size — A4 for every shape (see lib/paper-config.js), read from
+  // the one shared function rather than hardcoded here.
   const pageSize = pageSizePtForShape(shape);
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([pageSize.w, pageSize.h]);
@@ -58,9 +58,9 @@ export async function POST(request) {
 
   // Whole-sheet shapes (fullsheet/bwsheet/multicircle/waferletter) have no
   // per-item size — labeling them with the sheet's own raw width would
-  // print a long unformatted number, so they get the sheet format
-  // (A4/LETTER) instead. Computed once here and reused below for the
-  // customer email so both can't drift or repeat the same bug separately.
+  // print a long unformatted number, so they get the sheet format (A4)
+  // instead. Computed once here and reused below for the customer email so
+  // both can't drift or repeat the same bug separately.
   const isWholeSheet = isWholeSheetShape(shape);
   const customPrefix = shape === 'custom' && customShapeKind && customShapeKind !== 'rectangle'
     ? customShapeLabel(customShapeKind) + ' ' : '';
@@ -90,7 +90,7 @@ export async function POST(request) {
         html: `
           <div style="font-family: sans-serif; max-width: 540px; padding: 24px;">
             <h2 style="color: #1B6B4A; margin-top: 0;">Your PDF is ready</h2>
-            <p>Thank you for your purchase. Attached is your custom edible print design as a print-ready PDF in ${shape === 'waferletter' ? 'Letter (8.5"×11")' : 'A4'} format.</p>
+            <p>Thank you for your purchase. Attached is your custom edible print design as a print-ready PDF in A4 format.</p>
             <div style="background: #F5F5F5; padding: 14px 18px; border-radius: 8px; margin: 18px 0; font-size: 14px;">
               <strong>Order details:</strong><br>
               Shape: ${shapeDisplayLabel(shape)}${sizeLabel ? `<br>Size: ${sizeLabel}` : ''}
@@ -105,7 +105,7 @@ export async function POST(request) {
           </div>
         `,
         text: `Your PDF is ready\n\n`
-          + `Thank you for your purchase. Attached is your custom edible print design as a print-ready PDF in ${shape === 'waferletter' ? 'Letter (8.5"x11")' : 'A4'} format.\n\n`
+          + `Thank you for your purchase. Attached is your custom edible print design as a print-ready PDF in A4 format.\n\n`
           + `Order details:\nShape: ${shapeDisplayLabel(shape)}${sizeLabel ? `\nSize: ${sizeLabel}` : ''}\n\n`
           + `How to print: Open the attached PDF and print at 100% scale (no fit-to-page) on ${shape === 'waferletter' ? 'edible wafer paper' : 'edible icing sheets'} using a food-safe printer.\n\n`
           + `Need help? Reply to this email.\n`
