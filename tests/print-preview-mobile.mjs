@@ -21,7 +21,6 @@ const SHAPES = [
   { key: 'square', label: 'Square' },
   { key: 'fullsheet', label: 'Full Sheet' },
   { key: 'bwsheet', label: 'B&W Sheet' },
-  { key: 'waferletter', label: 'Wafer Paper' },
 ];
 
 const dataUrlToFile = async (page) => {
