@@ -8,6 +8,7 @@
  * @typedef {{
  *   shape: ProductShape,
  *   shapeLabel: string,
+ *   material?: 'icing' | 'wafer',
  *   size: string,
  *   quantity: number,
  *   unitPrice: number,
