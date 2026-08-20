@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { shapeDisplayLabel } from '../../../../lib/paper-config.js';
+import { shapeSupportsMaterial } from '../../../../lib/material-config.js';
+import MaterialPicker from '../../../_components/MaterialPicker.js';
 
 const C = {
   brand: '#1B6B4A', brandLight: '#E8F5EE', text: '#1a1a1a',
@@ -22,7 +25,13 @@ const PAYMENT_METHODS = [
   { value: 'other', label: 'Other' },
 ];
 
-const SHAPE_PRESETS = ['Round', 'Heart', 'Square', 'Cookie Sheet', 'Full Sheet', 'B&W Sheet', 'Wafer Paper', 'Custom', 'Other'];
+// Real catalog shape keys (not free-text labels) — SHAPE_PRESETS values now
+// match what every other order source stores in shape, so
+// resolveMaterial()/SHAPE_LABELS (lib/material-config.js, lib/order-record.js)
+// treat a manual order the same way as a Stripe one. 'other' stays free
+// text for genuinely one-off cases (see shapeOther below) — there's no
+// catalog key to preset it to.
+const SHAPE_PRESETS = ['circular', 'heart', 'square', 'multicircle', 'fullsheet', 'bwsheet', 'custom', 'other'];
 
 // Must match ALLOWED_MIME_TYPES / MAX_FILE_MB in app/api/upload-print-file —
 // same signed direct-to-Cloudinary upload the "I already have my design"
@@ -61,7 +70,7 @@ export default function AddManualOrderPage() {
   const [paymentMethod, setPaymentMethod] = useState('');
   const [shapePreset, setShapePreset] = useState('');
   const [shapeOther, setShapeOther] = useState('');
-  const [material, setMaterial] = useState('');
+  const [material, setMaterial] = useState('icing');
   const [size, setSize] = useState('');
   const [quantity, setQuantity] = useState('1');
   const [amountDollars, setAmountDollars] = useState('');
@@ -131,7 +140,7 @@ export default function AddManualOrderPage() {
     e.preventDefault();
     setError('');
 
-    const shape = shapePreset === 'Other' ? shapeOther.trim() : shapePreset;
+    const shape = shapePreset === 'other' ? shapeOther.trim() : shapePreset;
     if (!customerName.trim()) return setError('Customer name is required.');
     if (!channel) return setError('Please select a sale channel.');
     if (!paymentMethod) return setError('Please select a payment method.');
@@ -153,7 +162,7 @@ export default function AddManualOrderPage() {
         customerEmail: customerEmail.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
         channel, paymentMethod,
-        shape, material: material.trim() || undefined,
+        shape, material: shapeSupportsMaterial(shape) ? material : undefined,
         size: size.trim(), quantity: parseInt(quantity, 10) || 1,
         amountCents,
         isPickup,
@@ -300,14 +309,14 @@ export default function AddManualOrderPage() {
                 <Field label="Format *">
                   <select style={inputStyle} value={shapePreset} onChange={(e) => setShapePreset(e.target.value)}>
                     <option value="">Select…</option>
-                    {SHAPE_PRESETS.map((s) => <option key={s} value={s}>{s}</option>)}
+                    {SHAPE_PRESETS.map((s) => <option key={s} value={s}>{s === 'other' ? 'Other' : shapeDisplayLabel(s)}</option>)}
                   </select>
                 </Field>
-                {shapePreset === 'Other' && (
+                {shapePreset === 'other' && (
                   <Field label="Format (specify)"><input style={inputStyle} value={shapeOther} onChange={(e) => setShapeOther(e.target.value)} /></Field>
                 )}
-                <Field label="Material (optional)"><input style={inputStyle} placeholder="e.g. Icing sheet" value={material} onChange={(e) => setMaterial(e.target.value)} /></Field>
               </Row2>
+              <MaterialPicker shape={shapePreset} material={material} onChange={setMaterial} colors={C} />
               <Row2>
                 <Field label="Size *"><input style={inputStyle} placeholder={'e.g. 6" round'} value={size} onChange={(e) => setSize(e.target.value)} /></Field>
                 <Field label="Quantity"><input type="number" min="1" style={inputStyle} value={quantity} onChange={(e) => setQuantity(e.target.value)} /></Field>

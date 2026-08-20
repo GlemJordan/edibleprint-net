@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
+import { resolveMaterial, materialDisplayLabel } from '../../../../lib/material-config.js';
 
 const C = {
   brand: '#1B6B4A', brandLight: '#E8F5EE', text: '#1a1a1a',
@@ -151,9 +152,19 @@ export default function AdminOrderDetailPage({ params }) {
             </Section>
 
             <Section title="Designs">
-              {(order.designs || []).map((d, i) => (
+              {(order.designs || []).map((d, i) => {
+                const material = resolveMaterial(d);
+                return (
                 <div key={i} style={{ padding: '10px 0', borderBottom: i < order.designs.length - 1 ? '1px solid ' + C.border : 'none' }}>
-                  <div style={{ fontWeight: 600 }}>{d.shapeLabel} — {d.size} × {d.quantity}</div>
+                  <div style={{ fontWeight: 600 }}>
+                    {d.shapeLabel} — {d.size} × {d.quantity}
+                    {' '}
+                    <span style={{
+                      fontSize: 11.5, fontWeight: 700, padding: '2px 7px', borderRadius: 4,
+                      color: material === 'wafer' ? '#B45309' : C.brand,
+                      background: material === 'wafer' ? '#FEF3C7' : C.brandLight,
+                    }}>{materialDisplayLabel(material).toUpperCase()}</span>
+                  </div>
                   {(d.unitPrice > 0 || d.notes) && (
                     <div style={{ fontSize: 13, color: C.muted }}>
                       {d.unitPrice > 0 ? '$' + d.unitPrice.toFixed(2) + ' each' : ''}{d.unitPrice > 0 && d.notes ? ' · ' : ''}{d.notes ? 'Note: ' + d.notes : ''}
@@ -174,7 +185,8 @@ export default function AdminOrderDetailPage({ params }) {
                     </div>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </Section>
 
             <Section title="Payment">
