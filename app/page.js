@@ -4563,7 +4563,7 @@ export default function EdiblePrintApp() {
                       {sh.key === 'bwsheet' && (
                         <span style={{ position: 'absolute', top: -6, right: -22, background: C.accent,
                           color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 6px',
-                          borderRadius: 4, lineHeight: 1 }}>$9.99</span>
+                          borderRadius: 4, lineHeight: 1 }}>${(SIZES.bwsheet?.[0]?.price ?? 0).toFixed(2)}</span>
                       )}
                     </div>
                     {sh.label}
