@@ -10,6 +10,7 @@ import { shapeDisplayLabel } from '../../../lib/paper-config.js';
 import { CATALOG_FONTS, CATALOG_TEXT_COLORS, drawCoverFit, drawZoneText } from '../../../lib/catalog-text-render.js';
 import SheetPreview from '../_components/SheetPreview.js';
 import CustomerCheckoutForm from '../_components/CustomerCheckoutForm.js';
+import MaterialPicker from '../../_components/MaterialPicker.js';
 
 const C = {
   brand: '#1f5236', accent: '#e8704a', text: '#1a2420', muted: '#5c6b62',
@@ -86,6 +87,7 @@ export default function CustomizeDesignPage() {
 
   const [step, setStep] = useState('customize'); // 'customize' | 'checkout'
   const [shape, setShape] = useState(design?.supportedShapes?.[0] || '');
+  const [material, setMaterial] = useState('icing');
   const [sizeId, setSizeId] = useState(sizesForShape(design?.supportedShapes?.[0] || '')[0]?.id || '');
   const [quantity, setQuantity] = useState(1);
   const [name, setName] = useState('');
@@ -129,6 +131,7 @@ export default function CustomizeDesignPage() {
       const imageUrl = await uploadComposedPng(blob, design.id);
       setDesignPayload({
         shape,
+        material,
         size: sizeObj.label,
         sizeId,
         customW: '',
@@ -179,6 +182,8 @@ export default function CustomizeDesignPage() {
                   ))}
                 </div>
               </FieldGroup>
+
+              <MaterialPicker shape={shape} material={material} onChange={setMaterial} colors={C} />
 
               <FieldGroup label="Size">
                 <select style={inputStyle} value={sizeId} onChange={(e) => setSizeId(e.target.value)}>

@@ -54,7 +54,7 @@ export default function AllergensPage() {
 
       <h2 style={h2}>Wafer Paper</h2>
       <p style={p}>
-        Our Wafer Paper — A4 Sheet product uses a different substrate from the frosting sheets above.
+        Wafer paper — offered as a material choice on Round, Heart, Square, Cookie Sheet, Full Sheet, and Custom prints — uses a different substrate from the frosting sheets above.
         We haven't published ingredient or allergen information for wafer paper on this page yet.
         Ingredient and allergen details are available on request — please email us at{' '}
         <a href={`mailto:${EMAIL}`} style={{ color: C.brand }}>{EMAIL}</a>{' '}

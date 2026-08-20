@@ -11,6 +11,8 @@ import {
   computeSheetPlacement, isWholeSheetShape, hasSheetMargin, BWSHEET_DESIGN_IN,
   customShapeLabel, sheetFormatLabel, sheetSizeInForShape,
 } from '../lib/paper-config.js';
+import { shapeSupportsMaterial, materialDisplayLabel } from '../lib/material-config.js';
+import MaterialPicker from './_components/MaterialPicker.js';
 
 /* ═══ PRICING CONFIG ═══
    id/label/w/h (+ per-shape extras) come from lib/catalog-sizes.js — the
@@ -32,7 +34,7 @@ SIZES.custom = [{ id: 'custom', label: 'Custom Size', w: 0, h: 0, price: 0 }];
 
 const SHAPE_LABEL = {
   circular: 'Round', heart: 'Heart', square: 'Square', multicircle: 'Cookie Sheet',
-  fullsheet: 'Full Sheet', bwsheet: 'B&W Sheet', waferletter: 'Wafer Paper', custom: 'Custom',
+  fullsheet: 'Full Sheet', bwsheet: 'B&W Sheet', custom: 'Custom',
 };
 
 // Figures selectable within shape === 'custom'. 'rectangle' is the default
@@ -52,9 +54,11 @@ const CUSTOM_SHAPES = [
 ].map((s) => ({ ...s, label: customShapeLabel(s.key) }));
 
 /* ═══ "I ALREADY HAVE MY DESIGN" — customer-supplied print-ready file ═══
-   No price of its own: an alternate entry point into the same three flat
-   formats above, at the price each already has. */
-const UPLOAD_FLOW_SHAPES = ['fullsheet', 'bwsheet', 'waferletter'];
+   No price of its own: an alternate entry point into the same two flat
+   formats above, at the price each already has. Wafer paper isn't a
+   format of its own here anymore — fullsheet's material selector (see
+   MaterialPicker below) covers it. */
+const UPLOAD_FLOW_SHAPES = ['fullsheet', 'bwsheet'];
 const UPLOAD_MAX_FILE_MB = 25;
 const UPLOAD_MARGIN_MM = 3;
 const UPLOAD_MIN_DPI = 300;
@@ -346,7 +350,7 @@ function computeCanvasSize(containerWidth, shape, sizeObj, viewportH = 800) {
   let aspectRatio;
   if (shape === 'circular' || shape === 'heart' || shape === 'square') {
     aspectRatio = 1;
-  } else if (shape === 'multicircle' || shape === 'fullsheet' || shape === 'bwsheet' || shape === 'waferletter') {
+  } else if (shape === 'multicircle' || shape === 'fullsheet' || shape === 'bwsheet') {
     const w = (sizeObj && sizeObj.w) || 8;
     const h = (sizeObj && sizeObj.h) || 11;
     aspectRatio = w / h;
@@ -1361,7 +1365,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
   /* Draw the modal canvas: the WHOLE printed sheet (paper background, design
      placed at its real position/size/margins, cut line, grid for cookie
      sheet) — not just the isolated design. Full-bleed whole-sheet shapes
-     with no print margin (bwsheet/multicircle/waferletter) draw straight
+     with no print margin (bwsheet/multicircle) draw straight
      onto the full sheet via renderPreviewCore, exactly like the hi-res
      export does (both call computeMultiCircleLayout fed the destination's
      own pixel size). Every other shape — individual-item ones
@@ -1473,12 +1477,20 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, [showPrintPreview, modalBaseSize, previewDesign, previewImagesTick, redrawTick, layers, canvasW, circlePx, removeWhiteBg]);
 
-  /* "8" Round · A4" — the design's own dimensions plus the sheet format,
-     so it reads as a physical spec, not just a shape name. */
+  /* "8" Round · Icing Sheet · A4" — the design's own dimensions plus
+     material plus sheet format, so it reads as a full physical spec, not
+     just a shape name. sheetFormat is the paper FORMAT (always 'A4', see
+     sheetFormatLabel()/lib/paper-config.js) — kept distinct from
+     materialLabel (Icing Sheet/Wafer Paper, lib/material-config.js), which
+     used to be conflated here under one confusingly-named `material`
+     variable that was never actually about material at all. */
   const previewSheetLabel = (() => {
     if (!previewDesign) return '';
     const pShape = previewDesign.shape;
-    const material = sheetFormatLabel(pShape);
+    const sheetFormat = sheetFormatLabel(pShape);
+    const materialLabel = shapeSupportsMaterial(pShape)
+      ? materialDisplayLabel(previewDesign.material || 'icing')
+      : null;
     const pSizes = SIZES[pShape] || [];
     const pSizeObj = pShape === 'custom'
       ? { w: parseFloat(previewDesign.customW) || 2, h: parseFloat(previewDesign.customH) || 2 }
@@ -1495,7 +1507,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     } else {
       designLabel = SHAPE_LABEL[pShape] || pShape;
     }
-    return `${designLabel} · ${material}`;
+    return materialLabel ? `${designLabel} · ${materialLabel} · ${sheetFormat}` : `${designLabel} · ${sheetFormat}`;
   })();
 
   const goToPreviewDesign = (delta) => {
@@ -2705,6 +2717,11 @@ export default function EdiblePrintApp() {
      get 'rectangle' explicitly at creation time instead (see
      handleAddDesign/handlePricingCardClick below). */
   const customShapeKind = activeDesign?.customShapeKind;
+  // Icing vs wafer, orthogonal to shape — see lib/material-config.js.
+  // Defaults to 'icing' for any design created before this field existed
+  // too (there's no legacy state to preserve here the way customShapeKind
+  // has to, since material never existed as a per-shape concept before).
+  const material    = activeDesign?.material    ?? 'icing';
   const qty         = activeDesign?.qty         ?? 1;
   const notes       = activeDesign?.notes       ?? '';
   const bgColor     = activeDesign?.bgColor     ?? '#FFFFFF';
@@ -2746,6 +2763,7 @@ export default function EdiblePrintApp() {
   };
   const setLayers      = (v) => updateActive({ layers: typeof v === 'function' ? v(layers) : v });
   const setShape       = (v) => updateActive({ shape: v });
+  const setMaterial    = (v) => updateActive({ material: v });
   const setSizeId      = (v) => updateActive({ sizeId: v });
   const setCustomW     = (v) => updateActive({ customW: v });
   const setCustomH     = (v) => updateActive({ customH: v });
@@ -2767,14 +2785,20 @@ export default function EdiblePrintApp() {
     : selectedSize?.price || 0;
   const subtotal = unitPrice * qty;
 
-  const sizeLabel = shape === 'fullsheet' ? 'FULL SHEET · A4'
+  // Material prefix only shown for the non-default choice (wafer) — icing
+  // stays implicit/silent here the same way it always has been, so this
+  // on-canvas label doesn't get noisier for the common case. The
+  // production slip and print-ready PDF footer state material explicitly
+  // either way (see lib/generate-pdf.js) — this is just the customer-facing
+  // preview watermark, not the record of truth.
+  const materialPrefix = shapeSupportsMaterial(shape) && material === 'wafer' ? 'WAFER · ' : '';
+  const sizeLabel = materialPrefix + (shape === 'fullsheet' ? 'FULL SHEET · A4'
     : shape === 'bwsheet' ? `B&W ${BWSHEET_DESIGN_IN}" × ${BWSHEET_DESIGN_IN}"`
-    : shape === 'waferletter' ? 'WAFER PAPER · A4'
     : shape === 'custom' ? `${customShapeKind && customShapeKind !== 'rectangle' ? customShapeLabel(customShapeKind).toUpperCase() + ' ' : ''}${customW || '?'}" × ${customH || '?'}"`
     : shape === 'multicircle' ? (selectedSize?.sublabel || '').toUpperCase()
     : shape === 'circular' ? `${(selectedSize?.label || '').split(' ')[0]} ROUND`
     : shape === 'heart' ? `${(selectedSize?.label || '').split(' ')[0]} HEART`
-    : selectedSize?.label || '';
+    : selectedSize?.label || '');
 
   const designsSubtotal = designs.reduce((sum, d) => {
     const dSizes = SIZES[d.shape] || [];
@@ -2792,6 +2816,12 @@ export default function EdiblePrintApp() {
     if (!activeDesignId) return;
     if (shape === 'custom') { setSizeId('custom'); }
     else if (!SIZES[shape]?.find((sz) => sz.id === sizeId)) { setSizeId(SIZES[shape]?.[0]?.id || ''); }
+    // Material is meaningless for shapes that don't offer it (bwsheet) —
+    // reset to the default so a design switched away from a
+    // material-supporting shape doesn't carry a stale 'wafer' choice into
+    // its checkout payload. (create-checkout also forces this server-side,
+    // fail-safe on top of this client-side reset.)
+    if (!shapeSupportsMaterial(shape) && material !== 'icing') { setMaterial('icing'); }
   }, [shape, activeDesignId]);
 
   useEffect(() => {
@@ -2825,6 +2855,7 @@ export default function EdiblePrintApp() {
         id: newId,
         layers: [initialLayer],
         shape: newShape,
+        material: 'icing',
         sizeId: newSizeId,
         customW: '',
         customH: '',
@@ -2853,6 +2884,7 @@ export default function EdiblePrintApp() {
       id: newId,
       layers: [],
       shape: newShape,
+      material: 'icing',
       sizeId: newSizeId,
       customW: '',
       customH: '',
@@ -2904,6 +2936,7 @@ export default function EdiblePrintApp() {
      uploaded (byte-exact, via a signed raw upload) at "Place order" time. */
   const uploadFileRef = useRef(null);
   const [pendingUploadShape, setPendingUploadShape] = useState('fullsheet');
+  const [pendingUploadMaterial, setPendingUploadMaterial] = useState('icing');
   const [uploadFileError, setUploadFileError] = useState('');
   const activeIsUpload = activeDesign?.sourceType === 'upload';
 
@@ -3016,6 +3049,7 @@ export default function EdiblePrintApp() {
       id: newId,
       sourceType: 'upload',
       shape: newShape,
+      material: shapeSupportsMaterial(newShape) ? pendingUploadMaterial : 'icing',
       sizeId: newSizeObj?.id || '',
       qty: 1,
       notes: '',
@@ -3191,7 +3225,7 @@ export default function EdiblePrintApp() {
       const resp = await fetch('/api/generate-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageDataUrl: hiResDataUrl, shape, sizeInches: sizeW, customW, customH, customShapeKind, paymentVerified: false }),
+        body: JSON.stringify({ imageDataUrl: hiResDataUrl, shape, material, sizeInches: sizeW, customW, customH, customShapeKind, paymentVerified: false }),
       });
       if (!resp.ok) throw new Error('PDF generation failed');
       const blob = await resp.blob();
@@ -3219,7 +3253,7 @@ export default function EdiblePrintApp() {
       const resp = await fetch('/api/create-download-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageDataUrl: hiResDataUrl, shape, sizeInches: sizeW, customW, customH, customShapeKind, email: customerEmail }),
+        body: JSON.stringify({ imageDataUrl: hiResDataUrl, shape, material, sizeInches: sizeW, customW, customH, customShapeKind, email: customerEmail }),
       });
       const { url } = await resp.json();
       window.location.href = url;
@@ -3334,6 +3368,7 @@ export default function EdiblePrintApp() {
               ? customShapeLabel(d.customShapeKind) + ' ' : '';
             return {
               shape: d.shape,
+              material: d.material || 'icing',
               size: d.shape === 'custom' ? customShapePrefix + d.customW + '"x' + d.customH + '"' : (dSel?.label || ''),
               // sizeId/customW/customH/customShapeKind: additive, read by
               // create-checkout to recompute this design's price from the
@@ -3481,7 +3516,6 @@ export default function EdiblePrintApp() {
               { key: 'multicircle', label: 'Cookie Sheets' },
               { key: 'fullsheet', label: 'Full Sheet' },
               { key: 'bwsheet', label: 'B&W Sheet' },
-              { key: 'waferletter', label: 'Wafer Paper' },
             ].map(tab => (
               <button key={tab.key} onClick={() => setPricingTab(tab.key)} style={{
                 padding: '10px 20px', fontSize: 14, cursor: 'pointer',
@@ -3520,7 +3554,6 @@ export default function EdiblePrintApp() {
                 mc3: '6 toppers/sheet — cookies & mini treats',
                 a4: 'For full sheet cakes & large projects',
                 bw1: 'Economy grayscale — text, logos & portraits',
-                wl1: 'A lighter, more economical alternative to icing sheets',
               };
               const isBestValue = sz.id === 'bw1';
               const isHovered = hoveredCardId === sz.id;
@@ -3654,7 +3687,7 @@ export default function EdiblePrintApp() {
                 Our Quality Guarantee
               </h2>
               <p style={{ fontSize: 15.5, lineHeight: 1.7, color: C.text, margin: '0 0 18px' }}>
-                Every edible print is produced with <strong>300 DPI resolution</strong> and <strong>FDA-approved food-safe inks</strong>, on <strong>premium icing sheets or wafer paper</strong> depending on the format you choose — both lay flat and taste great.
+                Every edible print is produced with <strong>300 DPI resolution</strong> and <strong>FDA-approved food-safe inks</strong>, on <strong>premium icing sheets or wafer paper</strong> depending on the material you choose — both lay flat and taste great.
                 If your order arrives damaged or the print quality doesn't meet your expectations, we'll reprint or refund — no questions asked.
               </p>
               <ul style={{ margin: '0 0 20px', padding: '0 0 0 20px', fontSize: 14.5, lineHeight: 1.85, color: C.text }}>
@@ -3806,7 +3839,7 @@ export default function EdiblePrintApp() {
           <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, textAlign: 'center', marginBottom: 8, fontWeight: 700 }}>Frequently Asked Questions</h2>
           <p style={{ textAlign: 'center', color: C.muted, marginBottom: 36, fontSize: 15 }}>Everything you need to know about edible printing</p>
           {[
-            ['What are edible prints made of?', 'We print on two food-safe materials: edible icing sheets (frosting sheets) for our Round, Heart, Square, Cookie Sheet, Full Sheet, and B&W Sheet formats, and wafer paper for our Wafer Paper A4 Sheet option. Both use vibrant, water-based edible inks, are FDA-approved, and are tasteless \u2014 so they won\u2019t affect the flavour of your baked goods. Wafer paper is thinner and more delicate, with slightly softer colour, but it\u2019s a lighter, more economical option.'],
+            ['What are edible prints made of?', 'We print on two food-safe materials: edible icing sheets (frosting sheets) and wafer paper. You pick which one when you choose your shape \u2014 both are available for Round, Heart, Square, Cookie Sheet, Full Sheet, and Custom prints, at the same price. Both use vibrant, water-based edible inks, are FDA-approved, and are tasteless \u2014 so they won\u2019t affect the flavour of your baked goods. Wafer paper is thinner and more delicate, with slightly softer colour, but it\u2019s a lighter, more economical option.'],
             ['How do I apply the edible print?', 'Peel the backing sheet gently and lay the print directly onto a freshly frosted or fondant-covered surface. Press lightly from the centre outward to remove air bubbles. For best results, apply within 30 minutes of frosting and keep refrigerated until serving.'],
             ['How long does shipping take?', 'Free pickup is available at our London, Ontario location. Canada Post shipping is a flat rate of $9.99 anywhere in Canada — approx. 3–5 business days, no tracking number included.'],
             ['What image resolution do I need for good quality?', 'We recommend a minimum of 1000×1000 pixels at 300 DPI. We review every order before printing — if we spot a quality issue with your file, we\'ll reach out before proceeding.'],
@@ -3855,7 +3888,6 @@ export default function EdiblePrintApp() {
                 ['Square Prints', () => handlePricingCardClick('square', 's8')],
                 ['Cookie Sheets', () => handlePricingCardClick('multicircle', 'mc3')],
                 ['Full Sheet Prints', () => handlePricingCardClick('fullsheet', 'a4')],
-                ['Wafer Paper Prints', () => handlePricingCardClick('waferletter', 'wl1')],
               ].map(([label, action]) => (
                 <div key={label} style={{ marginBottom: 10 }}>
                   <button onClick={action} style={{ background: 'none', border: 'none', cursor: 'pointer',
@@ -3989,7 +4021,7 @@ export default function EdiblePrintApp() {
             {orderMode === 'editor' && pendingShape && pendingSizeId && (() => {
               const pSizes = SIZES[pendingShape] || [];
               const pSel = pSizes.find(s => s.id === pendingSizeId);
-              const shapeLabels = { circular: 'Round', heart: 'Heart', square: 'Square', multicircle: 'Cookie Sheet', fullsheet: 'Full Sheet', bwsheet: 'B&W Sheet', waferletter: 'Wafer Paper' };
+              const shapeLabels = { circular: 'Round', heart: 'Heart', square: 'Square', multicircle: 'Cookie Sheet', fullsheet: 'Full Sheet', bwsheet: 'B&W Sheet' };
               return (
                 <div style={{ background: C.brandLight, border: '1.5px solid ' + C.brand, borderRadius: 12,
                   padding: '10px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
@@ -4083,7 +4115,7 @@ export default function EdiblePrintApp() {
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
                     {UPLOAD_FLOW_SHAPES.map((sh) => {
                       const szObj = (SIZES[sh] || [])[0];
-                      const uploadShapeLabels = { fullsheet: 'Full Sheet', bwsheet: 'B&W Sheet', waferletter: 'Wafer Paper' };
+                      const uploadShapeLabels = { fullsheet: 'Full Sheet', bwsheet: 'B&W Sheet' };
                       return (
                         <button key={sh} onClick={() => setPendingUploadShape(sh)} style={{
                           flex: 1, minWidth: 110, padding: '12px 10px', borderRadius: 12,
@@ -4096,6 +4128,7 @@ export default function EdiblePrintApp() {
                       );
                     })}
                   </div>
+                  <MaterialPicker shape={pendingUploadShape} material={pendingUploadMaterial} onChange={setPendingUploadMaterial} colors={C} />
                   <p style={{ fontSize: 12.5, color: C.muted, marginBottom: 10, textAlign: 'center' }}>
                     Accepted formats: PDF, PNG, JPG · Max {UPLOAD_MAX_FILE_MB}MB
                   </p>
@@ -4143,7 +4176,7 @@ export default function EdiblePrintApp() {
           const v = activeUploadValidation;
           const thumbs = uploadPageThumbs[activeDesign.id];
           const isPdf = activeDesign.fileMimeType === 'application/pdf';
-          const uploadShapeLabels = { fullsheet: 'Full Sheet', bwsheet: 'B&W Sheet', waferletter: 'Wafer Paper' };
+          const uploadShapeLabels = { fullsheet: 'Full Sheet', bwsheet: 'B&W Sheet' };
           const canContinue = vStatus === 'done' && (!activeUploadNeedsConfirm || activeDesign.confirmMismatch) && activeDesign.approvedPrintAsIs === true;
           return (
             <div style={{ maxWidth: 600, margin: '0 auto' }}>
@@ -4170,6 +4203,7 @@ export default function EdiblePrintApp() {
                     );
                   })}
                 </div>
+                <MaterialPicker shape={shape} material={material} onChange={setMaterial} colors={C} />
 
                 {/* Multi-page PDF picker */}
                 {isPdf && thumbs && thumbs.length > 1 && (
@@ -4434,15 +4468,6 @@ export default function EdiblePrintApp() {
                   ℹ️ B&W Sheet prints in grayscale for $9.99 — perfect for text, logos, and portraits.
                 </div>
               )}
-              {shape === 'waferletter' && (
-                <div style={{
-                  background: '#F5F5F5', borderLeft: '3px solid ' + C.accent,
-                  padding: '10px 14px', borderRadius: 6, fontSize: 13,
-                  marginBottom: 16, color: C.text,
-                }}>
-                  ℹ️ Wafer paper is thinner and more brittle than icing sheets, absorbs moisture more easily, and prints slightly less vivid colour — but it's more economical and needs no transfer step.
-                </div>
-              )}
               <ImageEditor
                 layers={layers}
                 onLayersChange={setLayers}
@@ -4509,7 +4534,7 @@ export default function EdiblePrintApp() {
                       : '⬇ Download as PDF — $3.99'}
                 </button>
                 <div style={{ fontSize: 10.5, color: C.muted, textAlign: 'center', marginTop: 6 }}>
-                  A4 sheet · {shape} {selectedSize?.label || (customW && customH ? `${customW}" × ${customH}"` : '')}
+                  A4 sheet{shapeSupportsMaterial(shape) ? ' · ' + materialDisplayLabel(material) : ''} · {shape} {selectedSize?.label || (customW && customH ? `${customW}" × ${customH}"` : '')}
                 </div>
               </div>
             </div>
@@ -4523,7 +4548,6 @@ export default function EdiblePrintApp() {
                   { key: 'square', icon: '⬜', label: 'Square' },
                   { key: 'fullsheet', icon: '▬', label: 'Full Sheet' },
                   { key: 'bwsheet', icon: '⬛', label: 'B&W Sheet' },
-                  { key: 'waferletter', icon: '📄', label: 'Wafer Paper', title: "Wafer paper is thinner and more brittle than icing sheets, absorbs moisture more easily, and prints slightly less vivid colour — but it's more economical and needs no transfer step." },
                   { key: 'custom', icon: '✏️', label: 'Custom' }].map((sh) => (
                   <button key={sh.key} title={sh.title} onClick={() => {
                     setShape(sh.key);
@@ -4548,6 +4572,8 @@ export default function EdiblePrintApp() {
                 ))}
               </div>
             </div>
+
+            <MaterialPicker shape={shape} material={material} onChange={setMaterial} colors={C} />
 
             {/* 3. Size */}
             {shape !== 'custom' ? (
@@ -4810,7 +4836,7 @@ export default function EdiblePrintApp() {
                     marginBottom: i < designs.length - 1 ? 8 : 0, paddingBottom: i < designs.length - 1 ? 8 : 0,
                     borderBottom: i < designs.length - 1 ? '1px solid ' + C.border : 'none',
                     color: d.id === activeDesignId ? C.text : C.muted }}>
-                    <span>Design {i + 1}: {d.qty}x {d.shape === 'custom' ? (d.customW + '"x' + d.customH + '"') : (dSel?.label || d.shape)}</span>
+                    <span>Design {i + 1}: {d.qty}x {d.shape === 'custom' ? (d.customW + '"x' + d.customH + '"') : (dSel?.label || d.shape)}{shapeSupportsMaterial(d.shape) && d.material === 'wafer' ? ' · Wafer Paper' : ''}</span>
                     <span style={{ color: C.brand }}>{'$' + (dPrice * d.qty).toFixed(2)}</span>
                   </div>
                 );
@@ -4927,7 +4953,7 @@ export default function EdiblePrintApp() {
                   return (
                     <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
                       <div style={{ minWidth: 0 }}>
-                        <div>Design {i + 1}: {d.qty}x {d.shape === 'custom' ? (d.customW + '"x' + d.customH + '"') : (dSel?.label || d.shape)}</div>
+                        <div>Design {i + 1}: {d.qty}x {d.shape === 'custom' ? (d.customW + '"x' + d.customH + '"') : (dSel?.label || d.shape)}{shapeSupportsMaterial(d.shape) && d.material === 'wafer' ? ' · Wafer Paper' : ''}</div>
                         <div style={{ display: 'flex', gap: 12, marginTop: 3 }}>
                           <button onClick={() => { setActiveDesignId(d.id); setStep(2); }} className="ep-summary-link">Edit</button>
                           <button onClick={() => handleDeleteDesign(d.id)} className="ep-summary-link">Remove</button>
