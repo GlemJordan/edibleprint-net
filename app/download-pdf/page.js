@@ -43,6 +43,7 @@ function DownloadPdfContent() {
           body: JSON.stringify({
             imageDataUrl: dataUrl,
             shape: verified.shape,
+            material: verified.material,
             sizeInches: verified.sizeInches,
             customW: verified.customW,
             customH: verified.customH,

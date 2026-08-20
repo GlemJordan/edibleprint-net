@@ -22,6 +22,7 @@ export async function GET(request) {
       return NextResponse.json({
         verified: true,
         shape: session.metadata.shape,
+        material: session.metadata.material || 'icing',
         sizeInches: parseFloat(session.metadata.sizeInches) || null,
         customW: parseFloat(session.metadata.customW) || null,
         customH: parseFloat(session.metadata.customH) || null,

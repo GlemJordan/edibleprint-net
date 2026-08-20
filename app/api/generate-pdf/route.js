@@ -4,11 +4,13 @@ import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { Resend } from 'resend';
 import { pageSizePtForShape, computeSheetPlacement, isWholeSheetShape, sheetFormatLabel, shapeDisplayLabel, customShapeLabel } from '../../../lib/paper-config.js';
+import { resolveMaterial, materialDisplayLabel } from '../../../lib/material-config.js';
 import { BUSINESS_ADDRESS_ONE_LINE } from '../../../lib/business-info.js';
 
 export async function POST(request) {
   const body = await request.json();
-  const { imageDataUrl, shape, sizeInches, customW, customH, customShapeKind, paymentVerified, customerEmail } = body;
+  const { imageDataUrl, shape, material, sizeInches, customW, customH, customShapeKind, paymentVerified, customerEmail } = body;
+  const resolvedMaterial = resolveMaterial({ shape, material });
 
   // Verify auth: admin cookie OR payment verified flag
   const cookieStore = await cookies();
@@ -68,7 +70,7 @@ export async function POST(request) {
     ? `${customPrefix}${customW}" × ${customH}"`
     : isWholeSheet ? sheetFormatLabel(shape)
     : sizeInches ? `${sizeInches}"` : '';
-  page.drawText(`EdiblePrint · ${shapeDisplayLabel(shape).toUpperCase()}${isWholeSheet ? ' · ' : ' '}${sizeLabel}`, {
+  page.drawText(`EdiblePrint · ${materialDisplayLabel(resolvedMaterial).toUpperCase()} · ${shapeDisplayLabel(shape).toUpperCase()}${isWholeSheet ? ' · ' : ' '}${sizeLabel}`, {
     x: 30,
     y: 18,
     size: 7,
@@ -93,10 +95,11 @@ export async function POST(request) {
             <p>Thank you for your purchase. Attached is your custom edible print design as a print-ready PDF in A4 format.</p>
             <div style="background: #F5F5F5; padding: 14px 18px; border-radius: 8px; margin: 18px 0; font-size: 14px;">
               <strong>Order details:</strong><br>
-              Shape: ${shapeDisplayLabel(shape)}${sizeLabel ? `<br>Size: ${sizeLabel}` : ''}
+              Shape: ${shapeDisplayLabel(shape)}${sizeLabel ? `<br>Size: ${sizeLabel}` : ''}<br>
+              Material: <strong>${materialDisplayLabel(resolvedMaterial)}</strong>
             </div>
             <p style="font-size: 13px; color: #666;">
-              <strong>How to print:</strong> Open the attached PDF and print at 100% scale (no fit-to-page) on ${shape === 'waferletter' ? 'edible wafer paper' : 'edible icing sheets'} using a food-safe printer.
+              <strong>How to print:</strong> Open the attached PDF and print at 100% scale (no fit-to-page) on ${resolvedMaterial === 'wafer' ? 'edible wafer paper' : 'edible icing sheets'} using a food-safe printer.
             </p>
             <p style="font-size: 12px; color: #888; margin-top: 24px;">
               Need help? Reply to this email.<br>
@@ -106,8 +109,8 @@ export async function POST(request) {
         `,
         text: `Your PDF is ready\n\n`
           + `Thank you for your purchase. Attached is your custom edible print design as a print-ready PDF in A4 format.\n\n`
-          + `Order details:\nShape: ${shapeDisplayLabel(shape)}${sizeLabel ? `\nSize: ${sizeLabel}` : ''}\n\n`
-          + `How to print: Open the attached PDF and print at 100% scale (no fit-to-page) on ${shape === 'waferletter' ? 'edible wafer paper' : 'edible icing sheets'} using a food-safe printer.\n\n`
+          + `Order details:\nShape: ${shapeDisplayLabel(shape)}${sizeLabel ? `\nSize: ${sizeLabel}` : ''}\nMaterial: ${materialDisplayLabel(resolvedMaterial)}\n\n`
+          + `How to print: Open the attached PDF and print at 100% scale (no fit-to-page) on ${resolvedMaterial === 'wafer' ? 'edible wafer paper' : 'edible icing sheets'} using a food-safe printer.\n\n`
           + `Need help? Reply to this email.\n`
           + `EdiblePrint.net — ${BUSINESS_ADDRESS_ONE_LINE}`,
         attachments: [
