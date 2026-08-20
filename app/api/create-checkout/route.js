@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { getShippingCost } from '../../../lib/shipping-config.js';
 import { CATALOG_PRICES, customShapePrice } from '../../../lib/catalog-prices.js';
 import { isValidEmail } from '../../../lib/validate-email.js';
+import { shapeSupportsMaterial, resolveMaterial } from '../../../lib/material-config.js';
 
 const isTest = process.env.STRIPE_MODE === 'test';
 // NOTE: STRIPE_SECRET_KEY_LIVE must be sk_live_... (a full Secret Key).
@@ -50,6 +51,14 @@ export async function POST(request) {
     // a design client-side can only ever reduce what's in this request, and
     // every remaining line still gets its own price recomputed here, so
     // neither action can be used to change what Stripe actually charges.
+    // Material (icing vs wafer, lib/material-config.js) validated the same
+    // fail-closed way as price: for a shape that offers a material choice,
+    // the client must send a recognized value or the request is rejected —
+    // silently defaulting an unrecognized value to icing risks printing a
+    // customer's wafer order on the wrong stock with no error anywhere.
+    // For a shape that doesn't offer the choice (bwsheet), material is
+    // forced to icing regardless of what the client sent — there's no UI
+    // for it there, so nothing legitimate would ever send anything else.
     let priceError = null;
     const designsSafe = designs.map((d) => {
       const price = d.shape === 'custom'
@@ -59,7 +68,14 @@ export async function POST(request) {
         priceError = `Unrecognized price for shape "${d.shape}" size "${d.sizeId}"`;
         return d;
       }
-      return { ...d, unitPrice: price };
+      if (shapeSupportsMaterial(d.shape)) {
+        if (d.material !== 'icing' && d.material !== 'wafer') {
+          priceError = `Unrecognized material "${d.material}" for shape "${d.shape}"`;
+          return d;
+        }
+        return { ...d, unitPrice: price };
+      }
+      return { ...d, unitPrice: price, material: 'icing' };
     });
     if (priceError) {
       return NextResponse.json({ error: priceError }, { status: 400 });
@@ -72,8 +88,8 @@ export async function POST(request) {
         product_data: {
           name: (designs.length > 1 ? 'Design ' + (i + 1) + ': ' : 'Edible Print: ') + d.quantity + 'x ' + d.size + ' (' + d.shape + ')',
           description: d.sourceType === 'upload'
-            ? 'Customer-supplied print-ready file, printed as-is'
-            : d.shape === 'waferletter'
+            ? 'Customer-supplied print-ready file, printed as-is on ' + (resolveMaterial(d) === 'wafer' ? 'wafer paper' : 'premium icing sheet')
+            : resolveMaterial(d) === 'wafer'
               ? 'Custom edible image print on wafer paper'
               : 'Custom edible image print on premium icing sheet',
         },
@@ -84,8 +100,8 @@ export async function POST(request) {
 
     const shippingAmount = Math.round(shippingCost * 100);
 
-    // Per-design metadata (max 5 designs × 6 base keys = 30 + 9 customer
-    // keys = 39 total; Stripe's hard cap is 50 keys). d{i}_uploadMeta and
+    // Per-design metadata (max 5 designs × 7 base keys = 35 + 9 customer
+    // keys = 44 total; Stripe's hard cap is 50 keys). d{i}_uploadMeta and
     // d{i}_catalogId/d{i}_customText are each only added for their own flow
     // (upload / catalog respectively — a design is never both), so ordinary
     // editor orders never get closer to the cap than they already were.
@@ -96,6 +112,7 @@ export async function POST(request) {
     const designMeta = { designCount: String(designs.length) };
     designsSafe.slice(0, 5).forEach((d, i) => {
       designMeta['d' + i + '_shape']    = String(d.shape || '').slice(0, 500);
+      designMeta['d' + i + '_material'] = String(d.material || 'icing').slice(0, 20);
       designMeta['d' + i + '_size']     = String(d.size  || '').slice(0, 500);
       designMeta['d' + i + '_qty']      = String(d.quantity);
       designMeta['d' + i + '_price']    = String(d.unitPrice);

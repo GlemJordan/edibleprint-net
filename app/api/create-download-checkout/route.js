@@ -2,6 +2,7 @@ import Stripe from 'stripe';
 import { NextResponse } from 'next/server';
 import { isValidEmail } from '../../../lib/validate-email.js';
 import { isWholeSheetShape, sheetFormatLabel, shapeDisplayLabel, customShapeLabel } from '../../../lib/paper-config.js';
+import { resolveMaterial, materialDisplayLabel } from '../../../lib/material-config.js';
 
 const isTest = process.env.STRIPE_MODE === 'test';
 const stripeKey = isTest
@@ -10,7 +11,7 @@ const stripeKey = isTest
 const stripe = new Stripe(stripeKey);
 
 export async function POST(request) {
-  const { imageDataUrl, shape, sizeInches, customW, customH, customShapeKind, email } = await request.json();
+  const { imageDataUrl, shape, material, sizeInches, customW, customH, customShapeKind, email } = await request.json();
 
   // This purchase's whole point is emailing the customer their PDF (see
   // app/api/generate-pdf/route.js) — unlike checkout's customerEmail, this
@@ -50,7 +51,7 @@ export async function POST(request) {
         currency: 'cad',
         product_data: {
           name: 'EdiblePrint Digital Download',
-          description: `${shapeDisplayLabel(shape)} ${sizeLabel} — print-ready PDF (A4)`,
+          description: `${shapeDisplayLabel(shape)} ${sizeLabel} — ${materialDisplayLabel(resolveMaterial({ shape, material }))} — print-ready PDF (A4)`,
         },
         unit_amount: parseInt(process.env.DOWNLOAD_PDF_PRICE_CENTS || '399'),
       },
@@ -63,6 +64,7 @@ export async function POST(request) {
     metadata: {
       type: 'pdf_download',
       shape,
+      material: resolveMaterial({ shape, material }),
       sizeInches: String(sizeInches || ''),
       customW: String(customW || ''),
       customH: String(customH || ''),
