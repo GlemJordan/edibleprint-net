@@ -4,6 +4,7 @@ import { buildOrderRecord, saveOrderRecord, recordNotification, urgentFlagLabel 
 import { generateOrderPdfs } from '../../../lib/order-pdf-pipeline.js';
 import { withRetry } from '../../../lib/with-retry.js';
 import { BUSINESS_ADDRESS_ONE_LINE, BUSINESS_PHONE_DISPLAY } from '../../../lib/business-info.js';
+import { resolveMaterial, materialDisplayLabel } from '../../../lib/material-config.js';
 
 // CASL sender-identification footer for the 4 customer/admin-facing
 // templates (owner order email, customer confirmation, magic link,
@@ -46,6 +47,7 @@ function parseDesigns(meta) {
     if (meta['d' + i + '_shape']) {
       const design = {
         shape:    meta['d' + i + '_shape'],
+        material: meta['d' + i + '_material'] || undefined,
         size:     meta['d' + i + '_size']     || '',
         qty:      meta['d' + i + '_qty']      || '1',
         price:    meta['d' + i + '_price']    || '0',
@@ -77,6 +79,7 @@ function parseDesigns(meta) {
     } else {
       designs.push({
         shape:    meta.shape     || 'circular',
+        material: meta.material  || undefined,
         size:     meta.size      || '',
         qty:      meta.quantity  || '1',
         price:    meta.unitPrice || '0',
@@ -165,9 +168,11 @@ async function sendCriticalOrderLossAlert(session, orderId, designs, err, isTest
 
   const designRows = designs.map((d, i) => {
     const shapeLabel = SHAPE_LABELS[d.shape] || d.shape || 'unknown shape';
+    const materialLabel = materialDisplayLabel(resolveMaterial(d));
     return '<tr' + (i % 2 === 0 ? ' style="background:#f9fafb;"' : '') + '>'
       + '<td style="padding:8px 14px;">' + (i + 1) + '</td>'
       + '<td style="padding:8px 14px;">' + shapeLabel + (d.sourceType === 'upload' ? ' (customer-supplied file)' : '') + '</td>'
+      + '<td style="padding:8px 14px;font-weight:bold;">' + materialLabel + '</td>'
       + '<td style="padding:8px 14px;">' + (d.size || '—') + '</td>'
       + '<td style="padding:8px 14px;">' + (d.qty || '1') + '</td>'
       + '<td style="padding:8px 14px;">$' + (parseFloat(d.price) || 0).toFixed(2) + '</td>'
@@ -209,7 +214,7 @@ async function sendCriticalOrderLossAlert(session, orderId, designs, err, isTest
       + '</p>'
     + '<h3 style="color:#DC2626;">Designs — format, material, and image URLs</h3>'
     + '<table style="width:100%;border-collapse:collapse;font-size:13px;">'
-    + '<thead><tr style="background:#DC2626;color:white;"><th style="padding:8px 14px;text-align:left;">#</th><th style="padding:8px 14px;text-align:left;">Format</th><th style="padding:8px 14px;text-align:left;">Size</th><th style="padding:8px 14px;text-align:left;">Qty</th><th style="padding:8px 14px;text-align:left;">Price</th><th style="padding:8px 14px;text-align:left;">Image URL</th></tr></thead>'
+    + '<thead><tr style="background:#DC2626;color:white;"><th style="padding:8px 14px;text-align:left;">#</th><th style="padding:8px 14px;text-align:left;">Format</th><th style="padding:8px 14px;text-align:left;">Material</th><th style="padding:8px 14px;text-align:left;">Size</th><th style="padding:8px 14px;text-align:left;">Qty</th><th style="padding:8px 14px;text-align:left;">Price</th><th style="padding:8px 14px;text-align:left;">Image URL</th></tr></thead>'
     + '<tbody>' + designRows + '</tbody>'
     + '</table>'
     + '<h3 style="color:#DC2626;">What actually failed</h3>'
@@ -323,11 +328,12 @@ async function processOrder(session, orderId) {
   // 4. Owner email with PDF attachment
   const buildDesignRowsOwner = (d, i) => {
     const shapeLabel = SHAPE_LABELS[d.shape] || d.shape;
+    const materialLabel = materialDisplayLabel(resolveMaterial(d));
     const lineTotal  = (parseFloat(d.price) * parseInt(d.qty, 10)).toFixed(2);
     return '<tr' + (i % 2 === 0 ? ' style="background:#f9fafb;"' : '') + '>'
       + '<td style="padding:8px 14px;font-weight:600;color:#374151;">'
       + (designs.length > 1 ? 'Design ' + (i + 1) : 'Print') + '</td>'
-      + '<td style="padding:8px 14px;">' + d.qty + 'x ' + d.size + ' (' + shapeLabel + ')</td>'
+      + '<td style="padding:8px 14px;">' + d.qty + 'x ' + d.size + ' (' + shapeLabel + ') — <strong>' + materialLabel + '</strong></td>'
       + '<td style="padding:8px 14px;text-align:right;">$' + lineTotal + '</td>'
       + '</tr>';
   };
@@ -345,7 +351,7 @@ async function processOrder(session, orderId) {
       + (isPdfFile ? '' : '<img src="' + d.imageUrl + '" style="max-width:240px;border-radius:8px;border:1px solid #e5e7eb;" />')
       + (d.notes && d.notes !== 'None' ? '<p style="margin:8px 0 0;font-size:13px;color:#6b7280;"><em>Note: ' + d.notes + '</em></p>' : '')
       + (d.shape === 'bwsheet' ? '<p style="margin:8px 0 0;font-size:13px;font-weight:bold;color:#B45309;background:#FEF3C7;padding:6px 10px;border-radius:4px;">⚠️ Product: B&W Half Sheet (GRAYSCALE — print in black and white)</p>' : '')
-      + (d.shape === 'waferletter' ? '<p style="margin:8px 0 0;font-size:13px;font-weight:bold;color:#B45309;background:#FEF3C7;padding:6px 10px;border-radius:4px;">⚠️ Product: Wafer Paper — A4 Sheet (NOT icing sheet — do not substitute)</p>' : '')
+      + (resolveMaterial(d) === 'wafer' ? '<p style="margin:8px 0 0;font-size:13px;font-weight:bold;color:#B45309;background:#FEF3C7;padding:6px 10px;border-radius:4px;">⚠️ Material: WAFER PAPER (NOT icing sheet — do not substitute)</p>' : '')
       + (d.sourceType === 'upload' ? '<p style="margin:8px 0 0;font-size:13px;font-weight:bold;color:#B45309;background:#FEF3C7;padding:6px 10px;border-radius:4px;">⚠️ CUSTOMER-SUPPLIED FILE — print exactly as provided, no adjustments' + (d.pageCount > 1 ? ' (page ' + d.selectedPage + ' of ' + d.pageCount + ')' : '') + '.</p>' : '')
       + '</div>';
   };
@@ -393,7 +399,7 @@ async function processOrder(session, orderId) {
     + (printPdfUrls.length > 0 ? printPdfUrls.map(p => p.label + ': ' + p.url).join('\n') + '\n' : '')
     + '\nCustomer\n' + meta.customerName + '\n' + session.customer_email + '\n' + (meta.customerPhone || '—') + '\n'
     + '\nShipping\n' + (isPickup ? 'PICKUP — East London' : (meta.shippingAddress + ', ' + meta.shippingCity + ', ' + meta.shippingProvince + ' ' + meta.shippingPostal)) + '\nMethod: ' + shippingLabel + '\n'
-    + '\nDesigns\n' + designs.map((d, i) => (designs.length > 1 ? 'Design ' + (i + 1) : 'Print') + ': ' + d.qty + 'x ' + d.size + ' (' + (SHAPE_LABELS[d.shape] || d.shape) + ') — $' + (parseFloat(d.price) * parseInt(d.qty, 10)).toFixed(2)).join('\n')
+    + '\nDesigns\n' + designs.map((d, i) => (designs.length > 1 ? 'Design ' + (i + 1) : 'Print') + ': ' + d.qty + 'x ' + d.size + ' (' + (SHAPE_LABELS[d.shape] || d.shape) + ' — ' + materialDisplayLabel(resolveMaterial(d)) + ') — $' + (parseFloat(d.price) * parseInt(d.qty, 10)).toFixed(2)).join('\n')
     + '\n\nStripe: https://dashboard.stripe.com/payments/' + session.payment_intent
     + '\nCloudinary Folder: ' + savedRecord.assets.cloudinaryFolder
     + '\n' + CASL_FOOTER_TEXT;
@@ -427,10 +433,11 @@ async function processOrder(session, orderId) {
   // 5. Customer confirmation email
   const buildDesignRowsCustomer = (d, i) => {
     const shapeLabel = SHAPE_LABELS[d.shape] || d.shape;
+    const materialLabel = materialDisplayLabel(resolveMaterial(d));
     const lineTotal  = (parseFloat(d.price) * parseInt(d.qty, 10)).toFixed(2);
     return '<tr' + (i % 2 === 0 ? ' style="background:#f3f4f6;"' : '') + '>'
       + '<td style="padding:10px 14px;font-weight:600;color:#374151;">' + (designs.length > 1 ? 'Design ' + (i + 1) : 'Your Print') + '</td>'
-      + '<td style="padding:10px 14px;">' + d.qty + 'x ' + d.size + ' (' + shapeLabel + ')</td>'
+      + '<td style="padding:10px 14px;">' + d.qty + 'x ' + d.size + ' (' + shapeLabel + ' — ' + materialLabel + ')</td>'
       + '<td style="padding:10px 14px;text-align:right;">$' + lineTotal + '</td>'
       + '</tr>';
   };
@@ -496,7 +503,7 @@ async function processOrder(session, orderId) {
 
   const customerText = 'Thank you for your order!\n'
     + 'Order #' + orderId + '\n\n'
-    + designs.map((d, i) => (designs.length > 1 ? 'Design ' + (i + 1) : 'Your Print') + ': ' + d.qty + 'x ' + d.size + ' (' + (SHAPE_LABELS[d.shape] || d.shape) + ') — $' + (parseFloat(d.price) * parseInt(d.qty, 10)).toFixed(2)).join('\n')
+    + designs.map((d, i) => (designs.length > 1 ? 'Design ' + (i + 1) : 'Your Print') + ': ' + d.qty + 'x ' + d.size + ' (' + (SHAPE_LABELS[d.shape] || d.shape) + ' — ' + materialDisplayLabel(resolveMaterial(d)) + ') — $' + (parseFloat(d.price) * parseInt(d.qty, 10)).toFixed(2)).join('\n')
     + '\n\n' + (designs.length > 1 ? 'Subtotal: $' + subtotalAmt.toFixed(2) + '\n' : '')
     + 'Shipping (' + shippingLabel + '): ' + (shippingAmt === 0 ? 'Free' : '$' + shippingAmt.toFixed(2)) + '\n'
     + 'Total: $' + totalAmt.toFixed(2) + ' CAD (final price — no tax charged)\n\n'
