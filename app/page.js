@@ -4465,7 +4465,7 @@ export default function EdiblePrintApp() {
                   padding: '10px 14px', borderRadius: 6, fontSize: 13,
                   marginBottom: 16, color: C.text,
                 }}>
-                  ℹ️ B&W Sheet prints in grayscale for $9.99 — perfect for text, logos, and portraits.
+                  ℹ️ B&W Sheet prints in grayscale for ${(SIZES.bwsheet?.[0]?.price ?? 0).toFixed(2)} — perfect for text, logos, and portraits.
                 </div>
               )}
               <ImageEditor
