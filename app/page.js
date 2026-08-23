@@ -4534,7 +4534,9 @@ export default function EdiblePrintApp() {
                       : '⬇ Download as PDF — $3.99'}
                 </button>
                 <div style={{ fontSize: 10.5, color: C.muted, textAlign: 'center', marginTop: 6 }}>
-                  A4 sheet{shapeSupportsMaterial(shape) ? ' · ' + materialDisplayLabel(material) : ''} · {shape} {selectedSize?.label || (customW && customH ? `${customW}" × ${customH}"` : '')}
+                  A4 sheet{shapeSupportsMaterial(shape) ? ' · ' + materialDisplayLabel(material) : ''} · {shape === 'custom'
+                    ? (customW && customH ? `${customW}" × ${customH}"` : selectedSize?.label || 'Custom Size')
+                    : `${SHAPE_LABEL[shape] || shape} ${selectedSize?.label || ''}`}
                 </div>
               </div>
             </div>

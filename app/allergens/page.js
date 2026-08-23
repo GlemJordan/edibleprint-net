@@ -55,10 +55,15 @@ export default function AllergensPage() {
       <h2 style={h2}>Wafer Paper</h2>
       <p style={p}>
         Wafer paper — offered as a material choice on Round, Heart, Square, Cookie Sheet, Full Sheet, and Custom prints — uses a different substrate from the frosting sheets above.
-        We haven't published ingredient or allergen information for wafer paper on this page yet.
-        Ingredient and allergen details are available on request — please email us at{' '}
+        We don't manufacture this material ourselves; the ingredient and allergen information below comes from
+        our supplier's product listing, not an independent lab certificate.
+      </p>
+      <p style={p}>
+        According to the manufacturer, wafer paper is made from potato starch, vegetable oil, and water.
+        The manufacturer lists it as gluten-free, dairy-free, nut-free, and soy-free, and describes it as vegan.
+        If you have allergies or dietary restrictions, please contact us at{' '}
         <a href={`mailto:${EMAIL}`} style={{ color: C.brand }}>{EMAIL}</a>{' '}
-        before ordering and we'll confirm current supplier information with you.
+        before ordering so we can confirm current supplier information with you.
       </p>
 
       <h2 style={h2}>Edible Inks</h2>
