@@ -29,6 +29,9 @@ export async function GET(request) {
         customShapeKind: session.metadata.customShapeKind || '',
         cloudinaryUrl: session.metadata.cloudinaryUrl,
         customerEmail: session.customer_email || session.customer_details?.email || null,
+        // Stripe timestamps are Unix seconds — used for the ddmmyy filename
+        // date (lib/pdf-filename.js), not just display.
+        createdAt: session.created ? session.created * 1000 : Date.now(),
       });
     }
 

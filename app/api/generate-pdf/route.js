@@ -6,10 +6,16 @@ import { Resend } from 'resend';
 import { pageSizePtForShape, computeSheetPlacement, isWholeSheetShape, sheetFormatLabel, shapeDisplayLabel, customShapeLabel } from '../../../lib/paper-config.js';
 import { resolveMaterial, materialDisplayLabel } from '../../../lib/material-config.js';
 import { BUSINESS_ADDRESS_ONE_LINE } from '../../../lib/business-info.js';
+import { buildPdfFilename } from '../../../lib/pdf-filename.js';
 
 export async function POST(request) {
   const body = await request.json();
-  const { imageDataUrl, shape, material, sizeInches, customW, customH, customShapeKind, paymentVerified, customerEmail } = body;
+  const { imageDataUrl, shape, material, sizeInches, customW, customH, customShapeKind, paymentVerified, customerEmail, pdfFilename } = body;
+  // Caller (app/download-pdf/page.js or app/page.js's admin download button)
+  // computes this via lib/pdf-filename.js, since only it knows the
+  // purchase date / customer name context this route doesn't have. Falls
+  // back to a generic name rather than failing the download outright.
+  const filename = pdfFilename || buildPdfFilename({ purchaseDate: Date.now(), fallbackId: shape });
   const resolvedMaterial = resolveMaterial({ shape, material });
 
   // Verify auth: admin cookie OR payment verified flag
@@ -115,7 +121,7 @@ export async function POST(request) {
           + `EdiblePrint.net — ${BUSINESS_ADDRESS_ONE_LINE}`,
         attachments: [
           {
-            filename: `edibleprint-${shape}-${Date.now()}.pdf`,
+            filename,
             content: pdfBase64,
           },
         ],
@@ -131,7 +137,7 @@ export async function POST(request) {
     status: 200,
     headers: {
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="edibleprint-${shape}-${Date.now()}.pdf"`,
+      'Content-Disposition': `attachment; filename="${filename}"`,
     },
   });
 }

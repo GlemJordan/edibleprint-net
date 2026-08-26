@@ -12,6 +12,7 @@ import {
   customShapeLabel, sheetFormatLabel, sheetSizeInForShape,
 } from '../lib/paper-config.js';
 import { shapeSupportsMaterial, materialDisplayLabel } from '../lib/material-config.js';
+import { buildPdfFilename } from '../lib/pdf-filename.js';
 import MaterialPicker from './_components/MaterialPicker.js';
 
 /* ═══ PRICING CONFIG ═══
@@ -1126,6 +1127,14 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
   onLayersChangeRef.current = onLayersChange;
 
   const [selectedLayerId, setSelectedLayerId] = useState(null);
+  /* Touch-only "armed" layer: on touch devices, the first tap on a layer
+     only selects + arms it — it does NOT start a drag — so a swipe that
+     happens to start over the image still scrolls the page normally
+     (see canvas touchAction below, which stays scrollable until a layer is
+     armed). Only a SEPARATE, later touch on the now-armed layer moves it.
+     Mouse/pen input is unaffected — desktop drag never had this ambiguity,
+     since scrolling there is a different input channel (wheel/scrollbar). */
+  const [armedLayerId, setArmedLayerId] = useState(null);
   const [bgProcessing, setBgProcessing] = useState(false);
   useEffect(() => { onBgProcessingChange?.(bgProcessing); }, [bgProcessing]); // eslint-disable-line react-hooks/exhaustive-deps
   /* Counter rather than a plain boolean: multiple layers can be reprocessing
@@ -1782,14 +1791,12 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
   };
   const fitMode = shape === 'custom' ? Math.min : Math.max;
 
-  /* Draw canvases */
+  /* Preview canvas — cheap (a few hundred px), so this stays synchronous on
+     every layers/slider tick for instant visual feedback while dragging. */
   useEffect(() => {
     const canvas = canvasRef.current;
-    const hiResCanvas = hiResCanvasRef.current;
-    if (!canvas || !hiResCanvas) return;
+    if (!canvas) return;
 
-    /* ── Preview canvas ── (never the source of print output, see hi-res
-       section below, which draws from the original imgRefs independently) */
     const previewRenderStart = typeof performance !== 'undefined' ? performance.now() : 0;
     const renderScale = getPreviewRenderScale();
     canvas.width = Math.max(1, Math.round(canvasW * renderScale));
@@ -1824,8 +1831,22 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     if (typeof performance !== 'undefined' && process.env.NODE_ENV !== 'production') {
       console.debug(`[preview] render ${(performance.now() - previewRenderStart).toFixed(1)}ms @ ${canvas.width}x${canvas.height}`);
     }
+  }, [layers, redrawTick, effectiveSelectedId, shape, bgColor, textOverlay, isMultiCircle, isBWSheet, circlePx, mcCols, mcRows, mcOffsetX, mcOffsetY, mcStepPx, circleSize, canvasW, canvasH, customShapeKind]);
 
-    /* ── Hi-res canvas ── */
+  /* Hi-res canvas (print output) — this is the ONE the "size" slider bug
+     traced back to: full-bleed shapes (Full Sheet's A4 at 300 DPI is the
+     biggest, ~8.7 megapixels) made this expensive enough that redrawing +
+     re-encoding it synchronously on every single drag tick backed up touch
+     events on weaker mobile CPUs, so the value the browser finally applied
+     on release reflected wherever the finger actually was by the time the
+     backlog cleared — not the value briefly shown on screen mid-drag.
+     Debounced so it only recomputes once dragging pauses/ends, instead of
+     on every tick; the cheap preview above still updates live. */
+  useEffect(() => {
+    const hiResCanvas = hiResCanvasRef.current;
+    if (!hiResCanvas) return;
+    const HIRES_DEBOUNCE_MS = 150;
+    const timer = setTimeout(() => {
     hiResCanvas.width = hiResW;
     hiResCanvas.height = hiResH;
     const hctx = hiResCanvas.getContext('2d');
@@ -2003,7 +2024,9 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     }
 
     if (onHiResCrop) onHiResCrop(hiResCanvas.toDataURL('image/jpeg', 0.92));
-  }, [layers, redrawTick, effectiveSelectedId, shape, hiResW, hiResH, scaleFactor, bgColor, textOverlay, isMultiCircle, isBWSheet, circlePx, mcCols, mcRows, mcOffsetX, mcOffsetY, mcStepPx, circleSize, canvasW, canvasH, customShapeKind]);
+    }, HIRES_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [layers, redrawTick, shape, hiResW, hiResH, scaleFactor, bgColor, textOverlay, isMultiCircle, isBWSheet, circlePx, mcCols, mcRows, mcOffsetX, mcOffsetY, mcStepPx, circleSize, customShapeKind]);
 
   const handlePointerDown = (e) => {
     const canvas = canvasRef.current;
@@ -2057,6 +2080,13 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       const imgH = img.height * layer.scale;
       if (cx >= layer.x && cx <= layer.x + imgW && cy >= layer.y && cy <= layer.y + imgH) {
         setSelectedLayerId(layer.id);
+        /* Touch: first tap on a not-yet-armed layer only selects+arms it —
+           a swipe starting here still scrolls the page (see touchAction on
+           the canvas). Mouse/pen: unchanged, drags immediately. */
+        if (e.pointerType === 'touch' && armedLayerId !== layer.id) {
+          setArmedLayerId(layer.id);
+          return;
+        }
         setDragging(true);
         setDragLayerId(layer.id);
         setDragStart({ clientX: e.clientX, clientY: e.clientY, layerX: layer.x, layerY: layer.y });
@@ -2069,6 +2099,10 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     if (effectiveSelectedId) {
       const layer = layers.find(l => l.id === effectiveSelectedId);
       if (layer) {
+        if (e.pointerType === 'touch' && armedLayerId !== effectiveSelectedId) {
+          setArmedLayerId(effectiveSelectedId);
+          return;
+        }
         setDragging(true);
         setDragLayerId(effectiveSelectedId);
         setDragStart({ clientX: e.clientX, clientY: e.clientY, layerX: layer.x, layerY: layer.y });
@@ -2135,6 +2169,12 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     if (activePointers.current.size < 2) {
       pinchStateRef.current = null;
     }
+    /* Disarm right after a completed drag — otherwise the layer would stay
+       draggable-by-touch indefinitely, and a later swipe that merely
+       *starts* over the image (e.g. scrolling down toward checkout) would
+       move it again instead of scrolling. Re-arming costs one extra tap
+       per adjustment, which is the trade-off the "tap first" fix accepts. */
+    if (dragging) setArmedLayerId(null);
     setDragging(false);
     setDragLayerId(null);
     setTextDragging(false);
@@ -2186,6 +2226,22 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
   const updateSelectedLayer = (patch) => {
     if (!effectiveSelectedId) return;
     onLayersChange(layers.map(l => l.id === effectiveSelectedId ? { ...l, ...patch } : l));
+  };
+
+  /* Recenter: re-runs the exact same centered cover/contain fit a freshly
+     uploaded layer gets (see the auto-fit effects above) against the
+     CURRENT canvas, rather than replaying stale remembered numbers from
+     upload time — those wouldn't make sense any more if the shape/size
+     changed since. Rotation resets to 0, the only rotation a layer is ever
+     given on load. */
+  const recenterSelectedLayer = () => {
+    if (!effectiveSelectedId) return;
+    const img = imgRefs.current[effectiveSelectedId];
+    if (!img) return;
+    const effW = isMultiCircle ? circlePx : canvasW;
+    const effH = isMultiCircle ? circlePx : canvasH;
+    const sc = fitMode(effW / img.width, effH / img.height);
+    updateSelectedLayer({ x: (effW - img.width * sc) / 2, y: (effH - img.height * sc) / 2, scale: sc, rotation: 0 });
   };
 
   /* Rotation handle (drag-to-rotate on the crop boundary) + magnetic snap.
@@ -2277,6 +2333,13 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ fontSize: 12, fontWeight: 600, color: C.text, fontFamily: "'Outfit', sans-serif" }}>Adjust Your Image</span>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <button onClick={recenterSelectedLayer} disabled={!effectiveSelectedId} title="Reset position and size to how the image loaded"
+            style={{ fontSize: 11, padding: '5px 10px', background: C.white, color: C.text,
+              border: '1px solid ' + C.border, borderRadius: 6, cursor: effectiveSelectedId ? 'pointer' : 'default',
+              fontWeight: 600, opacity: effectiveSelectedId ? 1 : 0.4,
+              fontFamily: "'Outfit', sans-serif" }}>
+            ⟲ Recenter
+          </button>
           <button onClick={() => addLayerFileRef.current?.click()}
             style={{ fontSize: 11, padding: '5px 10px', background: C.brandLight, color: C.brand,
               border: '1px solid ' + C.brand, borderRadius: 6, cursor: 'pointer', fontWeight: 600,
@@ -2298,8 +2361,13 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       <div style={{ position: 'relative', background: '#F5F5F5', borderRadius: 12, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box' }}>
         <canvas ref={canvasRef}
           onPointerDown={handlePointerDown} onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp} onPointerLeave={handlePointerUp}
-          style={{ cursor: textDragging ? 'move' : dragging ? 'grabbing' : 'grab', touchAction: 'none',
+          onPointerUp={handlePointerUp} onPointerLeave={handlePointerUp} onPointerCancel={handlePointerUp}
+          style={{ cursor: textDragging ? 'move' : dragging ? 'grabbing' : 'grab',
+            /* Scrollable by default so a swipe starting on the canvas still
+               scrolls the page — locked to 'none' only once a layer is
+               armed (see handlePointerDown), so a drag on that layer isn't
+               fought over by the browser's own native scroll. */
+            touchAction: (armedLayerId && armedLayerId === effectiveSelectedId) ? 'none' : 'pan-y',
             width: canvasW, height: canvasH, maxWidth: '100%', display: 'block',
             filter: 'drop-shadow(0 6px 16px rgba(0,0,0,0.12))' }}
         />
@@ -2444,7 +2512,9 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
 
       {/* Help text */}
       <p style={{ fontSize: 10.5, color: C.muted, textAlign: 'center', margin: 0, fontStyle: 'italic' }}>
-        {layers.length > 1 ? 'Click layer to select · Drag to reposition' : 'Drag to reposition'}
+        {isMobile
+          ? (layers.length > 1 ? 'Tap layer to select, then drag to reposition' : 'Tap image to select, then drag to reposition')
+          : (layers.length > 1 ? 'Click layer to select · Drag to reposition' : 'Drag to reposition')}
       </p>
 
       {/* Layers — collapsible */}
@@ -3222,17 +3292,20 @@ export default function EdiblePrintApp() {
     setDownloadingPdf(true);
     try {
       const sizeW = selectedSize?.w || parseFloat(customW) || 8;
+      // Admin bypass, run before the customer-details step — there's no
+      // order or customer name yet to name the file after.
+      const pdfFilename = buildPdfFilename({ purchaseDate: Date.now(), fallbackId: 'admin-preview' });
       const resp = await fetch('/api/generate-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageDataUrl: hiResDataUrl, shape, material, sizeInches: sizeW, customW, customH, customShapeKind, paymentVerified: false }),
+        body: JSON.stringify({ imageDataUrl: hiResDataUrl, shape, material, sizeInches: sizeW, customW, customH, customShapeKind, paymentVerified: false, pdfFilename }),
       });
       if (!resp.ok) throw new Error('PDF generation failed');
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `edibleprint-${shape}-${Date.now()}.pdf`;
+      a.download = pdfFilename;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {

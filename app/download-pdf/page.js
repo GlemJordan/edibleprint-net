@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { buildPdfFilename, orderNumberFromSessionId } from '../../lib/pdf-filename.js';
 
 function DownloadPdfContent() {
   const searchParams = useSearchParams();
@@ -36,6 +37,14 @@ function DownloadPdfContent() {
           reader.readAsDataURL(blob);
         });
 
+        // No customer name is collected for this standalone digital-download
+        // purchase (only email) — falls back to an order-style identifier
+        // derived from the Stripe session id, per lib/pdf-filename.js.
+        const pdfFilename = buildPdfFilename({
+          purchaseDate: verified.createdAt,
+          fallbackId: orderNumberFromSessionId(sessionId),
+        });
+
         // Generate PDF
         const pdfResp = await fetch('/api/generate-pdf', {
           method: 'POST',
@@ -50,6 +59,7 @@ function DownloadPdfContent() {
             customShapeKind: verified.customShapeKind,
             paymentVerified: true,
             customerEmail: verified.customerEmail,
+            pdfFilename,
           }),
         });
 
@@ -59,7 +69,7 @@ function DownloadPdfContent() {
         const url = URL.createObjectURL(pdfBlob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `edibleprint-${verified.shape}-${Date.now()}.pdf`;
+        a.download = pdfFilename;
         a.click();
         URL.revokeObjectURL(url);
 

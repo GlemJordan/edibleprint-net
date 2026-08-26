@@ -281,14 +281,14 @@ export default function AdminOrderDetailPage({ params }) {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
                     <div style={{ fontSize: 13.5 }}>
                       {order.assets?.productionSlipUrl ? (
-                        <a href={order.assets.productionSlipUrl} target="_blank" rel="noopener noreferrer" style={{ color: C.brand }}>📄 Production slip →</a>
+                        <a href={`/api/admin/orders/${id}/download?type=slip`} style={{ color: C.brand }}>📄 Production slip →</a>
                       ) : (
                         <span style={{ color: '#B45309' }}>📄 Production slip — missing</span>
                       )}
                     </div>
                     {printReadyUrls.map((p, i) => (
                       <div key={i} style={{ fontSize: 13.5 }}>
-                        <a href={p.url} target="_blank" rel="noopener noreferrer" style={{ color: C.brand }}>🖨️ {p.label} →</a>
+                        <a href={`/api/admin/orders/${id}/download?type=print&index=${i}`} style={{ color: C.brand }}>🖨️ {p.label} →</a>
                       </div>
                     ))}
                     {printReadyUrls.length < neededPrintReady && (
