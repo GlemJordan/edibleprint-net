@@ -2216,12 +2216,41 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     reader.readAsDataURL(file);
   };
 
-  /* Per-layer slider range */
+  /* Per-layer slider range. Max is capped at 3x (300%) regardless of canvas
+     size — past that, enlarging a consumer photo is visibly pixelated on
+     any print, so letting Full Sheet's big canvas push it to 500%+ (as the
+     old canvasW*4/width formula did for a small/low-res upload) bought
+     nothing but a less precise slider. Never dips below coverScale though —
+     a tiny image genuinely needs more than 3x to cover a large sheet, and
+     that's exactly the scale auto-fit already gave it on load (see the
+     auto-fit effects above), so the slider's max must never sit below the
+     value the layer can already be at. */
   const selImg = effectiveSelectedId ? imgRefs.current[effectiveSelectedId] : null;
   const minScale = selImg ? Math.max(20 / selImg.width, 20 / selImg.height) : 0.05;
-  const maxScale = selImg ? Math.max(canvasW * 4 / selImg.width, canvasH * 4 / selImg.height) : 8;
+  const HARD_MAX_SCALE = 3;
+  const zoomEffW = isMultiCircle ? circlePx : canvasW;
+  const zoomEffH = isMultiCircle ? circlePx : canvasH;
+  const coverScale = selImg ? fitMode(zoomEffW / selImg.width, zoomEffH / selImg.height) : 1;
+  const maxScale = selImg ? Math.max(HARD_MAX_SCALE, coverScale) : HARD_MAX_SCALE;
   const currentScale = selectedLayer?.scale ?? 1;
   const currentRotation = selectedLayer?.rotation ?? 0;
+
+  /* The slider's POSITION maps logarithmically to scale so that the 5%-30%
+     stretch (where most adjustments actually happen) gets as much track
+     space as 100%-500% — a linear mapping compressed that low end into a
+     couple of pixels on a ~200px-wide mobile track, so a few px of touch
+     imprecision could swing the value from ~10% straight to the floor.
+     The DISPLAYED/SAVED value is untouched — still the real percentage
+     (currentScale), never the log. */
+  const logMinScale = Math.log(minScale);
+  const logMaxScale = Math.log(Math.max(maxScale, minScale * 1.0001));
+  const logCurrentScale = Math.log(Math.min(Math.max(currentScale, minScale), maxScale));
+  /* Multiplicative step for the +/- buttons — proportional, not a fixed pp
+     delta, so a press near 5% moves a little and a press near 300% moves a
+     lot. 10 presses span the full min-max range, same granularity the old
+     linear (maxScale-minScale)/10 step gave, just distributed evenly in
+     log-space instead of linear-space. */
+  const zoomStepFactor = Math.exp((logMaxScale - logMinScale) / 10);
 
   const updateSelectedLayer = (patch) => {
     if (!effectiveSelectedId) return;
@@ -2431,7 +2460,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
           <button
             onClick={() => {
               if (!effectiveSelectedId || !selectedLayer) return;
-              const newScale = Math.max(minScale, currentScale - (maxScale - minScale) / 10);
+              const newScale = Math.max(minScale, currentScale / zoomStepFactor);
               updateSelectedLayer(scaleLayerAround(selectedLayer, newScale));
             }}
             onPointerDown={() => setCropInteracting(true)}
@@ -2442,9 +2471,9 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
               cursor: effectiveSelectedId ? 'pointer' : 'default', fontSize: 15, fontWeight: 700,
               color: C.text, display: 'flex', alignItems: 'center', justifyContent: 'center',
               opacity: effectiveSelectedId ? 1 : 0.4, fontFamily: "'Outfit', sans-serif" }}>−</button>
-          <input type="range" min={minScale} max={maxScale} step={0.001} value={currentScale}
+          <input type="range" min={logMinScale} max={logMaxScale} step={(logMaxScale - logMinScale) / 1000 || 0.001} value={logCurrentScale}
             onChange={(e) => {
-              const newScale = parseFloat(e.target.value);
+              const newScale = Math.exp(parseFloat(e.target.value));
               if (!effectiveSelectedId || !selectedLayer) return;
               updateSelectedLayer(scaleLayerAround(selectedLayer, newScale));
             }}
@@ -2455,7 +2484,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
           <button
             onClick={() => {
               if (!effectiveSelectedId || !selectedLayer) return;
-              const newScale = Math.min(maxScale, currentScale + (maxScale - minScale) / 10);
+              const newScale = Math.min(maxScale, currentScale * zoomStepFactor);
               updateSelectedLayer(scaleLayerAround(selectedLayer, newScale));
             }}
             onPointerDown={() => setCropInteracting(true)}
