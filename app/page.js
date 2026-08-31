@@ -1649,12 +1649,18 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     }));
   }, [shape, sizeObj.id, sizeObj.w, sizeObj.h, sizeObj.circleSize]);
 
-  /* Re-auto-fit when canvas container resizes */
+  /* Re-auto-fit when canvas container resizes — but ONLY layers still
+     pending their initial fit (_autoFit: true). Once a layer has been fit
+     (on load) or the user has touched zoom/pan, _autoFit is false and this
+     must leave it alone: a container resize (mobile address bar show/hide,
+     rotation, window resize) is not a user action and must never overwrite
+     a chosen scale/position. Recenter is the only way back to auto-fit. */
   useEffect(() => {
     const { isMultiCircle: mc, circlePx: cp, canvasW: cw, canvasH: ch } = layoutRef.current;
     const effW = mc ? cp : cw;
     const effH = mc ? cp : ch;
     onLayersChangeRef.current(prev => prev.map(l => {
+      if (!l._autoFit) return l;
       const img = imgRefs.current[l.id];
       if (!img) return l;
       const sc = fitMode(effW / img.width, effH / img.height);
