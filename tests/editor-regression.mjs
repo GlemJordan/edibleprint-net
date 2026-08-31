@@ -41,7 +41,12 @@ const TMP_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'ep-editor-regress-'));
   results.push({ test: '3-editor-reaches-customize-screen', pass: customizeHeader });
   const canvasVisible = await page.locator('canvas').first().isVisible().catch(() => false);
   results.push({ test: '4-editor-canvas-renders', pass: canvasVisible });
-  const shapeSelectorVisible = await page.getByRole('button', { name: /Round/ }).isVisible().catch(() => false);
+  // .first(): /Round/ also matches the "5\" Round Topper (13cm)" etc. size
+  // buttons that appear once circular is the selected shape — the shape
+  // button itself ("⭕Round") renders first in DOM order, before the size
+  // picker, so .first() reliably targets it rather than a strict-mode
+  // violation on the unscoped locator.
+  const shapeSelectorVisible = await page.getByRole('button', { name: /Round/ }).first().isVisible().catch(() => false);
   results.push({ test: '5-shape-selector-present', pass: shapeSelectorVisible });
 
   await browser.close();

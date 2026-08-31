@@ -72,11 +72,14 @@ startxref
   const priceShown = await page.getByText('$19.99', { exact: false }).first().isVisible().catch(() => false);
   results.push({ test: '7-default-fullsheet-price-shown', pass: priceShown });
 
-  // 5) Switch sheet type to Wafer Paper, confirm price updates
+  // 5) Switch material to Wafer Paper — price must stay the same. Wafer
+  // paper isn't a shape/sheet-type with its own price any more (see
+  // lib/material-config.js): both materials cost exactly the same for a
+  // given shape+size, and MaterialPicker doesn't render a price at all.
   await page.getByRole('button', { name: /Wafer Paper/ }).click();
   await page.waitForTimeout(200);
-  const waferPriceShown = await page.locator('button:has-text("Wafer Paper")').getByText('$12.99').isVisible().catch(() => false);
-  results.push({ test: '8-switching-sheet-type-updates-price', pass: waferPriceShown });
+  const priceUnchangedAfterMaterialSwitch = await page.getByText('$19.99', { exact: false }).first().isVisible().catch(() => false);
+  results.push({ test: '8-material-switch-keeps-price-unchanged', pass: priceUnchangedAfterMaterialSwitch });
 
   // 6) Continue to Details (step 3) and check order summary line
   // (Stage 3 added the mandatory "print as-is" approval checkbox gate)

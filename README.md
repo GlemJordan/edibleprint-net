@@ -39,7 +39,7 @@ npm run test:e2e     # in another — runs the default suite
 
 ### Pre-commit check
 
-A git hook at `.githooks/pre-commit` runs the default suite automatically before a commit that touches `app/`, `lib/`, or `tests/` — but only if a dev server is already reachable (it doesn't start one, to keep commits fast). It's **advisory, not blocking**: it prints the results and always lets the commit through, because three known-unrelated failures (below) would otherwise block every commit until they're fixed. Enable it once per clone:
+A git hook at `.githooks/pre-commit` runs the default suite automatically before a commit that touches `app/`, `lib/`, or `tests/` — but only if a dev server is already reachable (it doesn't start one, to keep commits fast). It's **advisory, not blocking**: it prints the results and always lets the commit through, since it has no way to start a server on its own and shouldn't turn "no server running" into a blocked commit. Enable it once per clone:
 
 ```bash
 git config core.hooksPath .githooks
@@ -49,15 +49,9 @@ git config core.hooksPath .githooks
 
 ### Known pre-existing test failures
 
-These fail today regardless of what you're changing. If a suite run reports anything **beyond** this list, that's a real regression — not one of these.
+None at the moment — the default suite is expected to pass in full (`DEFAULT_TESTS` in `tests/run-all.mjs`). If a suite run reports a failure, treat it as a real regression and update this section only once you've confirmed a failure is both pre-existing and out of scope for the change at hand (as opposed to just adding it here to make the noise go away).
 
-| File | Failing case(s) | Why |
-|---|---|---|
-| `image-centering.mjs` | all 5 "Wafer Paper" cases — `ERROR`, `locator.click: Timeout ... waiting for locator('footer').getByText('Wafer Paper Prints')` | The footer text this test waits for no longer matches what's rendered — likely drifted in a later copy change. Needs the selector (or the footer copy) reconciled. |
-| `editor-regression.mjs` | `5-shape-selector-present` | `getByRole('button', { name: /Round/ })` now matches more than one button on the page (a strict-mode violation, silently caught by `.catch(() => false)`) — not that the shape selector is actually missing. Needs `.first()` or a tighter name match. |
-| `upload-flow-stage1.mjs` | `8-switching-sheet-type-updates-price` | Asserts a literal `$12.99` Wafer Paper price next to the button; likely stale against the current `CATALOG_PRICES` value. Needs the assertion to read the price from the catalog instead of a hardcoded string. |
-
-All three are unrelated to whatever upload-review or editor work is in flight — confirmed by running each against the commit before that work started.
+Three did go stale before this note was written — all traced to the same cause (wafer paper moving from its own shape/footer link to a cross-shape material choice — see `lib/material-config.js` — without every test that referenced the old shape being updated to match): `image-centering.mjs`'s "Wafer Paper" case, `editor-regression.mjs`'s `/Round/` locator picking up wafer's now-gone footer entry as a false ambiguity source, and `upload-flow-stage1.mjs` asserting a per-material price that no longer exists. Fixed by dropping the retired shape/case where a direct precedent already existed in this repo (`tests/print-preview-mobile.mjs`, commit `4753c99`), tightening the `/Round/` locator with `.first()`, and rewriting the price assertion to check what's actually still true (material switch leaves price unchanged) instead of a value that was never coming back.
 
 ## Learn More
 

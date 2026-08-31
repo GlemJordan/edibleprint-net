@@ -85,7 +85,11 @@ const SHAPES = [
   { label: 'Square', via: 'footer', text: 'Square Prints' },
   { label: 'Cookie Sheets', via: 'footer', text: 'Cookie Sheets' },
   { label: 'Full Sheet', via: 'footer', text: 'Full Sheet Prints' },
-  { label: 'Wafer Paper', via: 'footer', text: 'Wafer Paper Prints' },
+  // No 'Wafer Paper' entry: it's no longer a selectable shape/footer link —
+  // see lib/material-config.js. Wafer is now a material choice cross-cutting
+  // shapes (MaterialPicker), which doesn't affect centering, so there's no
+  // equivalent case to test here. Same treatment tests/print-preview-mobile.mjs
+  // got when the same refactor landed (commit 4753c99).
   { label: 'B&W Sheet', via: 'pricing-tab', tabText: 'B&W Sheet', cardText: '6.5"×6.5" B&W Square' },
 ];
 
