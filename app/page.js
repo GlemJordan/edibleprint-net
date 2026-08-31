@@ -1632,7 +1632,13 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
   const layoutRef = useRef({ isMultiCircle, circlePx, canvasW, canvasH });
   layoutRef.current = { isMultiCircle, circlePx, canvasW, canvasH };
 
-  /* Re-auto-fit all layers when shape or size changes */
+  /* Re-auto-fit all layers when shape or size changes.
+     Deliberately NOT gated on layer._autoFit like the resize effect below —
+     this fires only from a deliberate customer action (picking a different
+     shape/size), not a passive container resize. The old crop genuinely
+     doesn't apply to a new aspect ratio, and the customer just watched it
+     change, so resetting here is the correct, expected behavior. Don't
+     "fix" this to match the resize effect. */
   useEffect(() => {
     const sizeKey = (sizeObj.id || '') + '|' + sizeObj.w + '|' + sizeObj.h + '|' + (sizeObj.circleSize || '');
     if (autoFitShapeRef.current === shape && autoFitSizeRef.current === sizeKey) return;
