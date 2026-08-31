@@ -1,0 +1,41 @@
+#!/bin/sh
+# Advisory (non-blocking) e2e check. Runs tests/run-all.mjs's default suite
+# automatically before a commit that touches app/, lib/, or tests/ — but only
+# if a dev server is already reachable, and it never fails the commit itself.
+#
+# Why advisory instead of a hard gate: the suite needs a live dev server this
+# hook has no fast way to start (Next.js takes several seconds, the suite
+# itself takes minutes), and three of its files each have one known,
+# unrelated pre-existing failure (see README.md's "Known pre-existing test
+# failures" table) — gating on a clean exit would block every single commit
+# until those are fixed, which trains muscle-memory for `--no-verify` instead
+# of actually catching regressions. Printing the results and pointing at the
+# README table is enough for a human (or an agent) to tell "expected" from
+# "new" without that cost.
+#
+# One-time setup per clone: `git config core.hooksPath .githooks`
+# (this repo's `npm install` also does this via postinstall).
+
+changed=$(git diff --cached --name-only --diff-filter=ACMR)
+if ! printf '%s\n' "$changed" | grep -qE '^(app/|lib/|tests/)'; then
+  exit 0
+fi
+
+BASE_URL="${BASE_URL:-http://localhost:3000}"
+if ! curl -s -o /dev/null -m 2 "$BASE_URL"; then
+  echo "e2e pre-commit check: no dev server reachable at $BASE_URL — skipping (run 'npm run dev' in another terminal to enable this check)."
+  exit 0
+fi
+
+echo "e2e pre-commit check: running the default suite against $BASE_URL ..."
+BASE_URL="$BASE_URL" npm run test:e2e
+status=$?
+
+if [ "$status" -ne 0 ]; then
+  echo ""
+  echo "e2e pre-commit check: the suite reported failures above."
+  echo "Compare against README.md's 'Known pre-existing test failures' table before assuming a regression — only failures NOT listed there are new."
+  echo "(This hook is advisory — the commit is proceeding either way.)"
+fi
+
+exit 0

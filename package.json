@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test:e2e": "node tests/run-all.mjs",
-    "validate:catalog": "node scripts/validate-design-catalog.mjs"
+    "validate:catalog": "node scripts/validate-design-catalog.mjs",
+    "postinstall": "git config core.hooksPath .githooks > /dev/null 2>&1 || true"
   },
   "dependencies": {
     "jose": "^6.2.2",
