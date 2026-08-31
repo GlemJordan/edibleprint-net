@@ -101,28 +101,42 @@ async function uploadViaFullSheet(page, imagePath) {
     await uploadViaFullSheet(page, p);
     await page.waitForTimeout(1500);
     const lowDpiWarning = await page.getByText('below our recommended', { exact: false }).isVisible().catch(() => false);
+    const canvaTip = await page.getByText('exports at screen resolution by default', { exact: false }).isVisible().catch(() => false);
     const continueBtn = page.getByRole('button', { name: 'Continue →' });
     const disabledBeforeConfirm = !(await continueBtn.isEnabled().catch(() => true));
-    await page.getByLabel(/I understand the warning/).check();
+    await page.getByLabel(/I've reviewed the notes/).check();
     await page.getByLabel(/I confirm this file is print-ready/).check();
     await page.waitForTimeout(150);
     const enabledAfterConfirm = await continueBtn.isEnabled().catch(() => false);
     results.push({ test: '2a-low-dpi-warning-shown', pass: lowDpiWarning });
-    results.push({ test: '2b-continue-blocked-until-confirmed', pass: disabledBeforeConfirm });
-    results.push({ test: '2c-continue-enabled-after-confirm-checkbox', pass: enabledAfterConfirm });
+    results.push({ test: '2b-canva-export-tip-shown', pass: canvaTip });
+    results.push({ test: '2c-continue-blocked-until-confirmed', pass: disabledBeforeConfirm });
+    results.push({ test: '2d-continue-enabled-after-confirm-checkbox', pass: enabledAfterConfirm });
     await page.close();
   }
 
-  // 3) PNG wrong proportions (square, for Full Sheet target 8x11)
+  // 3) PNG wrong proportions only (square, high-res so DPI stays well above
+  // the 300 threshold) — a pure proportion mismatch must read as informational
+  // and must NOT gate Continue behind the "reviewed the notes" checkbox.
   {
     const page = await browser.newPage({ viewport: { width: 1280, height: 1400 } });
-    const p = await makePng(page, { name: 'wrongshape.png', w: 2000, h: 2000 });
+    const p = await makePng(page, { name: 'wrongshape.png', w: 4000, h: 4000 });
     await uploadViaFullSheet(page, p);
     await page.waitForTimeout(1500);
-    const mismatchMsg = await page.getByText("don't exactly match this sheet", { exact: false }).isVisible().catch(() => false);
+    const mismatchMsg = await page.getByText('little different from', { exact: false }).isVisible().catch(() => false);
     const noCropClaim = await page.getByText('Nothing will be cropped', { exact: false }).isVisible().catch(() => false);
+    const formattedTargetSize = await page.getByText('A4 (8.27" × 11.69")', { exact: false }).isVisible().catch(() => false);
+    const noConfirmCheckboxShown = !(await page.getByText("I've reviewed the notes", { exact: false }).isVisible().catch(() => true));
+    const continueBtn = page.getByRole('button', { name: 'Continue →' });
+    await page.waitForTimeout(1000);
+    await page.getByLabel(/I confirm this file is print-ready/).check();
+    await page.waitForTimeout(150);
+    const continueEnabledWithoutExtraConfirm = await continueBtn.isEnabled().catch(() => false);
     results.push({ test: '3a-aspect-mismatch-detected', pass: mismatchMsg });
     results.push({ test: '3b-no-crop-policy-stated', pass: noCropClaim });
+    results.push({ test: '3c-target-size-formatted-as-A4', pass: formattedTargetSize });
+    results.push({ test: '3d-no-confirm-checkbox-for-proportion-only-mismatch', pass: noConfirmCheckboxShown });
+    results.push({ test: '3e-continue-enabled-without-extra-confirm', pass: continueEnabledWithoutExtraConfirm });
     await page.close();
   }
 
@@ -133,7 +147,9 @@ async function uploadViaFullSheet(page, imagePath) {
     await uploadViaFullSheet(page, p);
     await page.waitForTimeout(1500);
     const marginWarning = await page.getByText('may be lost when trimmed', { exact: false }).isVisible().catch(() => false);
-    results.push({ test: '4-margin-warning-shown-for-edge-content', pass: marginWarning });
+    const confirmCheckboxShown = await page.getByText("I've reviewed the notes", { exact: false }).isVisible().catch(() => false);
+    results.push({ test: '4a-margin-warning-shown-for-edge-content', pass: marginWarning });
+    results.push({ test: '4b-confirm-checkbox-required-for-margin-warning', pass: confirmCheckboxShown });
     await page.close();
   }
 

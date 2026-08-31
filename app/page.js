@@ -1655,18 +1655,23 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     }));
   }, [shape, sizeObj.id, sizeObj.w, sizeObj.h, sizeObj.circleSize]);
 
-  /* Re-auto-fit when canvas container resizes — but ONLY layers still
-     pending their initial fit (_autoFit: true). Once a layer has been fit
-     (on load) or the user has touched zoom/pan, _autoFit is false and this
-     must leave it alone: a container resize (mobile address bar show/hide,
-     rotation, window resize) is not a user action and must never overwrite
-     a chosen scale/position. Recenter is the only way back to auto-fit. */
+  /* Re-auto-fit when canvas container resizes — but skip any layer the user
+     has manually adjusted (_userAdjusted: true). This is deliberately NOT
+     gated on _autoFit: that flag just guards the one-time initial fit on
+     load (see the load effect below) and goes false the moment that first
+     fit runs, whether or not the canvas had already settled to its final
+     size — gating on it here would freeze a layer at a possibly-stale
+     startup size forever. _userAdjusted instead tracks a real user action
+     (drag, pinch, the zoom slider/buttons — see their setters) and is the
+     only thing a passive resize (mobile address bar show/hide, rotation,
+     window resize) must respect. Recenter clears it, which is the only way
+     back to auto-fit. */
   useEffect(() => {
     const { isMultiCircle: mc, circlePx: cp, canvasW: cw, canvasH: ch } = layoutRef.current;
     const effW = mc ? cp : cw;
     const effH = mc ? cp : ch;
     onLayersChangeRef.current(prev => prev.map(l => {
-      if (!l._autoFit) return l;
+      if (l._userAdjusted) return l;
       const img = imgRefs.current[l.id];
       if (!img) return l;
       const sc = fitMode(effW / img.width, effH / img.height);
@@ -2142,7 +2147,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       const newRotation = applyRotationSnap(normalizeRotation(initialRotation + (angle - initialAngle)));
       if (layerId) {
         onLayersChangeRef.current(prev => prev.map(l =>
-          l.id === layerId ? { ...l, ...scaleLayerAround(l, newScale), rotation: newRotation } : l
+          l.id === layerId ? { ...l, ...scaleLayerAround(l, newScale), rotation: newRotation, _userAdjusted: true } : l
         ));
       }
       return;
@@ -2168,7 +2173,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     const dx = (e.clientX - dragStart.clientX) * (canvasW / rect.width);
     const dy = (e.clientY - dragStart.clientY) * (canvasH / rect.height);
     onLayersChangeRef.current(prev => prev.map(l =>
-      l.id === dragLayerId ? { ...l, x: dragStart.layerX + dx, y: dragStart.layerY + dy } : l
+      l.id === dragLayerId ? { ...l, x: dragStart.layerX + dx, y: dragStart.layerY + dy, _userAdjusted: true } : l
     ));
   };
 
@@ -2282,7 +2287,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     const effW = isMultiCircle ? circlePx : canvasW;
     const effH = isMultiCircle ? circlePx : canvasH;
     const sc = fitMode(effW / img.width, effH / img.height);
-    updateSelectedLayer({ x: (effW - img.width * sc) / 2, y: (effH - img.height * sc) / 2, scale: sc, rotation: 0 });
+    updateSelectedLayer({ x: (effW - img.width * sc) / 2, y: (effH - img.height * sc) / 2, scale: sc, rotation: 0, _userAdjusted: false });
   };
 
   /* Rotation handle (drag-to-rotate on the crop boundary) + magnetic snap.
@@ -2473,7 +2478,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
             onClick={() => {
               if (!effectiveSelectedId || !selectedLayer) return;
               const newScale = Math.max(minScale, currentScale / zoomStepFactor);
-              updateSelectedLayer(scaleLayerAround(selectedLayer, newScale));
+              updateSelectedLayer({ ...scaleLayerAround(selectedLayer, newScale), _userAdjusted: true });
             }}
             onPointerDown={() => setCropInteracting(true)}
             onPointerUp={() => setCropInteracting(false)}
@@ -2487,7 +2492,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
             onChange={(e) => {
               const newScale = Math.exp(parseFloat(e.target.value));
               if (!effectiveSelectedId || !selectedLayer) return;
-              updateSelectedLayer(scaleLayerAround(selectedLayer, newScale));
+              updateSelectedLayer({ ...scaleLayerAround(selectedLayer, newScale), _userAdjusted: true });
             }}
             onPointerDown={() => setCropInteracting(true)}
             onPointerUp={() => setCropInteracting(false)}
@@ -2497,7 +2502,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
             onClick={() => {
               if (!effectiveSelectedId || !selectedLayer) return;
               const newScale = Math.min(maxScale, currentScale * zoomStepFactor);
-              updateSelectedLayer(scaleLayerAround(selectedLayer, newScale));
+              updateSelectedLayer({ ...scaleLayerAround(selectedLayer, newScale), _userAdjusted: true });
             }}
             onPointerDown={() => setCropInteracting(true)}
             onPointerUp={() => setCropInteracting(false)}
@@ -3059,8 +3064,12 @@ export default function EdiblePrintApp() {
   const [uploadValidationStatus, setUploadValidationStatus] = useState({});
   const [uploadPageThumbs, setUploadPageThumbs] = useState({});
   const activeUploadValidation = activeDesign?.validation ?? null;
+  /* A proportion mismatch alone is purely informational (the file is scaled
+     to fit, nothing is cropped) and must NOT require confirmation — only
+     things that actually need a customer decision do: low DPI (may look
+     pixelated) or content near the trim edge (may be lost when trimmed). */
   const activeUploadNeedsConfirm = !!activeUploadValidation && (
-    !activeUploadValidation.sizeExact || (activeUploadValidation.dpiKnown && !activeUploadValidation.dpiOk)
+    (activeUploadValidation.dpiKnown && !activeUploadValidation.dpiOk) || activeUploadValidation.marginWarning
   );
 
   /* Rendered "as it will print" preview — same render feeds both the inline
@@ -4358,15 +4367,15 @@ export default function EdiblePrintApp() {
                     <div style={{
                       display: 'flex', gap: 8, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 8,
                       marginBottom: 8, fontSize: 12.5, lineHeight: 1.5,
-                      background: v.sizeExact ? '#ECFDF5' : '#FFF8E6',
-                      border: '1px solid ' + (v.sizeExact ? '#6EE7B7' : '#F4D06F'),
-                      color: v.sizeExact ? '#065F46' : '#5C4A1A',
+                      background: v.sizeExact ? '#ECFDF5' : '#F5F5F5',
+                      border: '1px solid ' + (v.sizeExact ? '#6EE7B7' : C.border),
+                      color: v.sizeExact ? '#065F46' : C.muted,
                     }}>
-                      <span>{v.sizeExact ? '✅' : '⚠️'}</span>
+                      <span>{v.sizeExact ? '✅' : 'ℹ️'}</span>
                       <span>
                         {v.sizeExact
                           ? `Your file's proportions match this sheet — it'll print at ${v.printedWidthIn.toFixed(2)}" × ${v.printedHeightIn.toFixed(2)}".`
-                          : `Your file's proportions don't exactly match this sheet. It will be scaled to fit within ${v.targetWidthIn}" × ${v.targetHeightIn}" (printing at ${v.printedWidthIn.toFixed(2)}" × ${v.printedHeightIn.toFixed(2)}"), with a small margin on one side. Nothing will be cropped.`}
+                          : `Nothing will be cropped — your whole file will show on the sheet. Its proportions are a little different from ${activeDesign.shape === 'fullsheet' ? `A4 (${v.targetWidthIn.toFixed(2)}" × ${v.targetHeightIn.toFixed(2)}")` : `${v.targetWidthIn.toFixed(2)}" × ${v.targetHeightIn.toFixed(2)}"`}, so we'll scale it down slightly to fit: it'll print at ${v.printedWidthIn.toFixed(2)}" × ${v.printedHeightIn.toFixed(2)}", with a thin white margin along one edge.`}
                       </span>
                     </div>
 
@@ -4382,7 +4391,7 @@ export default function EdiblePrintApp() {
                         <span>
                           {v.dpiOk
                             ? `Resolution looks good (~${Math.round(v.dpi)} DPI at print size).`
-                            : `This image is ~${Math.round(v.dpi)} DPI at print size — below our recommended ${UPLOAD_MIN_DPI} DPI. It may look pixelated when printed.`}
+                            : `This image is about ${Math.round(v.dpi)} DPI at print size — a bit below our recommended ${UPLOAD_MIN_DPI} DPI, so it may look a little soft once printed. If you designed this in Canva, it exports at screen resolution by default: try "Download → PNG" and pick the 2× size option, then upload that file instead.`}
                         </span>
                       </div>
                     ) : (
@@ -4426,7 +4435,7 @@ export default function EdiblePrintApp() {
                           onChange={(e) => updateActive({ confirmMismatch: e.target.checked })}
                           style={{ marginTop: 3, width: 18, height: 18, cursor: 'pointer', accentColor: C.brand }} />
                         <span style={{ fontSize: 13, color: C.text, fontWeight: 500 }}>
-                          I understand the warning{isPdf || !v.dpiKnown ? '' : 's'} above and want to print this file anyway.
+                          I've reviewed the notes above and I'm happy to go ahead with this file.
                         </span>
                       </label>
                     )}
