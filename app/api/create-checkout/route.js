@@ -4,6 +4,7 @@ import { getShippingCost } from '../../../lib/shipping-config.js';
 import { CATALOG_PRICES, customShapePrice } from '../../../lib/catalog-prices.js';
 import { isValidEmail } from '../../../lib/validate-email.js';
 import { shapeSupportsMaterial, resolveMaterial } from '../../../lib/material-config.js';
+import { shapeSupportsCut, cutSurchargeFor } from '../../../lib/cutting-config.js';
 
 const isTest = process.env.STRIPE_MODE === 'test';
 // NOTE: STRIPE_SECRET_KEY_LIVE must be sk_live_... (a full Secret Key).
@@ -68,14 +69,23 @@ export async function POST(request) {
         priceError = `Unrecognized price for shape "${d.shape}" size "${d.sizeId}"`;
         return d;
       }
+      // Cut-to-shape surcharge (lib/cutting-config.js): same fail-closed
+      // treatment as material below — forced to false/no-charge for a
+      // shape+size that doesn't currently offer it (including while the
+      // CUTTING_ENABLED flag is off, or for a multicircle size still
+      // awaiting its timed price — shapeSupportsCut() already covers both),
+      // regardless of what the client sent. There's no UI to send anything
+      // else from legitimately.
+      const cutToShape = shapeSupportsCut(d.shape, d.sizeId) && d.cutToShape === true;
+      const cutSurcharge = cutToShape ? cutSurchargeFor(d.shape, d.sizeId) : 0;
       if (shapeSupportsMaterial(d.shape)) {
         if (d.material !== 'icing' && d.material !== 'wafer') {
           priceError = `Unrecognized material "${d.material}" for shape "${d.shape}"`;
           return d;
         }
-        return { ...d, unitPrice: price };
+        return { ...d, unitPrice: price + cutSurcharge, cutToShape };
       }
-      return { ...d, unitPrice: price, material: 'icing' };
+      return { ...d, unitPrice: price + cutSurcharge, material: 'icing', cutToShape };
     });
     if (priceError) {
       return NextResponse.json({ error: priceError }, { status: 400 });
@@ -109,7 +119,14 @@ export async function POST(request) {
     // design means "customer-supplied file" / "ready-made catalog design",
     // absence means the existing editor flow, so no separate
     // d{i}_sourceType key is needed for either.
+    //
+    // cutToShape is packed into ONE key (cutFlags, one '0'/'1' char per
+    // design index) instead of a d{i}_cutToShape key per design — the
+    // budget above is already tight enough that 5 more keys for a feature
+    // that's off by default (lib/cutting-config.js) isn't worth risking a
+    // 5-design order tipping over Stripe's cap.
     const designMeta = { designCount: String(designs.length) };
+    designMeta.cutFlags = designsSafe.slice(0, 5).map((d) => (d.cutToShape ? '1' : '0')).join('');
     designsSafe.slice(0, 5).forEach((d, i) => {
       designMeta['d' + i + '_shape']    = String(d.shape || '').slice(0, 500);
       designMeta['d' + i + '_material'] = String(d.material || 'icing').slice(0, 20);

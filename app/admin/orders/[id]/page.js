@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import { resolveMaterial, materialDisplayLabel } from '../../../../lib/material-config.js';
+import { resolveCut } from '../../../../lib/cutting-config.js';
 
 const C = {
   brand: '#1B6B4A', brandLight: '#E8F5EE', text: '#1a1a1a',
@@ -154,6 +155,7 @@ export default function AdminOrderDetailPage({ params }) {
             <Section title="Designs">
               {(order.designs || []).map((d, i) => {
                 const material = resolveMaterial(d);
+                const cutToShape = resolveCut(d);
                 return (
                 <div key={i} style={{ padding: '10px 0', borderBottom: i < order.designs.length - 1 ? '1px solid ' + C.border : 'none' }}>
                   <div style={{ fontWeight: 600 }}>
@@ -164,6 +166,12 @@ export default function AdminOrderDetailPage({ params }) {
                       color: material === 'wafer' ? '#B45309' : C.brand,
                       background: material === 'wafer' ? '#FEF3C7' : C.brandLight,
                     }}>{materialDisplayLabel(material).toUpperCase()}</span>
+                    {cutToShape && (
+                      <span style={{
+                        fontSize: 11.5, fontWeight: 700, padding: '2px 7px', borderRadius: 4,
+                        marginLeft: 6, color: '#B45309', background: '#FEF3C7',
+                      }}>CUT TO SHAPE</span>
+                    )}
                   </div>
                   {(d.unitPrice > 0 || d.notes) && (
                     <div style={{ fontSize: 13, color: C.muted }}>

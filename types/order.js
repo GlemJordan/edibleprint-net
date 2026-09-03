@@ -9,6 +9,7 @@
  *   shape: ProductShape,
  *   shapeLabel: string,
  *   material?: 'icing' | 'wafer',
+ *   cutToShape?: boolean,
  *   size: string,
  *   quantity: number,
  *   unitPrice: number,

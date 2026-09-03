@@ -42,17 +42,22 @@ const SHAPE_LABELS = {
 
 function parseDesigns(meta) {
   const designCount = parseInt(meta.designCount || '1', 10);
+  // cutToShape is packed into one 'cutFlags' string (one '0'/'1' char per
+  // design index) rather than a d{i}_cutToShape key per design — see
+  // app/api/create-checkout/route.js for why (Stripe's 50-metadata-key cap).
+  const cutFlags = meta.cutFlags || '';
   const designs = [];
   for (let i = 0; i < designCount; i++) {
     if (meta['d' + i + '_shape']) {
       const design = {
-        shape:    meta['d' + i + '_shape'],
-        material: meta['d' + i + '_material'] || undefined,
-        size:     meta['d' + i + '_size']     || '',
-        qty:      meta['d' + i + '_qty']      || '1',
-        price:    meta['d' + i + '_price']    || '0',
-        notes:    meta['d' + i + '_notes']    || 'None',
-        imageUrl: meta['d' + i + '_imageUrl'] || 'No image',
+        shape:      meta['d' + i + '_shape'],
+        material:   meta['d' + i + '_material'] || undefined,
+        cutToShape: cutFlags[i] === '1',
+        size:       meta['d' + i + '_size']     || '',
+        qty:        meta['d' + i + '_qty']      || '1',
+        price:      meta['d' + i + '_price']    || '0',
+        notes:      meta['d' + i + '_notes']    || 'None',
+        imageUrl:   meta['d' + i + '_imageUrl'] || 'No image',
       };
       // d{i}_uploadMeta's mere presence marks this as an "I already have my
       // design" order — see app/api/create-checkout/route.js for why there's

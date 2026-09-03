@@ -12,6 +12,7 @@ import {
   customShapeLabel, sheetFormatLabel, sheetSizeInForShape,
 } from '../lib/paper-config.js';
 import { shapeSupportsMaterial, materialDisplayLabel } from '../lib/material-config.js';
+import { shapeSupportsCut, cutSurchargeFor } from '../lib/cutting-config.js';
 import { buildPdfFilename } from '../lib/pdf-filename.js';
 import MaterialPicker from './_components/MaterialPicker.js';
 
@@ -2838,6 +2839,10 @@ export default function EdiblePrintApp() {
   // too (there's no legacy state to preserve here the way customShapeKind
   // has to, since material never existed as a per-shape concept before).
   const material    = activeDesign?.material    ?? 'icing';
+  // Cut-to-shape plotter option — see lib/cutting-config.js. Defaults false
+  // for every design; no legacy state to preserve, this field never existed
+  // before this feature.
+  const cutToShape  = activeDesign?.cutToShape  ?? false;
   const qty         = activeDesign?.qty         ?? 1;
   const notes       = activeDesign?.notes       ?? '';
   const bgColor     = activeDesign?.bgColor     ?? '#FFFFFF';
@@ -2880,6 +2885,7 @@ export default function EdiblePrintApp() {
   const setLayers      = (v) => updateActive({ layers: typeof v === 'function' ? v(layers) : v });
   const setShape       = (v) => updateActive({ shape: v });
   const setMaterial    = (v) => updateActive({ material: v });
+  const setCutToShape  = (v) => updateActive({ cutToShape: v });
   const setSizeId      = (v) => updateActive({ sizeId: v });
   const setCustomW     = (v) => updateActive({ customW: v });
   const setCustomH     = (v) => updateActive({ customH: v });
@@ -2896,9 +2902,11 @@ export default function EdiblePrintApp() {
   const effectiveSize = shape === 'custom'
     ? { id: 'custom', label: 'Custom Size', w: parseFloat(customW) || 2, h: parseFloat(customH) || 2, price: selectedSize?.price || 0 }
     : selectedSize;
-  const unitPrice = shape === 'custom'
+  const baseUnitPrice = shape === 'custom'
     ? (parseFloat(customW || 0) * parseFloat(customH || 0) <= 36 ? 14.99 : 19.99)
     : selectedSize?.price || 0;
+  const cutSurcharge = cutToShape && shapeSupportsCut(shape, sizeId) ? cutSurchargeFor(shape, sizeId) : 0;
+  const unitPrice = baseUnitPrice + cutSurcharge;
   const subtotal = unitPrice * qty;
 
   // Material prefix only shown for the non-default choice (wafer) — icing
@@ -2922,7 +2930,8 @@ export default function EdiblePrintApp() {
     const dPrice = d.shape === 'custom'
       ? (parseFloat(d.customW || 0) * parseFloat(d.customH || 0) <= 36 ? 14.99 : 19.99)
       : dSel?.price || 0;
-    return sum + dPrice * d.qty;
+    const dCutSurcharge = d.cutToShape && shapeSupportsCut(d.shape, d.sizeId) ? cutSurchargeFor(d.shape, d.sizeId) : 0;
+    return sum + (dPrice + dCutSurcharge) * d.qty;
   }, 0);
 
   const shippingCost = getShippingCost(shipping);
@@ -2938,7 +2947,14 @@ export default function EdiblePrintApp() {
     // its checkout payload. (create-checkout also forces this server-side,
     // fail-safe on top of this client-side reset.)
     if (!shapeSupportsMaterial(shape) && material !== 'icing') { setMaterial('icing'); }
-  }, [shape, activeDesignId]);
+    // Same reasoning as material above, for cut-to-shape (lib/cutting-
+    // config.js): reset whenever the current shape+size combo no longer
+    // supports it (shape changed away from a cut-eligible one, or — for
+    // multicircle — the size changed to one without a priced surcharge yet)
+    // so a stale `true` never rides along into the checkout payload.
+    // create-checkout enforces this the same fail-safe way server-side too.
+    if (!shapeSupportsCut(shape, sizeId) && cutToShape) { setCutToShape(false); }
+  }, [shape, sizeId, activeDesignId]);
 
   useEffect(() => {
     const prevent = (e) => { e.preventDefault(); e.stopPropagation(); };
@@ -2972,6 +2988,7 @@ export default function EdiblePrintApp() {
         layers: [initialLayer],
         shape: newShape,
         material: 'icing',
+        cutToShape: false,
         sizeId: newSizeId,
         customW: '',
         customH: '',
@@ -3001,6 +3018,7 @@ export default function EdiblePrintApp() {
       layers: [],
       shape: newShape,
       material: 'icing',
+      cutToShape: false,
       sizeId: newSizeId,
       customW: '',
       customH: '',
@@ -3484,14 +3502,17 @@ export default function EdiblePrintApp() {
           designs: uploadedDesigns.map(d => {
             const dSizes = SIZES[d.shape] || [];
             const dSel = dSizes.find(sz => sz.id === d.sizeId) || dSizes[0];
-            const dPrice = d.shape === 'custom'
+            const dBasePrice = d.shape === 'custom'
               ? (parseFloat(d.customW || 0) * parseFloat(d.customH || 0) <= 36 ? 14.99 : 19.99)
               : dSel?.price || 0;
+            const dCutToShape = !!d.cutToShape && shapeSupportsCut(d.shape, d.sizeId);
+            const dPrice = dBasePrice + (dCutToShape ? cutSurchargeFor(d.shape, d.sizeId) : 0);
             const customShapePrefix = d.shape === 'custom' && d.customShapeKind && d.customShapeKind !== 'rectangle'
               ? customShapeLabel(d.customShapeKind) + ' ' : '';
             return {
               shape: d.shape,
               material: d.material || 'icing',
+              cutToShape: dCutToShape,
               size: d.shape === 'custom' ? customShapePrefix + d.customW + '"x' + d.customH + '"' : (dSel?.label || ''),
               // sizeId/customW/customH/customShapeKind: additive, read by
               // create-checkout to recompute this design's price from the
@@ -3541,7 +3562,9 @@ export default function EdiblePrintApp() {
     { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180321/643374882_1221779420149107_4563453986619431265_n_x0ry5y.jpg', title: 'Full Sheet Print', category: 'Full Sheet' },
     { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180326/661142328_1334185021979269_4781349991339791662_n_kjtbdp.jpg', title: '6" Round Cake Topper', category: 'Round' },
     { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180330/674461215_2470531503382051_8704629536921250123_n_iztbl6.jpg', title: '6" Round Celebration', category: 'Round' },
-    { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180311/WhatsApp_Image_2026-02-18_at_5.14.09_PM_z4dkxf.jpg', title: '1.25" Mini Cookie Circles', category: 'Cookie Sheet' },
+    // No 1.25" "Mini Cookie Circles" photo — that size is retired (see
+    // lib/catalog-sizes.js); showing it invites orders for something no
+    // longer sold.
     { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180313/553460353_1257238136170817_2212358949708882210_n_syfirg.jpg', title: '8" Round on Cake', category: 'Round' },
     { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180311/WhatsApp_Image_2026-02-18_at_5.02.46_PM_vuvwmr.jpg', title: 'Photo Round 8"', category: 'Round' },
     { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180337/WhatsApp_Image_2026-02-18_at_5.02.46_PM_7_d04sga.jpg', title: '2" Circles on Cupcakes', category: 'Cookie Sheet' },
@@ -3672,7 +3695,6 @@ export default function EdiblePrintApp() {
                 h6: 'Fits 7″ heart cakes', h7: 'Fits 8″ heart cakes', h8: 'Fits 9″–10″ heart cakes',
                 s5: 'Fits 6″ square cakes', s6: 'Fits 7″ square cakes',
                 s7: 'Fits 8″ square cakes', s8: 'Fits 9″–10″ square cakes',
-                mc125: '40 mini toppers/sheet — cupcakes & mini cookies',
                 mc2: '15 toppers/sheet — cupcakes & cookies',
                 mc3: '6 toppers/sheet — cookies & mini treats',
                 a4: 'For full sheet cakes & large projects',
@@ -4759,6 +4781,33 @@ export default function EdiblePrintApp() {
                   )}
                 </div>
                 <p style={{ fontSize: 12, color: C.muted, margin: '0 0 0', textAlign: 'center' }}>Max size: 8″ × 11″ (A4 sheet)</p>
+              </div>
+            )}
+
+            {/* Cut to shape (plotter) — lib/cutting-config.js. Renders
+                nothing at all (not a disabled/"coming soon" state) whenever
+                shapeSupportsCut() is false: while CUTTING_ENABLED is off,
+                for fullsheet/bwsheet (no outline to cut), or for a
+                multicircle size still awaiting its timed surcharge.
+                Advertising something that can't be fulfilled yet invites
+                questions and expectations for nothing — better to simply
+                not offer it until it's real. */}
+            {shapeSupportsCut(shape, sizeId) && (
+              <div style={{ marginBottom: 22 }}>
+                <label style={{
+                  display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+                  padding: '12px 14px', borderRadius: 12,
+                  border: '2px solid ' + (cutToShape ? C.brand : C.border),
+                  background: cutToShape ? C.brandLight : C.white,
+                }}>
+                  <input type="checkbox" checked={cutToShape} onChange={(e) => setCutToShape(e.target.checked)}
+                    style={{ width: 18, height: 18, cursor: 'pointer', accentColor: C.brand, flexShrink: 0 }} />
+                  <span style={{ flex: 1 }}>
+                    <span style={{ fontWeight: 700, fontSize: 14, color: C.text, display: 'block' }}>Cut to shape (plotter)</span>
+                    <span style={{ fontSize: 12.5, color: C.muted }}>We will precision-cut this on our plotter instead of leaving it as a full sheet.</span>
+                  </span>
+                  <span style={{ fontWeight: 700, fontSize: 14, color: C.brand, flexShrink: 0 }}>+${cutSurchargeFor(shape, sizeId).toFixed(2)}</span>
+                </label>
               </div>
             )}
 
