@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { isValidEmail } from '../../../lib/validate-email.js';
 import { isWholeSheetShape, sheetFormatLabel, shapeDisplayLabel, customShapeLabel } from '../../../lib/paper-config.js';
 import { resolveMaterial, materialDisplayLabel } from '../../../lib/material-config.js';
+import { shapeSupportsCutGuide } from '../../../lib/cut-guide-config.js';
 
 const isTest = process.env.STRIPE_MODE === 'test';
 const stripeKey = isTest
@@ -11,7 +12,12 @@ const stripeKey = isTest
 const stripe = new Stripe(stripeKey);
 
 export async function POST(request) {
-  const { imageDataUrl, shape, material, sizeInches, customW, customH, customShapeKind, email } = await request.json();
+  const { imageDataUrl, shape, material, sizeInches, sizeId, customW, customH, customShapeKind, cutGuide, email } = await request.json();
+  // Cut guide (lib/cut-guide-config.js): fail-closed the same way price/
+  // material fields are enforced elsewhere — forced false for a shape+
+  // sub-shape combo that doesn't actually support one, regardless of what
+  // the client sent.
+  const resolvedCutGuide = shapeSupportsCutGuide(shape, customShapeKind) && cutGuide === true;
 
   // This purchase's whole point is emailing the customer their PDF (see
   // app/api/generate-pdf/route.js) — unlike checkout's customerEmail, this
@@ -69,6 +75,12 @@ export async function POST(request) {
       customW: String(customW || ''),
       customH: String(customH || ''),
       customShapeKind: customShapeKind || '',
+      // Needed only to look up multicircle's cols/rows/gap for the cut
+      // guide grid (lib/generate-pdf.js's cutGuideSizeObj doesn't apply
+      // here — sizeInches in THIS flow is the sheet width, not the
+      // per-circle size lib/order-pdf-pipeline.js's caller sends).
+      sizeId: sizeId || '',
+      cutGuide: String(resolvedCutGuide),
       cloudinaryUrl: cloudinaryUrl || '',
     },
   });

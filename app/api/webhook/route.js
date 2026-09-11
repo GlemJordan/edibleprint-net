@@ -5,6 +5,7 @@ import { generateOrderPdfs } from '../../../lib/order-pdf-pipeline.js';
 import { withRetry } from '../../../lib/with-retry.js';
 import { BUSINESS_ADDRESS_ONE_LINE, BUSINESS_PHONE_DISPLAY } from '../../../lib/business-info.js';
 import { resolveMaterial, materialDisplayLabel } from '../../../lib/material-config.js';
+import { decodeCustomShapeKind } from '../../../lib/cut-guide-config.js';
 
 // CASL sender-identification footer for the 4 customer/admin-facing
 // templates (owner order email, customer confirmation, magic link,
@@ -46,6 +47,12 @@ function parseDesigns(meta) {
   // design index) rather than a d{i}_cutToShape key per design — see
   // app/api/create-checkout/route.js for why (Stripe's 50-metadata-key cap).
   const cutFlags = meta.cutFlags || '';
+  // Cut guide (lib/cut-guide-config.js): decoded the same packed way as
+  // cutFlags above — see app/api/create-checkout/route.js for why these
+  // aren't per-design d{i}_ keys. customShapeKinds only matters (and only
+  // gets applied below) for a design whose shape is 'custom'.
+  const cutGuideFlags = meta.cutGuideFlags || '';
+  const shapeKindCodes = meta.customShapeKinds || '';
   const designs = [];
   for (let i = 0; i < designCount; i++) {
     if (meta['d' + i + '_shape']) {
@@ -53,12 +60,17 @@ function parseDesigns(meta) {
         shape:      meta['d' + i + '_shape'],
         material:   meta['d' + i + '_material'] || undefined,
         cutToShape: cutFlags[i] === '1',
+        cutGuide:   cutGuideFlags[i] === '1',
         size:       meta['d' + i + '_size']     || '',
         qty:        meta['d' + i + '_qty']      || '1',
         price:      meta['d' + i + '_price']    || '0',
         notes:      meta['d' + i + '_notes']    || 'None',
         imageUrl:   meta['d' + i + '_imageUrl'] || 'No image',
       };
+      if (design.shape === 'custom') {
+        const decodedKind = decodeCustomShapeKind(shapeKindCodes[i]);
+        if (decodedKind) design.customShapeKind = decodedKind;
+      }
       // d{i}_uploadMeta's mere presence marks this as an "I already have my
       // design" order — see app/api/create-checkout/route.js for why there's
       // no separate d{i}_sourceType key.

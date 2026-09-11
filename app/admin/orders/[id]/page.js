@@ -4,6 +4,7 @@ import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import { resolveMaterial, materialDisplayLabel } from '../../../../lib/material-config.js';
 import { resolveCut } from '../../../../lib/cutting-config.js';
+import { shapeSupportsCutGuide } from '../../../../lib/cut-guide-config.js';
 
 const C = {
   brand: '#1B6B4A', brandLight: '#E8F5EE', text: '#1a1a1a',
@@ -156,6 +157,7 @@ export default function AdminOrderDetailPage({ params }) {
               {(order.designs || []).map((d, i) => {
                 const material = resolveMaterial(d);
                 const cutToShape = resolveCut(d);
+                const cutGuide = d.cutGuide === true;
                 return (
                 <div key={i} style={{ padding: '10px 0', borderBottom: i < order.designs.length - 1 ? '1px solid ' + C.border : 'none' }}>
                   <div style={{ fontWeight: 600 }}>
@@ -171,6 +173,12 @@ export default function AdminOrderDetailPage({ params }) {
                         fontSize: 11.5, fontWeight: 700, padding: '2px 7px', borderRadius: 4,
                         marginLeft: 6, color: '#B45309', background: '#FEF3C7',
                       }}>CUT TO SHAPE</span>
+                    )}
+                    {cutGuide && (
+                      <span style={{
+                        fontSize: 11.5, fontWeight: 700, padding: '2px 7px', borderRadius: 4,
+                        marginLeft: 6, color: C.brand, background: C.brandLight,
+                      }}>CUT GUIDE</span>
                     )}
                   </div>
                   {(d.unitPrice > 0 || d.notes) && (
@@ -294,11 +302,32 @@ export default function AdminOrderDetailPage({ params }) {
                         <span style={{ color: '#B45309' }}>📄 Production slip — missing</span>
                       )}
                     </div>
-                    {printReadyUrls.map((p, i) => (
-                      <div key={i} style={{ fontSize: 13.5 }}>
-                        <a href={`/api/admin/orders/${id}/download?type=print&index=${i}`} style={{ color: C.brand }}>🖨️ {p.label} →</a>
-                      </div>
-                    ))}
+                    {printReadyUrls.map((p, i) => {
+                      // The customer's own cutGuide choice already baked into
+                      // this stored PDF — these two extra links regenerate it
+                      // fresh with the opposite/either choice, for resolving a
+                      // "can you add/remove the guide" message without
+                      // needing the customer to reorder. Only offered where
+                      // it'd actually do something: not a customer-supplied
+                      // upload (print-as-is, no guide concept) or a shape/
+                      // sub-shape with no outline to trace.
+                      const d = (order.designs || [])[i];
+                      const guideEligible = d && d.sourceType !== 'upload' && shapeSupportsCutGuide(d.shape, d.customShapeKind);
+                      return (
+                        <div key={i} style={{ fontSize: 13.5 }}>
+                          <a href={`/api/admin/orders/${id}/download?type=print&index=${i}`} style={{ color: C.brand }}>🖨️ {p.label} →</a>
+                          {guideEligible && (
+                            <span style={{ color: C.muted }}>
+                              {' '}(
+                              <a href={`/api/admin/orders/${id}/download?type=print&index=${i}&guide=1`} style={{ color: C.brand }}>with guide</a>
+                              {' · '}
+                              <a href={`/api/admin/orders/${id}/download?type=print&index=${i}&guide=0`} style={{ color: C.brand }}>without guide</a>
+                              )
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
                     {printReadyUrls.length < neededPrintReady && (
                       <div style={{ fontSize: 13.5, color: '#B45309' }}>
                         🖨️ {neededPrintReady - printReadyUrls.length} print-ready PDF(s) missing

@@ -5,6 +5,7 @@ import { CATALOG_PRICES, customShapePrice } from '../../../lib/catalog-prices.js
 import { isValidEmail } from '../../../lib/validate-email.js';
 import { shapeSupportsMaterial, resolveMaterial } from '../../../lib/material-config.js';
 import { shapeSupportsCut, cutSurchargeFor } from '../../../lib/cutting-config.js';
+import { shapeSupportsCutGuide, encodeCustomShapeKind } from '../../../lib/cut-guide-config.js';
 
 const isTest = process.env.STRIPE_MODE === 'test';
 // NOTE: STRIPE_SECRET_KEY_LIVE must be sk_live_... (a full Secret Key).
@@ -78,14 +79,20 @@ export async function POST(request) {
       // else from legitimately.
       const cutToShape = shapeSupportsCut(d.shape, d.sizeId) && d.cutToShape === true;
       const cutSurcharge = cutToShape ? cutSurchargeFor(d.shape, d.sizeId) : 0;
+      // Cut guide (lib/cut-guide-config.js): free, so no price to enforce —
+      // still forced to false the same fail-closed way as material/cutToShape
+      // above whenever the shape+sub-shape combo doesn't actually support one
+      // (including a Custom design with no customShapeKind sent), regardless
+      // of what the client sent.
+      const cutGuide = shapeSupportsCutGuide(d.shape, d.customShapeKind) && d.cutGuide === true;
       if (shapeSupportsMaterial(d.shape)) {
         if (d.material !== 'icing' && d.material !== 'wafer') {
           priceError = `Unrecognized material "${d.material}" for shape "${d.shape}"`;
           return d;
         }
-        return { ...d, unitPrice: price + cutSurcharge, cutToShape };
+        return { ...d, unitPrice: price + cutSurcharge, cutToShape, cutGuide };
       }
-      return { ...d, unitPrice: price + cutSurcharge, material: 'icing', cutToShape };
+      return { ...d, unitPrice: price + cutSurcharge, material: 'icing', cutToShape, cutGuide };
     });
     if (priceError) {
       return NextResponse.json({ error: priceError }, { status: 400 });
@@ -127,6 +134,14 @@ export async function POST(request) {
     // 5-design order tipping over Stripe's cap.
     const designMeta = { designCount: String(designs.length) };
     designMeta.cutFlags = designsSafe.slice(0, 5).map((d) => (d.cutToShape ? '1' : '0')).join('');
+    // Cut guide (lib/cut-guide-config.js): same one-key packing as cutFlags
+    // above, for the same reason — the key budget can't spare a
+    // d{i}_cutGuide per design. customShapeKinds packs the one extra piece
+    // a Custom design's guide needs (which sub-shape it traces) the same
+    // way, one character per design slot (encodeCustomShapeKind()) instead
+    // of a d{i}_customShapeKind key.
+    designMeta.cutGuideFlags = designsSafe.slice(0, 5).map((d) => (d.cutGuide ? '1' : '0')).join('');
+    designMeta.customShapeKinds = designsSafe.slice(0, 5).map((d) => encodeCustomShapeKind(d.shape, d.customShapeKind)).join('');
     designsSafe.slice(0, 5).forEach((d, i) => {
       designMeta['d' + i + '_shape']    = String(d.shape || '').slice(0, 500);
       designMeta['d' + i + '_material'] = String(d.material || 'icing').slice(0, 20);

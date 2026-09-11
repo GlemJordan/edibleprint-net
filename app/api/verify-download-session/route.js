@@ -27,6 +27,8 @@ export async function GET(request) {
         customW: parseFloat(session.metadata.customW) || null,
         customH: parseFloat(session.metadata.customH) || null,
         customShapeKind: session.metadata.customShapeKind || '',
+        sizeId: session.metadata.sizeId || '',
+        cutGuide: session.metadata.cutGuide === 'true',
         cloudinaryUrl: session.metadata.cloudinaryUrl,
         customerEmail: session.customer_email || session.customer_details?.email || null,
         // Stripe timestamps are Unix seconds — used for the ddmmyy filename

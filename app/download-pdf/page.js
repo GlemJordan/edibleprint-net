@@ -57,6 +57,8 @@ function DownloadPdfContent() {
             customW: verified.customW,
             customH: verified.customH,
             customShapeKind: verified.customShapeKind,
+            sizeId: verified.sizeId,
+            cutGuide: verified.cutGuide,
             paymentVerified: true,
             customerEmail: verified.customerEmail,
             pdfFilename,

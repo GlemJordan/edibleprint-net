@@ -5,12 +5,15 @@ import { cookies } from 'next/headers';
 import { Resend } from 'resend';
 import { pageSizePtForShape, computeSheetPlacement, isWholeSheetShape, sheetFormatLabel, shapeDisplayLabel, customShapeLabel } from '../../../lib/paper-config.js';
 import { resolveMaterial, materialDisplayLabel } from '../../../lib/material-config.js';
+import { shapeSupportsCutGuide } from '../../../lib/cut-guide-config.js';
+import { drawCutGuideOnPage } from '../../../lib/generate-pdf.js';
+import { CATALOG_SIZES } from '../../../lib/catalog-sizes.js';
 import { BUSINESS_ADDRESS_ONE_LINE } from '../../../lib/business-info.js';
 import { buildPdfFilename } from '../../../lib/pdf-filename.js';
 
 export async function POST(request) {
   const body = await request.json();
-  const { imageDataUrl, shape, material, sizeInches, customW, customH, customShapeKind, paymentVerified, customerEmail, pdfFilename } = body;
+  const { imageDataUrl, shape, material, sizeInches, sizeId, customW, customH, customShapeKind, cutGuide, paymentVerified, customerEmail, pdfFilename } = body;
   // Caller (app/download-pdf/page.js or app/page.js's admin download button)
   // computes this via lib/pdf-filename.js, since only it knows the
   // purchase date / customer name context this route doesn't have. Falls
@@ -63,6 +66,22 @@ export async function POST(request) {
   const y = (placement.sheetH - placement.offsetY - placement.designH) * PT_PER_IN;
 
   page.drawImage(embeddedImage, { x, y, width: imgWidthPt, height: imgHeightPt });
+
+  // Cut guide — vector overlay, not baked into imageDataUrl above (see
+  // lib/generate-pdf.js's generatePrintPdf() doc comment for why); shares
+  // the actual drawing with that function so this single-item download path
+  // can't draw a different line than the full order pipeline does.
+  //
+  // sizeInches here is the SHEET width for multicircle (see sizeW in
+  // app/page.js's callers) — not the per-circle size lib/generate-pdf.js's
+  // own cutGuideSizeObj() expects — so multicircle's guide grid is built
+  // from sizeId (an exact catalog lookup) instead, when the caller sent one.
+  if (cutGuide === true && shapeSupportsCutGuide(shape, customShapeKind)) {
+    const cutGuideSizeObj = shape === 'multicircle'
+      ? (CATALOG_SIZES.multicircle.find((s) => s.id === sizeId) || { w: sizeInches })
+      : { w: sizeInches };
+    drawCutGuideOnPage(page, { shape, customShapeKind, sizeObj: cutGuideSizeObj, customW, customH });
+  }
 
   // Whole-sheet shapes (fullsheet/bwsheet/multicircle/waferletter) have no
   // per-item size — labeling them with the sheet's own raw width would

@@ -10,9 +10,12 @@ import { CATALOG_PRICES } from '../lib/catalog-prices.js';
 import {
   computeSheetPlacement, isWholeSheetShape, hasSheetMargin, BWSHEET_DESIGN_IN,
   customShapeLabel, sheetFormatLabel, sheetSizeInForShape,
+  computeMultiCircleLayout, getCircleGrid, MC_GAP,
 } from '../lib/paper-config.js';
 import { shapeSupportsMaterial, materialDisplayLabel } from '../lib/material-config.js';
 import { shapeSupportsCut, cutSurchargeFor } from '../lib/cutting-config.js';
+import { shapeSupportsCutGuide, cutGuideShapeKind, CUT_GUIDE_COLOR, CUT_GUIDE_CANVAS_STYLE } from '../lib/cut-guide-config.js';
+import { shapeOutlinePath } from '../lib/shape-paths.js';
 import { buildPdfFilename } from '../lib/pdf-filename.js';
 import MaterialPicker from './_components/MaterialPicker.js';
 
@@ -199,18 +202,6 @@ const FONT_STYLE_MAP = {
   italic:       { style: 'italic',  weight: 'normal' },
   'bold italic':{ style: 'italic',  weight: 'bold'   },
 };
-/* Calculate circle grid layout for multi-circle sheet (0.25" margin, 0.15" gap) */
-const MC_MARGIN = 0.25; // inches on each side
-const MC_GAP    = 0.15; // inches between circles
-function getCircleGrid(sheetW, sheetH, circleSize) {
-  const usableW = sheetW - 2 * MC_MARGIN;
-  const usableH = sheetH - 2 * MC_MARGIN;
-  const step = circleSize + MC_GAP;
-  const cols = Math.floor((usableW + MC_GAP) / step);
-  const rows = Math.floor((usableH + MC_GAP) / step);
-  return { cols, rows, count: cols * rows };
-}
-
 /* Heart clip path: x,y = top-left of bounding box, width & height */
 function drawHeartPath(ctx, x, y, width, height, asSubpath = false) {
   if (!asSubpath) ctx.beginPath();
@@ -690,27 +681,6 @@ async function renderUploadPreviewCanvas(design, previewDpi = 150) {
   return canvas.toDataURL('image/png');
 }
 
-/* Layout math for the multi-circle "cookie sheet" grid, factored out so
-   both the inline preview canvas and the print-preview modal (which render
-   at different pixel sizes) can compute circle size/positions consistently. */
-function computeMultiCircleLayout(cw, ch, isMultiCircle, sizeObj) {
-  if (!isMultiCircle) return { circlePx: cw, mcCols: 1, mcRows: 1, mcGapPx: 0, mcStepPx: cw, mcOffsetX: 0, mcOffsetY: 0 };
-  const circleSize = sizeObj.circleSize || 2;
-  const mcGapInches = sizeObj.gap ?? MC_GAP;
-  const previewPPI = cw / (sizeObj.w || ICING_SHEET_IN.w);
-  const circlePx = Math.round(circleSize * previewPPI);
-  const { cols: mcCols, rows: mcRows } = (sizeObj.cols && sizeObj.rows)
-    ? { cols: sizeObj.cols, rows: sizeObj.rows }
-    : getCircleGrid(sizeObj.w || ICING_SHEET_IN.w, sizeObj.h || ICING_SHEET_IN.h, circleSize);
-  const mcGapPx = mcGapInches * previewPPI;
-  const mcStepPx = circlePx + mcGapPx;
-  const mcTotalW = mcCols * circlePx + Math.max(0, mcCols - 1) * mcGapPx;
-  const mcTotalH = mcRows * circlePx + Math.max(0, mcRows - 1) * mcGapPx;
-  const mcOffsetX = (cw - mcTotalW) / 2;
-  const mcOffsetY = (ch - mcTotalH) / 2;
-  return { circlePx, mcCols, mcRows, mcGapPx, mcStepPx, mcOffsetX, mcOffsetY };
-}
-
 /*
  * Layer positions/scales (layer.x, layer.y, layer.scale) are stored relative
  * to the inline editor's own layout — canvasW×canvasH for regular shapes, or
@@ -811,11 +781,28 @@ function drawCropInteractionOverlay(ctx, cw, ch, boundsFn, overlayOpacity) {
   ctx.restore();
 }
 
+/* Strokes the cut-guide outline described by an SVG path `d` string
+   (lib/shape-paths.js) — the SAME geometry function the server-side PDF
+   generator (lib/generate-pdf.js) draws from, so the guide shown here can
+   never trace a different line than the one that actually prints. Styled
+   from lib/cut-guide-config.js's one shared spec, distinct from the plain
+   grey shape-boundary line drawn elsewhere in this function (that one is
+   just editor chrome; this one is a preview of ink that will be printed). */
+function strokeCutGuide(ctx, d) {
+  ctx.save();
+  ctx.strokeStyle = CUT_GUIDE_COLOR;
+  ctx.lineWidth = CUT_GUIDE_CANVAS_STYLE.widthPx;
+  ctx.setLineDash(CUT_GUIDE_CANVAS_STYLE.dashPx);
+  ctx.stroke(new Path2D(d));
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
 function renderPreviewCore(ctx, cw, ch, {
   shape, isBWSheet, isMultiCircle, layers, getImg, getNativeSize, bgColor, textOverlay,
   circlePx, mcCols, mcRows, mcOffsetX, mcOffsetY, mcStepPx, layerScale = 1,
   downscale, renderScale, isMobile, showSelection, selectedLayer, selectedLayerImg,
-  showWatermark, overlayOpacity = 0, customShapeKind,
+  showWatermark, overlayOpacity = 0, customShapeKind, cutGuide = false,
 }) {
   ctx.clearRect(0, 0, cw, ch);
   drawShapeShadow(ctx, shape, cw, ch, isMobile, customShapeKind);
@@ -872,6 +859,7 @@ function renderPreviewCore(ctx, cw, ch, {
       ctx.stroke();
       ctx.setLineDash([]);
     }
+    if (cutGuide) strokeCutGuide(ctx, shapeOutlinePath('rectangle', sqX, sqY, squareSize, squareSize));
   } else if (isMultiCircle) {
     /* Fill the WHOLE sheet with bgColor first — not just inside each tiled
        circle — so the gaps/margins between circles are colored too, not
@@ -945,6 +933,13 @@ function renderPreviewCore(ctx, cw, ch, {
         }
       }
       ctx.setLineDash([]);
+    }
+    if (cutGuide) {
+      for (let row = 0; row < mcRows; row++) {
+        for (let col = 0; col < mcCols; col++) {
+          strokeCutGuide(ctx, shapeOutlinePath('circle', mcOffsetX + col * mcStepPx, mcOffsetY + row * mcStepPx, circlePx, circlePx));
+        }
+      }
     }
   } else {
     /* Circle/heart (and a clipped Custom sub-shape) have a real "outside
@@ -1026,6 +1021,7 @@ function renderPreviewCore(ctx, cw, ch, {
       }
       ctx.setLineDash([]);
     }
+    if (cutGuide) strokeCutGuide(ctx, shapeOutlinePath(cutGuideShapeKind(shape, customShapeKind), 0, 0, cw, ch));
   }
 
   if (showWatermark) drawWatermark(ctx, cw, ch);
@@ -1035,7 +1031,7 @@ function renderPreviewCore(ctx, cw, ch, {
    public/bg-remove-worker.js (same flood-fill + feather algorithm, moved
    verbatim) and removeWhiteBackgroundViaWorker() inside ImageEditor below. */
 
-function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF', textOverlay = null, onTextPositionChange, removeWhiteBg = false, bgRemoveTolerance = 30, onBgProcessingChange, onWhiteBgSuggestion, sizeLabel = '', isMobile = false, designs = [], activeDesignId = null, customShapeKind = undefined }) {
+function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF', textOverlay = null, onTextPositionChange, removeWhiteBg = false, bgRemoveTolerance = 30, onBgProcessingChange, onWhiteBgSuggestion, sizeLabel = '', isMobile = false, designs = [], activeDesignId = null, customShapeKind = undefined, cutGuide = false }) {
   /* Declared early: several hooks below depend on these */
   const isMultiCircle = shape === 'multicircle';
   const isBWSheet = shape === 'bwsheet';
@@ -1426,6 +1422,8 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     const downscale = (key, img, w, h) => getDownscaledSource('modalPreview:' + key, img, w, h);
     const { refW, refCirclePx } = referenceSizeFor(previewDesign);
 
+    const pCutGuide = shapeSupportsCutGuide(pShape, previewDesign.customShapeKind) && !!previewDesign.cutGuide;
+
     if (isWholeSheetShape(pShape) && !hasSheetMargin(pShape)) {
       const layout = computeMultiCircleLayout(cw, ch, pIsMultiCircle, pSizeObj);
       const layerScale = computeLayerScale(pIsMultiCircle, cw, layout.circlePx, refW, refCirclePx);
@@ -1437,7 +1435,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
         mcOffsetX: layout.mcOffsetX, mcOffsetY: layout.mcOffsetY, mcStepPx: layout.mcStepPx,
         layerScale, downscale, renderScale, isMobile: false,
         showSelection: false, selectedLayer: null, selectedLayerImg: null,
-        showWatermark: true,
+        showWatermark: true, cutGuide: pCutGuide,
       });
     } else {
       const placement = computeSheetPlacement(pShape, pSizeObj, previewDesign.customW, previewDesign.customH);
@@ -1461,28 +1459,9 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
         circlePx: designPxW, mcCols: 1, mcRows: 1, mcOffsetX: 0, mcOffsetY: 0, mcStepPx: designPxW,
         layerScale, downscale, renderScale, isMobile: false,
         showSelection: false, selectedLayer: null, selectedLayerImg: null,
-        showWatermark: true, customShapeKind: previewDesign.customShapeKind,
+        showWatermark: true, customShapeKind: previewDesign.customShapeKind, cutGuide: pCutGuide,
       });
       ctx.drawImage(sub, offPxX, offPxY, designPxW, designPxH);
-
-      /* Cut line around the design's actual contour. */
-      ctx.save();
-      ctx.strokeStyle = '#BFBFBF';
-      ctx.setLineDash([4, 5]);
-      ctx.lineWidth = 1.25;
-      ctx.beginPath();
-      if (pShape === 'circular') {
-        ctx.arc(offPxX + designPxW / 2, offPxY + designPxH / 2, designPxW / 2, 0, Math.PI * 2);
-      } else if (pShape === 'heart') {
-        drawHeartPath(ctx, offPxX, offPxY, designPxW, designPxH);
-      } else if (pShape === 'custom' && isCustomShapeClipped(previewDesign.customShapeKind)) {
-        appendCustomShapeClipPath(ctx, previewDesign.customShapeKind, offPxX, offPxY, designPxW, designPxH, true);
-      } else {
-        ctx.rect(offPxX, offPxY, designPxW, designPxH);
-      }
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.restore();
     }
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, [showPrintPreview, modalBaseSize, previewDesign, previewImagesTick, redrawTick, layers, canvasW, circlePx, removeWhiteBg]);
@@ -1838,6 +1817,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       downscale: getDownscaledSource, renderScale, isMobile,
       showSelection: true, selectedLayer: sel, selectedLayerImg: selImg,
       showWatermark: true, customShapeKind,
+      cutGuide: shapeSupportsCutGuide(shape, customShapeKind) && cutGuide,
     };
     /* Snapshot for the crop-interaction fade loop, which redraws the
        low-res canvas directly (bypassing this effect and the hi-res pass
@@ -1910,13 +1890,6 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
         hctx.filter = 'none';
       }
       hctx.restore();
-      hctx.beginPath();
-      hctx.rect(hrSqX, hrSqY, hrSquarePx, hrSquarePx);
-      hctx.strokeStyle = '#CCCCCC';
-      hctx.setLineDash([20, 10]);
-      hctx.lineWidth = 3;
-      hctx.stroke();
-      hctx.setLineDash([]);
     } else if (isMultiCircle) {
       /* Fill the WHOLE sheet with bgColor first — not just inside each tiled
          circle — so the gaps/margins between circles are colored too, not
@@ -1969,17 +1942,6 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
           hctx.drawImage(hsc, hrOffsetX + col * hrStepPx, hrOffsetY + row * hrStepPx, hrCirclePx, hrCirclePx);
         }
       }
-      hctx.strokeStyle = '#CCCCCC';
-      hctx.lineWidth = 3;
-      hctx.setLineDash([20, 10]);
-      for (let row = 0; row < mcRows; row++) {
-        for (let col = 0; col < mcCols; col++) {
-          hctx.beginPath();
-          hctx.arc(hrOffsetX + col * hrStepPx + hrCirclePx / 2, hrOffsetY + row * hrStepPx + hrCirclePx / 2, hrCirclePx / 2 - 2, 0, Math.PI * 2);
-          hctx.stroke();
-        }
-      }
-      hctx.setLineDash([]);
     } else {
       hctx.save();
       if (shape === 'circular') {
@@ -2019,28 +1981,14 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
       });
       drawText(hctx, textOverlay, hiResW, hiResH, scaleFactor);
       hctx.restore();
-      hctx.strokeStyle = '#CCCCCC';
-      hctx.lineWidth = 3;
-      hctx.setLineDash([20, 10]);
-      if (shape === 'circular') {
-        hctx.beginPath();
-        hctx.arc(hiResW / 2, hiResH / 2, hiResW / 2 - 2, 0, Math.PI * 2);
-        hctx.stroke();
-      } else if (shape === 'heart') {
-        drawHeartPath(hctx, 2, 2, hiResW - 4, hiResH - 4);
-        hctx.stroke();
-      } else if (shape === 'custom' && customShapeKind) {
-        /* Any explicitly-chosen Custom figure gets a printed cut-line
-           guide, including 'rectangle' — a Custom design predating this
-           picker (customShapeKind left undefined, see the accessor in the
-           parent component) falls through here and keeps its old
-           no-cut-line output untouched. */
-        appendCustomShapeClipPath(hctx, customShapeKind, 2, 2, hiResW - 4, hiResH - 4);
-        hctx.stroke();
-      }
-      hctx.setLineDash([]);
     }
 
+    /* The cut guide is NOT baked into this raster export — it prints (or
+       not) as a vector overlay added at PDF-generation time instead (see
+       lib/generate-pdf.js / app/api/generate-pdf/route.js), driven by this
+       design's own cutGuide flag. That keeps the uploaded base image always
+       clean, so admin can hand a customer either version of the same order
+       on demand — see lib/cut-guide-config.js. */
     if (onHiResCrop) onHiResCrop(hiResCanvas.toDataURL('image/jpeg', 0.92));
     }, HIRES_DEBOUNCE_MS);
     return () => clearTimeout(timer);
@@ -2843,6 +2791,11 @@ export default function EdiblePrintApp() {
   // for every design; no legacy state to preserve, this field never existed
   // before this feature.
   const cutToShape  = activeDesign?.cutToShape  ?? false;
+  // Printed dashed cut-line guide — see lib/cut-guide-config.js. Off by
+  // default for every design, including every one saved before this
+  // feature existed: a customer who never opted in gets a clean sheet, not
+  // a surprise line they never agreed to.
+  const cutGuide    = activeDesign?.cutGuide    ?? false;
   const qty         = activeDesign?.qty         ?? 1;
   const notes       = activeDesign?.notes       ?? '';
   const bgColor     = activeDesign?.bgColor     ?? '#FFFFFF';
@@ -2886,6 +2839,7 @@ export default function EdiblePrintApp() {
   const setShape       = (v) => updateActive({ shape: v });
   const setMaterial    = (v) => updateActive({ material: v });
   const setCutToShape  = (v) => updateActive({ cutToShape: v });
+  const setCutGuide    = (v) => updateActive({ cutGuide: v });
   const setSizeId      = (v) => updateActive({ sizeId: v });
   const setCustomW     = (v) => updateActive({ customW: v });
   const setCustomH     = (v) => updateActive({ customH: v });
@@ -2954,7 +2908,13 @@ export default function EdiblePrintApp() {
     // so a stale `true` never rides along into the checkout payload.
     // create-checkout enforces this the same fail-safe way server-side too.
     if (!shapeSupportsCut(shape, sizeId) && cutToShape) { setCutToShape(false); }
-  }, [shape, sizeId, activeDesignId]);
+    // Same reasoning again, for the cut guide (lib/cut-guide-config.js):
+    // reset whenever the shape (or, for Custom, the chosen sub-shape)
+    // no longer supports one, so a stale `true` never rides along either.
+    // create-checkout / create-download-checkout enforce this the same
+    // fail-safe way server-side too.
+    if (!shapeSupportsCutGuide(shape, customShapeKind) && cutGuide) { setCutGuide(false); }
+  }, [shape, sizeId, customShapeKind, activeDesignId]);
 
   useEffect(() => {
     const prevent = (e) => { e.preventDefault(); e.stopPropagation(); };
@@ -2989,6 +2949,7 @@ export default function EdiblePrintApp() {
         shape: newShape,
         material: 'icing',
         cutToShape: false,
+        cutGuide: false,
         sizeId: newSizeId,
         customW: '',
         customH: '',
@@ -3019,6 +2980,7 @@ export default function EdiblePrintApp() {
       shape: newShape,
       material: 'icing',
       cutToShape: false,
+      cutGuide: false,
       sizeId: newSizeId,
       customW: '',
       customH: '',
@@ -3366,7 +3328,7 @@ export default function EdiblePrintApp() {
       const resp = await fetch('/api/generate-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageDataUrl: hiResDataUrl, shape, material, sizeInches: sizeW, customW, customH, customShapeKind, paymentVerified: false, pdfFilename }),
+        body: JSON.stringify({ imageDataUrl: hiResDataUrl, shape, material, sizeInches: sizeW, sizeId, customW, customH, customShapeKind, cutGuide, paymentVerified: false, pdfFilename }),
       });
       if (!resp.ok) throw new Error('PDF generation failed');
       const blob = await resp.blob();
@@ -3394,7 +3356,7 @@ export default function EdiblePrintApp() {
       const resp = await fetch('/api/create-download-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageDataUrl: hiResDataUrl, shape, material, sizeInches: sizeW, customW, customH, customShapeKind, email: customerEmail }),
+        body: JSON.stringify({ imageDataUrl: hiResDataUrl, shape, material, sizeInches: sizeW, sizeId, customW, customH, customShapeKind, cutGuide, email: customerEmail }),
       });
       const { url } = await resp.json();
       window.location.href = url;
@@ -3513,6 +3475,7 @@ export default function EdiblePrintApp() {
               shape: d.shape,
               material: d.material || 'icing',
               cutToShape: dCutToShape,
+              cutGuide: !!d.cutGuide,
               size: d.shape === 'custom' ? customShapePrefix + d.customW + '"x' + d.customH + '"' : (dSel?.label || ''),
               // sizeId/customW/customH/customShapeKind: additive, read by
               // create-checkout to recompute this design's price from the
@@ -4634,6 +4597,7 @@ export default function EdiblePrintApp() {
                 designs={designs}
                 activeDesignId={activeDesignId}
                 customShapeKind={customShapeKind}
+                cutGuide={cutGuide}
               />
               {whiteBgSuggestion && !removeWhiteBg && (
                 <div style={{
@@ -4809,6 +4773,31 @@ export default function EdiblePrintApp() {
                     <span style={{ fontSize: 12.5, color: C.muted }}>We will precision-cut this on our plotter instead of leaving it as a full sheet.</span>
                   </span>
                   <span style={{ fontWeight: 700, fontSize: 14, color: C.brand, flexShrink: 0 }}>+${cutSurchargeFor(shape, sizeId).toFixed(2)}</span>
+                </label>
+              </div>
+            )}
+
+            {/* Cut guide — lib/cut-guide-config.js. Off by default: the
+                sheet prints clean unless a customer explicitly opts in
+                here. Distinct from "Cut to shape (plotter)" above — this is
+                a printed dashed line customers can trim to themselves, not
+                us physically cutting it. Renders nothing for shapes with no
+                outline to trace (fullsheet/waferletter) or a Custom design
+                with no sub-shape chosen yet. */}
+            {shapeSupportsCutGuide(shape, customShapeKind) && (
+              <div style={{ marginBottom: 22 }}>
+                <label style={{
+                  display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+                  padding: '12px 14px', borderRadius: 12,
+                  border: '2px solid ' + (cutGuide ? C.brand : C.border),
+                  background: cutGuide ? C.brandLight : C.white,
+                }}>
+                  <input type="checkbox" checked={cutGuide} onChange={(e) => setCutGuide(e.target.checked)}
+                    style={{ width: 18, height: 18, cursor: 'pointer', accentColor: C.brand, flexShrink: 0 }} />
+                  <span style={{ flex: 1 }}>
+                    <span style={{ fontWeight: 700, fontSize: 14, color: C.text, display: 'block' }}>Add a cut guide</span>
+                    <span style={{ fontSize: 12.5, color: C.muted }}>A thin dashed line marking the design edge, so you can trim it yourself — it will be printed on the sheet.</span>
+                  </span>
                 </label>
               </div>
             )}
