@@ -4,7 +4,7 @@ import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import { resolveMaterial, materialDisplayLabel } from '../../../../lib/material-config.js';
 import { resolveCut } from '../../../../lib/cutting-config.js';
-import { shapeSupportsCutGuide } from '../../../../lib/cut-guide-config.js';
+import { shapeSupportsCutGuide, hasLegacyBakedGuide } from '../../../../lib/cut-guide-config.js';
 
 const C = {
   brand: '#1B6B4A', brandLight: '#E8F5EE', text: '#1a1a1a',
@@ -313,10 +313,22 @@ export default function AdminOrderDetailPage({ params }) {
                       // sub-shape with no outline to trace.
                       const d = (order.designs || [])[i];
                       const guideEligible = d && d.sourceType !== 'upload' && shapeSupportsCutGuide(d.shape, d.customShapeKind);
+                      // Verified against real production orders: anything
+                      // placed before this feature shipped has no `cutGuide`
+                      // field at all, and for these shapes the OLD hi-res
+                      // export baked the line into the image unconditionally
+                      // — there's no clean version to regenerate "without
+                      // guide" from, and "with guide" would just draw a
+                      // second line on top of the one already in the pixels.
+                      // Say so plainly instead of offering a toggle that
+                      // can't deliver what it promises.
+                      const legacyBaked = guideEligible && hasLegacyBakedGuide(d);
                       return (
                         <div key={i} style={{ fontSize: 13.5 }}>
                           <a href={`/api/admin/orders/${id}/download?type=print&index=${i}`} style={{ color: C.brand }}>🖨️ {p.label} →</a>
-                          {guideEligible && (
+                          {legacyBaked ? (
+                            <span style={{ color: '#B45309' }}> (pre-dates cut guide feature — line is baked into the image, cannot toggle)</span>
+                          ) : guideEligible && (
                             <span style={{ color: C.muted }}>
                               {' '}(
                               <a href={`/api/admin/orders/${id}/download?type=print&index=${i}&guide=1`} style={{ color: C.brand }}>with guide</a>

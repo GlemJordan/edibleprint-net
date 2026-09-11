@@ -5,7 +5,7 @@ import { resolvePrintReadyUrls } from '../../../../../../lib/order-record.js';
 import { buildPdfFilename } from '../../../../../../lib/pdf-filename.js';
 import { generatePrintPdf, parseDesignSizeForPdf } from '../../../../../../lib/generate-pdf.js';
 import { resolveMaterial } from '../../../../../../lib/material-config.js';
-import { shapeSupportsCutGuide } from '../../../../../../lib/cut-guide-config.js';
+import { shapeSupportsCutGuide, hasLegacyBakedGuide } from '../../../../../../lib/cut-guide-config.js';
 
 // Proxies an order's production slip / print-ready PDF through our own
 // origin so the browser gets our ddmmyy-CustomerName filename instead of
@@ -63,6 +63,19 @@ export async function GET(request, { params }) {
     // customer-supplied upload (print-as-is, no guide concept) or a shape/
     // sub-shape that doesn't support one — the admin page only renders the
     // two buttons when this would succeed.
+    if (guideParam != null && hasLegacyBakedGuide(design)) {
+      // Verified against real production orders: this design predates the
+      // cut guide feature, so its stored imageUrl already has the old line
+      // baked into its pixels with no clean version to regenerate from —
+      // "without guide" would still show it, and "with guide" would draw a
+      // second line on top. Refuse rather than silently hand back a PDF
+      // that doesn't match what the link promised; the admin page doesn't
+      // render these two links for such a design in the first place, so
+      // reaching this means a stale/hand-edited URL.
+      return NextResponse.json({
+        error: 'This design predates the cut guide feature. Its stored file already has the line baked into the image — neither "with guide" nor "without guide" can be generated cleanly from it. Use the plain print-ready download instead.',
+      }, { status: 409 });
+    }
     if (guideParam != null && design?.imageUrl && design.sourceType !== 'upload' && shapeSupportsCutGuide(design.shape, design.customShapeKind)) {
       const { sizeInches, customW, customH } = parseDesignSizeForPdf(design);
       bytes = await generatePrintPdf({
