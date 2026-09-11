@@ -805,7 +805,11 @@ function renderPreviewCore(ctx, cw, ch, {
   showWatermark, overlayOpacity = 0, customShapeKind, cutGuide = false,
 }) {
   ctx.clearRect(0, 0, cw, ch);
-  drawShapeShadow(ctx, shape, cw, ch, isMobile, customShapeKind);
+  // Drop shadow is inline-editor chrome (a "raised sticker" polish effect)
+  // — never printed, so the print-preview modal (showSelection: false, see
+  // its two renderPreviewCore call sites below) must not show it either;
+  // it would misrepresent what's actually going to come out of the printer.
+  if (showSelection) drawShapeShadow(ctx, shape, cw, ch, isMobile, customShapeKind);
 
   if (isBWSheet) {
     const squareSize = cw * (BWSHEET_DESIGN_IN / ICING_SHEET_IN.w);
@@ -846,18 +850,11 @@ function renderPreviewCore(ctx, cw, ch, {
     }
     ctx.restore();
 
-    if (showSelection) {
-      if (bwInteracting) {
-        drawCropInteractionOverlay(ctx, cw, ch, (c) => c.rect(sqX, sqY, squareSize, squareSize), overlayOpacity);
-      }
-    } else {
-      ctx.beginPath();
-      ctx.rect(sqX, sqY, squareSize, squareSize);
-      ctx.strokeStyle = '#C8C8C8';
-      ctx.setLineDash([3, 5]);
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      ctx.setLineDash([]);
+    // Resting-state boundary hint is inline-editor chrome — see the
+    // showSelection guard on drawShapeShadow() above for why the modal
+    // (showSelection: false) must not draw it either.
+    if (showSelection && bwInteracting) {
+      drawCropInteractionOverlay(ctx, cw, ch, (c) => c.rect(sqX, sqY, squareSize, squareSize), overlayOpacity);
     }
     if (cutGuide) strokeCutGuide(ctx, shapeOutlinePath('rectangle', sqX, sqY, squareSize, squareSize));
   } else if (isMultiCircle) {
@@ -921,19 +918,9 @@ function renderPreviewCore(ctx, cw, ch, {
         ctx.drawImage(sc, ox, oy, circlePx, circlePx);
       }
     }
-    if (!showSelection) {
-      ctx.strokeStyle = '#C8C8C8';
-      ctx.lineWidth = 1;
-      ctx.setLineDash([3, 5]);
-      for (let row = 0; row < mcRows; row++) {
-        for (let col = 0; col < mcCols; col++) {
-          ctx.beginPath();
-          ctx.arc(mcOffsetX + col * mcStepPx + circlePx / 2, mcOffsetY + row * mcStepPx + circlePx / 2, circlePx / 2 - 1, 0, Math.PI * 2);
-          ctx.stroke();
-        }
-      }
-      ctx.setLineDash([]);
-    }
+    // Resting-state boundary hint removed here too — see the showSelection
+    // guard on drawShapeShadow() above; the print-preview modal must not
+    // show inline-editor chrome that will never actually print.
     if (cutGuide) {
       for (let row = 0; row < mcRows; row++) {
         for (let col = 0; col < mcCols; col++) {
@@ -988,8 +975,11 @@ function renderPreviewCore(ctx, cw, ch, {
     drawText(ctx, textOverlay, cw, ch, layerScale);
     ctx.restore();
 
-    /* Crop-interaction mask + boundary line — inline editor only, and only
-       while the user is actively dragging/scaling (see overlayOpacity). */
+    /* Crop-interaction mask + boundary line — inline editor only (see the
+       showSelection guard on drawShapeShadow() above: showSelection is
+       false only for the print-preview modal, which must never show
+       inline-editor chrome), and only while the user is actively
+       dragging/scaling (see overlayOpacity). */
     if (showSelection) {
       if (interacting && boundsFn) {
         drawCropInteractionOverlay(ctx, cw, ch, boundsFn, overlayOpacity);
@@ -1002,24 +992,6 @@ function renderPreviewCore(ctx, cw, ch, {
         ctx.strokeRect(0.5, 0.5, cw - 1, ch - 1);
         ctx.restore();
       }
-    } else {
-      ctx.strokeStyle = '#C8C8C8';
-      ctx.lineWidth = 1;
-      ctx.setLineDash([3, 5]);
-      if (shape === 'circular') {
-        ctx.beginPath();
-        ctx.arc(cw / 2, ch / 2, cw / 2 - 1, 0, Math.PI * 2);
-        ctx.stroke();
-      } else if (shape === 'heart') {
-        drawHeartPath(ctx, 1, 1, cw - 2, ch - 2);
-        ctx.stroke();
-      } else if (customClipped) {
-        appendCustomShapeClipPath(ctx, customShapeKind, 1, 1, cw - 2, ch - 2);
-        ctx.stroke();
-      } else {
-        ctx.strokeRect(0.5, 0.5, cw - 1, ch - 1);
-      }
-      ctx.setLineDash([]);
     }
     if (cutGuide) strokeCutGuide(ctx, shapeOutlinePath(cutGuideShapeKind(shape, customShapeKind), 0, 0, cw, ch));
   }
