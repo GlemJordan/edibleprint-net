@@ -9,7 +9,7 @@ import { CATALOG_SIZES } from '../lib/catalog-sizes.js';
 import { CATALOG_PRICES } from '../lib/catalog-prices.js';
 import {
   computeSheetPlacement, isWholeSheetShape, hasSheetMargin, BWSHEET_DESIGN_IN,
-  customShapeLabel, sheetFormatLabel, sheetSizeInForShape,
+  customShapeLabel, sheetFormatLabel, sheetSizeInForShape, designAreaInForShape,
   computeMultiCircleLayout, getCircleGrid, MC_GAP,
 } from '../lib/paper-config.js';
 import { shapeSupportsMaterial, materialDisplayLabel } from '../lib/material-config.js';
@@ -344,8 +344,16 @@ function computeCanvasSize(containerWidth, shape, sizeObj, viewportH = 800) {
   if (shape === 'circular' || shape === 'heart' || shape === 'square') {
     aspectRatio = 1;
   } else if (shape === 'multicircle' || shape === 'fullsheet' || shape === 'bwsheet') {
-    const w = (sizeObj && sizeObj.w) || 8;
-    const h = (sizeObj && sizeObj.h) || 11;
+    // fullsheet's working canvas is shaped like its actual print margin box
+    // (not the full untrimmed sheet) — see lib/paper-config.js's
+    // designAreaInForShape() doc comment for why: the source raster has to
+    // already match that box's proportions, or placing it full-size at print
+    // time would distort it. bwsheet/multicircle have no such override (full
+    // sheet IS their working shape — margins there are literal, not a scaled
+    // reservation) and are unaffected.
+    const designArea = shape === 'fullsheet' ? designAreaInForShape('fullsheet') : null;
+    const w = designArea?.w || (sizeObj && sizeObj.w) || 8;
+    const h = designArea?.h || (sizeObj && sizeObj.h) || 11;
     aspectRatio = w / h;
   } else if (shape === 'custom') {
     const cw = (sizeObj && sizeObj.w) || 8;
@@ -1567,8 +1575,12 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
 
   /* Hi-res output: 300 DPI */
   const DPI = 300;
-  const printW = sizeObj.w || 6;
-  const printH = sizeObj.h || 6;
+  // fullsheet exports at its margin-box size, not the full untrimmed sheet —
+  // same reasoning and same source as computeCanvasSize()'s override above,
+  // so the two can't disagree about what shape this editor is working in.
+  const fullsheetDesignArea = shape === 'fullsheet' ? designAreaInForShape('fullsheet') : null;
+  const printW = fullsheetDesignArea?.w || sizeObj.w || 6;
+  const printH = fullsheetDesignArea?.h || sizeObj.h || 6;
   const hiResW = printW * DPI;
   const hiResH = printH * DPI;
   const scaleFactor = hiResW / canvasW;
