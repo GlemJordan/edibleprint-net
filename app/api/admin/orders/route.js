@@ -53,6 +53,11 @@ export async function GET(request) {
           // rather than "missing", since the pipeline was already working
           // for those and there's no evidence otherwise.
           missingAssets: context.missingAssets === 'true',
+          // See lib/order-record.js's deriveSearchContext() for why these
+          // are derived/normalized rather than passed through raw.
+          committedDate: context.committedDate || null,
+          isPickup:      context.isPickup === 'true',
+          paymentStatus: context.paymentStatus || 'paid',
         });
       }
       cursor = lastResult.next_cursor || null;

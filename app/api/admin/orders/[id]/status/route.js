@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { updateOrderStatus } from '../../../../../../lib/order-record.js';
 import { getAdminSession } from '../../../../../../lib/admin-auth.js';
-
-const VALID_STATUSES = ['paid', 'file_received', 'ready_to_print', 'printed', 'packed', 'shipped', 'pickup_ready'];
+import { VALID_STATUSES } from '../../../../../../lib/production-status.js';
 
 export async function POST(request, { params }) {
   // Same ep_admin session-cookie mechanism as the rest of the admin surface

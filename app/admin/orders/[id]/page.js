@@ -5,13 +5,13 @@ import Link from 'next/link';
 import { resolveMaterial, materialDisplayLabel } from '../../../../lib/material-config.js';
 import { resolveCut } from '../../../../lib/cutting-config.js';
 import { shapeSupportsCutGuide, hasLegacyBakedGuide } from '../../../../lib/cut-guide-config.js';
+import { VALID_STATUSES } from '../../../../lib/production-status.js';
+import { computeUrgency, URGENCY_LABELS, URGENCY_COLORS } from '../../../../lib/delivery-urgency.js';
 
 const C = {
   brand: '#1B6B4A', brandLight: '#E8F5EE', text: '#1a1a1a',
   muted: '#6B7280', border: '#E5E7EB', white: '#FFFFFF', bg: '#FAFBF9',
 };
-
-const VALID_STATUSES = ['paid', 'file_received', 'ready_to_print', 'printed', 'packed', 'shipped', 'pickup_ready'];
 
 const CHANNEL_LABELS = {
   website: 'Website', marketplace: 'Marketplace', instagram: 'Instagram',
@@ -32,6 +32,9 @@ export default function AdminOrderDetailPage({ params }) {
   const [statusDraft, setStatusDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
+  const [committedDateDraft, setCommittedDateDraft] = useState('');
+  const [savingDate, setSavingDate] = useState(false);
+  const [saveDateMsg, setSaveDateMsg] = useState('');
   const [regenerating, setRegenerating] = useState(false);
   const [regenerateMsg, setRegenerateMsg] = useState('');
 
@@ -49,7 +52,7 @@ export default function AdminOrderDetailPage({ params }) {
         if (!r.ok) throw new Error(r.status === 404 ? 'Order not found' : 'Failed to load order');
         return r.json();
       })
-      .then((d) => { setOrder(d); setStatusDraft(d.production?.status || ''); })
+      .then((d) => { setOrder(d); setStatusDraft(d.production?.status || ''); setCommittedDateDraft(d.committedDate || ''); })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [authChecked, isAdmin, id]);
@@ -71,6 +74,26 @@ export default function AdminOrderDetailPage({ params }) {
       setSaveMsg('Error: ' + e.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const saveCommittedDate = async () => {
+    setSavingDate(true);
+    setSaveDateMsg('');
+    try {
+      const res = await fetch(`/api/admin/orders/${id}/committed-date`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ committedDate: committedDateDraft || null }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update date');
+      setOrder((o) => ({ ...o, committedDate: data.committedDate }));
+      setSaveDateMsg('Saved ✓');
+    } catch (e) {
+      setSaveDateMsg('Error: ' + e.message);
+    } finally {
+      setSavingDate(false);
     }
   };
 
@@ -251,6 +274,43 @@ export default function AdminOrderDetailPage({ params }) {
               </div>
               <div style={{ fontSize: 12.5, color: C.muted, marginTop: 8 }}>
                 Last updated: {order.production?.updatedAt ? new Date(order.production.updatedAt).toLocaleString('en-CA') : '—'}
+              </div>
+            </Section>
+
+            {/* Single date field whose meaning depends on shipping.method —
+                see types/order.js's committedDate doc comment — so the label
+                itself tells the admin which thing they're entering instead
+                of them having to remember. */}
+            <Section title={order.shipping?.method === 'pickup' ? 'Pickup date' : 'Ship-by date'}>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  type="date"
+                  value={committedDateDraft}
+                  onChange={(e) => setCommittedDateDraft(e.target.value)}
+                  style={{ padding: '8px 10px', borderRadius: 8, border: '1.5px solid ' + C.border, fontFamily: 'inherit', fontSize: 14 }}
+                />
+                <button
+                  onClick={saveCommittedDate}
+                  disabled={savingDate || committedDateDraft === (order.committedDate || '')}
+                  style={{
+                    padding: '8px 16px', borderRadius: 8, border: 'none', background: C.brand, color: '#fff',
+                    fontWeight: 600, fontFamily: 'inherit', fontSize: 14,
+                    cursor: (savingDate || committedDateDraft === (order.committedDate || '')) ? 'not-allowed' : 'pointer',
+                    opacity: (savingDate || committedDateDraft === (order.committedDate || '')) ? 0.5 : 1,
+                  }}
+                >
+                  {savingDate ? 'Saving…' : 'Save date'}
+                </button>
+                {order.committedDate && (() => {
+                  const urgency = computeUrgency(order);
+                  return urgency !== 'none' ? (
+                    <span style={{
+                      fontSize: 12, fontWeight: 700, padding: '3px 9px', borderRadius: 5,
+                      color: '#fff', background: URGENCY_COLORS[urgency],
+                    }}>{URGENCY_LABELS[urgency].toUpperCase()}</span>
+                  ) : null;
+                })()}
+                {saveDateMsg && <span style={{ fontSize: 13, color: saveDateMsg.startsWith('Error') ? '#DC2626' : '#059669' }}>{saveDateMsg}</span>}
               </div>
             </Section>
 

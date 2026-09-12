@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { computeUrgency, URGENCY_LABELS, URGENCY_COLORS } from '../../../lib/delivery-urgency.js';
 
 const C = {
   brand: '#1B6B4A', brandLight: '#E8F5EE', text: '#1a1a1a',
@@ -11,8 +12,25 @@ const C = {
 const STATUS_COLORS = {
   paid: '#6B7280', file_received: '#2563EB', ready_to_print: '#7C3AED',
   printed: '#059669', packed: '#059669', shipped: '#1B6B4A', pickup_ready: '#1B6B4A',
-  unknown: '#9CA3AF',
+  picked_up: '#1B6B4A', unknown: '#9CA3AF',
 };
+
+// Lower = shown first when sorting the list by urgency (see sortedOrders
+// below) — matches lib/delivery-urgency.js's bucket names.
+const URGENCY_RANK = { overdue: 0, today: 1, tomorrow: 2, upcoming: 3, none: 4 };
+
+// Adapts a list row (a flat, purpose-built DTO from GET /api/admin/orders —
+// see deriveSearchContext()/lib/order-record.js for why it's flat rather
+// than a full OrderRecord) into the shape computeUrgency() expects, so the
+// list page reads urgency from the exact same function the order detail
+// page and the daily digest cron use — never a re-implementation.
+function urgencyForRow(o) {
+  return computeUrgency({
+    committedDate: o.committedDate,
+    production: { status: o.status },
+    payment: { status: o.paymentStatus },
+  });
+}
 
 const CHANNEL_LABELS = {
   website: 'Website', marketplace: 'Marketplace', instagram: 'Instagram',
@@ -31,6 +49,8 @@ export default function AdminOrdersPage() {
   const [scannedAllResults, setScannedAllResults] = useState(true);
   const [channelFilter, setChannelFilter] = useState('');
   const [paymentFilter, setPaymentFilter] = useState('');
+  const [attentionOnly, setAttentionOnly] = useState(false);
+  const [dateSaving, setDateSaving] = useState({}); // orderId -> boolean
 
   /* Same admin-session check every other admin surface in this app uses —
      the actual data fetch below is protected server-side regardless (the
@@ -58,6 +78,29 @@ export default function AdminOrdersPage() {
       .finally(() => setLoading(false));
   }, [authChecked, isAdmin]);
 
+  // Inline edit from the list — see the "Delivery" column below. Optimistic:
+  // updates local state immediately, reverts on failure so the row never
+  // silently shows a date that didn't actually save.
+  const handleDateChange = async (orderId, newDate) => {
+    const prev = orders.find((o) => o.orderId === orderId)?.committedDate ?? null;
+    setOrders((os) => os.map((o) => (o.orderId === orderId ? { ...o, committedDate: newDate || null } : o)));
+    setDateSaving((s) => ({ ...s, [orderId]: true }));
+    try {
+      const res = await fetch(`/api/admin/orders/${orderId}/committed-date`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ committedDate: newDate || null }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update date');
+    } catch (e) {
+      setOrders((os) => os.map((o) => (o.orderId === orderId ? { ...o, committedDate: prev } : o)));
+      alert('Could not save the date for ' + orderId + ': ' + e.message);
+    } finally {
+      setDateSaving((s) => ({ ...s, [orderId]: false }));
+    }
+  };
+
   if (!authChecked) {
     return (
       <>
@@ -78,10 +121,18 @@ export default function AdminOrdersPage() {
     );
   }
 
-  const filteredOrders = orders.filter((o) =>
-    (!channelFilter || (o.channel || 'website') === channelFilter)
-    && (!paymentFilter || (o.paymentMethod || 'stripe_card') === paymentFilter)
-  );
+  const filteredOrders = orders
+    .filter((o) =>
+      (!channelFilter || (o.channel || 'website') === channelFilter)
+      && (!paymentFilter || (o.paymentMethod || 'stripe_card') === paymentFilter)
+      && (!attentionOnly || ['overdue', 'today'].includes(urgencyForRow(o)))
+    )
+    // Overdue/today first regardless of filter state — a stable sort keeps
+    // everything else in whatever order the API returned it (createdAt-ish),
+    // just with the urgent rows floated to the top instead of scattered
+    // through the list.
+    .slice()
+    .sort((a, b) => URGENCY_RANK[urgencyForRow(a)] - URGENCY_RANK[urgencyForRow(b)]);
 
   return (
     <>
@@ -124,6 +175,14 @@ export default function AdminOrdersPage() {
               <option value="">All payment methods</option>
               {Object.entries(PAYMENT_METHOD_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
+            <label style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '7px 10px', borderRadius: 8,
+              border: '1.5px solid ' + (attentionOnly ? '#DC2626' : C.border), fontSize: 13, cursor: 'pointer',
+              color: attentionOnly ? '#DC2626' : C.text, fontWeight: attentionOnly ? 700 : 400,
+            }}>
+              <input type="checkbox" checked={attentionOnly} onChange={(e) => setAttentionOnly(e.target.checked)} />
+              Needs attention only (overdue + today)
+            </label>
           </div>
         )}
 
@@ -153,6 +212,7 @@ export default function AdminOrdersPage() {
                   <th style={{ padding: '10px 14px', textAlign: 'right' }}>Total</th>
                   <th style={{ padding: '10px 14px' }}>Status</th>
                   <th style={{ padding: '10px 14px' }}>PDFs</th>
+                  <th style={{ padding: '10px 14px' }}>Delivery</th>
                   <th style={{ padding: '10px 14px' }}>Date</th>
                 </tr>
               </thead>
@@ -200,13 +260,36 @@ export default function AdminOrdersPage() {
                         <span style={{ color: C.muted, fontSize: 12 }}>✓</span>
                       )}
                     </td>
+                    <td style={{ padding: '10px 14px' }}>
+                      {(() => {
+                        const urgency = urgencyForRow(o);
+                        return (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                            <span style={{ fontSize: 11, color: C.muted }}>{o.isPickup ? 'Pickup' : 'Ship by'}</span>
+                            <input
+                              type="date"
+                              value={o.committedDate || ''}
+                              disabled={!!dateSaving[o.orderId]}
+                              onChange={(e) => handleDateChange(o.orderId, e.target.value)}
+                              style={{ padding: '4px 6px', borderRadius: 6, border: '1.5px solid ' + C.border, fontFamily: 'inherit', fontSize: 12.5, width: 130 }}
+                            />
+                            {urgency !== 'none' && (
+                              <span style={{
+                                fontSize: 10.5, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
+                                color: '#fff', background: URGENCY_COLORS[urgency], width: 'fit-content',
+                              }}>{URGENCY_LABELS[urgency].toUpperCase()}</span>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </td>
                     <td style={{ padding: '10px 14px', color: C.muted, fontSize: 12.5, whiteSpace: 'nowrap' }}>
                       {o.createdAt ? new Date(o.createdAt).toLocaleDateString('en-CA') : '—'}
                     </td>
                   </tr>
                 ))}
                 {filteredOrders.length === 0 && (
-                  <tr><td colSpan={8} style={{ padding: '24px 14px', textAlign: 'center', color: C.muted }}>No orders found.</td></tr>
+                  <tr><td colSpan={9} style={{ padding: '24px 14px', textAlign: 'center', color: C.muted }}>No orders found.</td></tr>
                 )}
               </tbody>
             </table>

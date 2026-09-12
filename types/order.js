@@ -1,7 +1,7 @@
 /**
  * @typedef {'round' | 'heart' | 'square' | 'cookie_sheet' | 'full_sheet' | 'custom' | 'waferletter'} ProductShape
  *
- * @typedef {'paid' | 'file_received' | 'ready_to_print' | 'printed' | 'packed' | 'shipped' | 'pickup_ready'} ProductionStatus
+ * @typedef {'paid' | 'file_received' | 'ready_to_print' | 'printed' | 'packed' | 'shipped' | 'pickup_ready' | 'picked_up'} ProductionStatus
  *
  * @typedef {{ line1: string, line2?: string, city: string, province: string, postalCode: string, country: string }} ShippingAddress
  *
@@ -51,7 +51,13 @@
  *   production: {
  *     status: ProductionStatus,
  *     updatedAt: string,
+ *     adminNote?: string,
  *   },
+ *   // Single admin-entered date whose MEANING depends on shipping.method:
+ *   // the agreed pickup date for a pickup order, or the date the order must
+ *   // ship out for everything else. YYYY-MM-DD, no time component — see
+ *   // lib/delivery-urgency.js for how it's turned into an urgency bucket.
+ *   committedDate?: string,
  *   notes?: string,
  *   urgentFlags?: string[],
  *   notifications?: {
