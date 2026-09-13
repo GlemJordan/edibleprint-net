@@ -1813,7 +1813,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     if (typeof performance !== 'undefined' && process.env.NODE_ENV !== 'production') {
       console.debug(`[preview] render ${(performance.now() - previewRenderStart).toFixed(1)}ms @ ${canvas.width}x${canvas.height}`);
     }
-  }, [layers, redrawTick, effectiveSelectedId, shape, bgColor, textOverlay, isMultiCircle, isBWSheet, circlePx, mcCols, mcRows, mcOffsetX, mcOffsetY, mcStepPx, circleSize, canvasW, canvasH, customShapeKind]);
+  }, [layers, redrawTick, effectiveSelectedId, shape, bgColor, textOverlay, isMultiCircle, isBWSheet, circlePx, mcCols, mcRows, mcOffsetX, mcOffsetY, mcStepPx, circleSize, canvasW, canvasH, customShapeKind, cutGuide]);
 
   /* Hi-res canvas (print output) — this is the ONE the "size" slider bug
      traced back to: full-bleed shapes (Full Sheet's A4 at 300 DPI is the
@@ -2775,11 +2775,15 @@ export default function EdiblePrintApp() {
   // for every design; no legacy state to preserve, this field never existed
   // before this feature.
   const cutToShape  = activeDesign?.cutToShape  ?? false;
-  // Printed dashed cut-line guide — see lib/cut-guide-config.js. Off by
-  // default for every design, including every one saved before this
-  // feature existed: a customer who never opted in gets a clean sheet, not
-  // a surprise line they never agreed to.
-  const cutGuide    = activeDesign?.cutGuide    ?? false;
+  // Printed dashed cut-line guide — see lib/cut-guide-config.js. ON by
+  // default for every new design: without it, a design that doesn't fill
+  // its shape gives the customer no reference for where to cut. Customers
+  // who don't want it can switch it off below. (Orders placed before this
+  // feature existed have no cutGuide field at all — that absence is a
+  // meaningful signal elsewhere, see lib/cut-guide-config.js's
+  // hasLegacyBakedGuide(); it's never read back into this editor's own
+  // state, so it doesn't interact with this default.)
+  const cutGuide    = activeDesign?.cutGuide    ?? true;
   const qty         = activeDesign?.qty         ?? 1;
   const notes       = activeDesign?.notes       ?? '';
   const bgColor     = activeDesign?.bgColor     ?? '#FFFFFF';
@@ -2933,7 +2937,7 @@ export default function EdiblePrintApp() {
         shape: newShape,
         material: 'icing',
         cutToShape: false,
-        cutGuide: false,
+        cutGuide: true,
         sizeId: newSizeId,
         customW: '',
         customH: '',
@@ -2964,7 +2968,7 @@ export default function EdiblePrintApp() {
       shape: newShape,
       material: 'icing',
       cutToShape: false,
-      cutGuide: false,
+      cutGuide: true,
       sizeId: newSizeId,
       customW: '',
       customH: '',
@@ -4761,11 +4765,14 @@ export default function EdiblePrintApp() {
               </div>
             )}
 
-            {/* Cut guide — lib/cut-guide-config.js. Off by default: the
-                sheet prints clean unless a customer explicitly opts in
-                here. Distinct from "Cut to shape (plotter)" above — this is
-                a printed dashed line customers can trim to themselves, not
-                us physically cutting it. Renders nothing for shapes with no
+            {/* Cut guide — lib/cut-guide-config.js. ON by default: a design
+                that doesn't fill its shape (e.g. an illustration on a white
+                background) gives the customer no reference for where to cut
+                without this line, so a clean sheet is the worse default —
+                customers who don't want it can still switch it off here.
+                Distinct from "Cut to shape (plotter)" above — this is a
+                printed dashed line customers can trim to themselves, not us
+                physically cutting it. Renders nothing for shapes with no
                 outline to trace (fullsheet/waferletter) or a Custom design
                 with no sub-shape chosen yet. */}
             {shapeSupportsCutGuide(shape, customShapeKind) && (
