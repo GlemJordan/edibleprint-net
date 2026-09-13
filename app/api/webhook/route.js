@@ -1,6 +1,6 @@
 import Stripe from 'stripe';
 import { NextResponse, after } from 'next/server';
-import { buildOrderRecord, saveOrderRecord, recordNotification, urgentFlagLabel } from '../../../lib/order-record.js';
+import { buildOrderRecord, saveOrderRecord, recordNotification, urgentFlagLabel, generateUniqueOrderId } from '../../../lib/order-record.js';
 import { generateOrderPdfs } from '../../../lib/order-pdf-pipeline.js';
 import { withRetry } from '../../../lib/with-retry.js';
 import { BUSINESS_ADDRESS_ONE_LINE, BUSINESS_PHONE_DISPLAY } from '../../../lib/business-info.js';
@@ -333,6 +333,21 @@ async function processOrder(session, orderId) {
     throw err;
   }
 
+  // 1b. Write the order id back onto the PaymentIntent's own metadata —
+  // best-effort, never blocks or fails the pipeline. Order ids are now
+  // random (see generateUniqueOrderId(), lib/order-record.js) rather than
+  // derived from the Stripe session id, so this is the only way to find
+  // "which internal order is this payment" starting from the Stripe
+  // dashboard side; without it, that link only exists in the other
+  // direction (order.json already stores stripePaymentIntentId).
+  if (session.payment_intent) {
+    try {
+      await stripe.paymentIntents.update(session.payment_intent, { metadata: { orderId } });
+    } catch (err) {
+      console.error('[webhook] failed to write orderId back to PaymentIntent metadata for', orderId, err.message);
+    }
+  }
+
   // 2-3b. Production slip + per-design print-ready PDFs — generated,
   // uploaded, and persisted onto order.json by the shared pipeline (also
   // used by the admin "Regenerate PDFs" action), so this order's PDF state
@@ -585,14 +600,25 @@ export async function POST(request) {
 
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object;
-    const orderId = 'EP-' + session.id.slice(-8).toUpperCase();
-    console.log('--- NEW ORDER: ' + orderId + (isTest ? ' [TEST]' : '') + ' ---');
 
     // Respond to Stripe immediately, then run the pipeline after the response
     // is committed. `after()` tells Vercel to keep this function instance alive
     // until the callback completes — without it, the process is killed when the
-    // response is sent and Resend/Cloudinary calls never execute.
+    // response is sent and Resend/Cloudinary calls never execute. Order id
+    // generation moved in here too (it used to be a synchronous slice of
+    // session.id, computed before the response) since it's now async — see
+    // generateUniqueOrderId(), lib/order-record.js — and there's no reason to
+    // make Stripe wait on it.
     after(async () => {
+      let orderId;
+      try {
+        orderId = await generateUniqueOrderId();
+      } catch (err) {
+        console.error('Failed to generate a unique order id for session', session.id, err);
+        await sendCriticalOrderLossAlert(session, '(id generation failed — see Checkout Session ID above)', [], err, isTest);
+        return;
+      }
+      console.log('--- NEW ORDER: ' + orderId + (isTest ? ' [TEST]' : '') + ' ---');
       try {
         await processOrder(session, orderId);
       } catch (err) {

@@ -15,6 +15,13 @@ export async function GET(request) {
   try {
     const session = await stripe.checkout.sessions.retrieve(sessionId);
     const meta = session.metadata || {};
+    // A stable per-session id for GA4/Meta purchase-event dedup only —
+    // never shown to the customer (see app/success/page.js, where it's fed
+    // straight into gtag/fbq and nothing else), so it deliberately doesn't
+    // need to match the real order's random 'EP-XXXX' code (see
+    // generateUniqueOrderId(), lib/order-record.js). Deriving it from the
+    // Stripe session id keeps it available immediately, without waiting on
+    // the webhook (which mints the real code) to have run yet.
     const orderId = 'EP-' + session.id.slice(-8).toUpperCase();
     const designCount = parseInt(meta.designCount || '1', 10);
     const items = [];

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAdminSession } from '../../../../../lib/admin-auth.js';
-import { buildManualOrderRecord, generateManualOrderId, saveOrderRecord, findRecentDuplicateManualOrders } from '../../../../../lib/order-record.js';
+import { buildManualOrderRecord, generateUniqueOrderId, saveOrderRecord, findRecentDuplicateManualOrders } from '../../../../../lib/order-record.js';
 import { generateOrderPdfs } from '../../../../../lib/order-pdf-pipeline.js';
 import { isValidEmail } from '../../../../../lib/validate-email.js';
 
@@ -75,7 +75,7 @@ export async function POST(request) {
     }
   }
 
-  const orderId = generateManualOrderId();
+  const orderId = await generateUniqueOrderId();
   const record = buildManualOrderRecord({
     customerName, customerEmail, customerPhone,
     channel, paymentMethod,
