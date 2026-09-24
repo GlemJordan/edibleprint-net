@@ -1,6 +1,6 @@
 import Stripe from 'stripe';
 import { NextResponse } from 'next/server';
-import { getShippingCost } from '../../../lib/shipping-config.js';
+import { getShippingCost, getShippingMethod, normalizeShippingMethod, DEFAULT_SHIPPING_METHOD } from '../../../lib/shipping-config.js';
 import { CATALOG_PRICES, customShapePrice } from '../../../lib/catalog-prices.js';
 import { isValidEmail } from '../../../lib/validate-email.js';
 import { shapeSupportsMaterial, resolveMaterial } from '../../../lib/material-config.js';
@@ -28,7 +28,8 @@ export async function POST(request) {
     const {
       customerName, customerEmail, customerPhone,
       shippingAddress, shippingCity, shippingProvince, shippingPostal,
-      shippingMethod,
+      shippingMethod: shippingMethodInput,
+      neededByDate: neededByDateInput,
       designConfirmed, designConfirmedAt,
       designs,
     } = body;
@@ -41,8 +42,35 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
     }
 
-    // Shipping cost is computed server-side from the flat-rate config, never
-    // trusted from the client, so the charged amount can't be tampered with.
+    // The client only SELECTS a shipping method ('pickup' | 'standard' |
+    // 'tracked', or the legacy 'shipping' alias from tabs opened before the
+    // catalog existed — normalized to 'standard' here so the old value is
+    // never stored). Anything else is rejected; only a missing value
+    // defaults, to 'standard', which is what every pre-catalog client
+    // effectively got. Any shippingCost the client sent is ignored.
+    const shippingMethod = shippingMethodInput == null
+      ? DEFAULT_SHIPPING_METHOD
+      : normalizeShippingMethod(shippingMethodInput);
+    if (shippingMethod === null) {
+      return NextResponse.json({ error: 'Invalid shipping method' }, { status: 400 });
+    }
+    const isPickup = shippingMethod === 'pickup';
+    const shippingInfo = isPickup ? null : getShippingMethod(shippingMethod);
+
+    // Optional "needed by" date — validated as a real YYYY-MM-DD calendar
+    // date, stored verbatim. Informational only: it never affects price.
+    let neededByDate = '';
+    if (neededByDateInput != null && neededByDateInput !== '') {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(neededByDateInput));
+      const real = m && new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+      if (!real || real.toISOString().slice(0, 10) !== neededByDateInput) {
+        return NextResponse.json({ error: 'Invalid needed-by date' }, { status: 400 });
+      }
+      neededByDate = neededByDateInput;
+    }
+
+    // Shipping cost is recomputed server-side from lib/shipping-config.js,
+    // never trusted from the client, so the charged amount can't be tampered with.
     const shippingCost = getShippingCost(shippingMethod);
 
     // Every design's price is recomputed here from the catalog (by shape +
@@ -173,10 +201,10 @@ export async function POST(request) {
       line_items: [
         ...designLineItems,
         // Pickup is $0 — no shipping line item shown for it at all.
-        ...(shippingMethod === 'pickup' ? [] : [{
+        ...(isPickup ? [] : [{
           price_data: {
             currency: 'cad',
-            product_data: { name: 'Shipping (Canada Post Shipping)' },
+            product_data: { name: shippingInfo.label + ' (' + shippingInfo.carrier + ')' },
             unit_amount: shippingAmount,
           },
           quantity: 1,
@@ -191,11 +219,15 @@ export async function POST(request) {
         shippingPostal,
         shippingMethod,
         shippingCost: String(shippingCost || 0),
+        // Only present when the customer gave one — Stripe's 50-key metadata
+        // cap is already tight (see designMeta below). The carrier isn't
+        // stored here: buildOrderRecord derives it from shippingMethod.
+        ...(neededByDate ? { neededByDate } : {}),
         designConfirmed: String(designConfirmed || false),
         designConfirmedAt: designConfirmedAt || '',
         ...designMeta,
       },
-      ...(shippingMethod !== 'pickup' && shippingAddress ? {
+      ...(!isPickup && shippingAddress ? {
         payment_intent_data: {
           shipping: {
             name: customerName,

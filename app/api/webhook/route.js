@@ -6,6 +6,7 @@ import { withRetry } from '../../../lib/with-retry.js';
 import { BUSINESS_ADDRESS_ONE_LINE, BUSINESS_PHONE_DISPLAY } from '../../../lib/business-info.js';
 import { resolveMaterial, materialDisplayLabel } from '../../../lib/material-config.js';
 import { decodeCustomShapeKind } from '../../../lib/cut-guide-config.js';
+import { getShippingMethod, normalizeShippingMethod } from '../../../lib/shipping-config.js';
 
 // CASL sender-identification footer for the 4 customer/admin-facing
 // templates (owner order email, customer confirmation, magic link,
@@ -312,7 +313,9 @@ async function processOrder(session, orderId) {
   const shippingAmt = parseFloat(meta.shippingCost) || 0;
   const totalAmt    = session.amount_total / 100;
 
-  const shippingLabel = meta.shippingMethod === 'pickup' ? 'Pickup — East London, ON' : 'Canada Post Shipping';
+  const shippingLabel = isPickup
+    ? 'Pickup — East London, ON'
+    : (() => { const m = getShippingMethod(normalizeShippingMethod(meta.shippingMethod)); return m.label + ' — ' + m.carrier; })();
 
   // 1. Build + save OrderRecord (order.json + notes.txt → Cloudinary).
   // Isolated in its own try/catch: if this specific step fails after

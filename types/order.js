@@ -30,6 +30,14 @@
  *   isTest: boolean,
  *   customer: { name: string, email?: string, phone?: string },
  *   designs: DesignRecord[],
+ *   // What the customer chose at checkout. Absent on orders saved before the
+ *   // standard/tracked split — read via resolveOrderShippingMethod().
+ *   shippingMethod?: 'pickup' | 'standard' | 'tracked',
+ *   shippingCarrier?: string,
+ *   shippingCostCharged?: number,
+ *   // Customer's optional "needed by" date, YYYY-MM-DD. Informational; not
+ *   // the same as committedDate, which the owner decides.
+ *   neededByDate?: string,
  *   shipping: {
  *     method: 'pickup' | 'local_delivery' | 'canada_post_standard' | 'canada_post_express',
  *     label: string,
