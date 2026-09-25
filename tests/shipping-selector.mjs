@@ -33,6 +33,16 @@ const SHIP_ROW = 'Ship to my address';
 const DATE_LABEL = 'Do you need your order by a specific date? (optional)';
 const money = (n) => '$' + n.toFixed(2);
 
+// Every wait below is for a CONDITION, never a fixed time: a generous ceiling that
+// is only ever reached when something is actually broken. (A fixed sleep, or a
+// click right after "network idle", passes on a warm machine and fails when the
+// page is slow to hydrate — the cause of an intermittent failure in this suite.)
+const WAIT = 90000;
+
+// Optional stress mode for hunting timing bugs: EP_CPU_THROTTLE=6 slows the page's CPU
+// 6x, which stretches hydration and rendering the way a cold dev server does.
+const CPU_THROTTLE = Number(process.env.EP_CPU_THROTTLE || 1);
+
 const results = [];
 const check = (test, pass, detail) => { results.push({ test, pass: !!pass, ...(pass ? {} : { detail }) }); };
 
@@ -49,6 +59,8 @@ async function makeExactPdf() {
 async function newPage(browser, viewport) {
   const ctx = await browser.newContext({ viewport });
   const page = await ctx.newPage();
+  page.setDefaultTimeout(WAIT);
+  if (CPU_THROTTLE > 1) await (await ctx.newCDPSession(page)).send('Emulation.setCPUThrottlingRate', { rate: CPU_THROTTLE });
   await page.clock.setFixedTime(TODAY); // fixes Date only — timers keep running
   const sent = [];
   await page.route('**/api/upload-print-file', (r) => r.fulfill({
@@ -64,11 +76,35 @@ async function newPage(browser, viewport) {
   return { page, sent };
 }
 
+// React attaches its props to a DOM node (a __reactProps$… key) once it has
+// hydrated it. Clicking or typing before that silently does nothing — the SSR
+// HTML looks ready long before its handlers exist — so wait for it explicitly.
+async function hydrated(page, locator) {
+  const handle = await locator.elementHandle({ timeout: WAIT });
+  await page.waitForFunction((el) => Object.keys(el).some((k) => k.startsWith('__reactProps$')), handle, { timeout: WAIT });
+}
+
+// The mocked create-checkout reply sends the browser to /cancel; wait for the
+// request itself (what the tests assert on), then for that navigation to settle.
+async function submitted(page, sent) {
+  const deadline = Date.now() + WAIT;
+  while (sent.length === 0 && Date.now() < deadline) await page.waitForTimeout(100);
+  await page.waitForURL('**/cancel', { timeout: WAIT }).catch(() => {});
+}
+
 async function openMainStep3(page, pdfPath) {
   await page.goto(BASE_URL, { waitUntil: 'networkidle' });
-  await page.getByRole('button', { name: 'Already have a print-ready file? Upload it directly →' }).click();
+  const uploadButton = page.getByRole('button', { name: 'Already have a print-ready file? Upload it directly →' });
+  await hydrated(page, uploadButton);
+  await uploadButton.click();
   await page.locator('input[type="file"][accept*="application/pdf"]').setInputFiles(pdfPath);
-  await page.waitForTimeout(1500);
+  // The approval checkbox stays disabled until the file is validated and its
+  // preview drawn: that, not a delay, is the signal it can be ticked.
+  await page.waitForFunction(() => {
+    const boxes = document.querySelectorAll('input[type="checkbox"]');
+    const last = boxes[boxes.length - 1];
+    return !!last && !last.disabled;
+  }, null, { timeout: WAIT });
   await page.locator('input[type="checkbox"]').last().check();
   await page.getByRole('button', { name: 'Continue →' }).click();
   await page.getByRole('heading', { name: 'Shipping & Payment' }).waitFor();
@@ -179,7 +215,7 @@ async function checkSelectorUi(page, prefix) {
     check('main: warning is visible for the order about to be placed', await page.getByText(WARN_SLOW, { exact: true }).isVisible());
     await page.locator('input[type="checkbox"]').last().check();
     await page.getByRole('button', { name: /Place Order/ }).click();
-    await page.waitForURL('**/cancel', { timeout: 15000 }).catch(() => {});
+    await submitted(page, sent);
     const body = sent[0];
     check('main: create-checkout was reached despite the warning', !!body, sent);
     check('main: sends shippingMethod "standard" (not the old "shipping")', body?.shippingMethod === 'standard', body?.shippingMethod);
@@ -196,7 +232,7 @@ async function checkSelectorUi(page, prefix) {
     await radio(page, TRK).check();
     await page.locator('input[type="checkbox"]').last().check();
     await page.getByRole('button', { name: /Place Order/ }).click();
-    await page.waitForURL('**/cancel', { timeout: 15000 }).catch(() => {});
+    await submitted(page, sent);
     const body = sent[0];
     check('main: sends shippingMethod "tracked"', body?.shippingMethod === 'tracked', body?.shippingMethod);
     check('main: omits neededByDate when none was entered', !('neededByDate' in (body || {})), body);
@@ -213,7 +249,7 @@ async function checkSelectorUi(page, prefix) {
     check("main: can't-deliver warning visible before placing", await page.getByText(WARN_NONE, { exact: true }).isVisible());
     await page.locator('input[type="checkbox"]').last().check();
     await page.getByRole('button', { name: /Place Order/ }).click();
-    await page.waitForURL('**/cancel', { timeout: 15000 }).catch(() => {});
+    await submitted(page, sent);
     check("main: order still goes through with the can't-deliver warning showing",
       sent[0]?.shippingMethod === 'tracked' && sent[0]?.neededByDate === '2026-09-30', sent);
     await page.context().close();
@@ -236,7 +272,7 @@ async function checkSelectorUi(page, prefix) {
     check('main pickup: total is the Tracked total minus its shipping', (totalTrk - totalPickup).toFixed(2) === TRK.price.toFixed(2), { totalTrk, totalPickup });
     await page.locator('input[type="checkbox"]').last().check();
     await page.getByRole('button', { name: /Place Order/ }).click();
-    await page.waitForURL('**/cancel', { timeout: 15000 }).catch(() => {});
+    await submitted(page, sent);
     const body = sent[0];
     check('main pickup: sends shippingMethod "pickup"', body?.shippingMethod === 'pickup', body?.shippingMethod);
     check('main pickup: does NOT send the stale neededByDate', !('neededByDate' in (body || {})), body);
@@ -259,9 +295,13 @@ async function checkSelectorUi(page, prefix) {
   const DESIGN_URL = BASE_URL + '/designs/birthday-confetti-01';
   async function openDesignsCheckout(page) {
     await page.goto(DESIGN_URL, { waitUntil: 'networkidle' });
-    await page.getByPlaceholder('e.g. Emma').fill('Emma');
-    await page.getByRole('button', { name: 'Continue →' }).click();
-    await page.getByRole('button', { name: /Continue to payment/ }).waitFor({ timeout: 20000 });
+    const nameInput = page.getByPlaceholder('e.g. Emma');
+    await hydrated(page, nameInput);
+    await nameInput.fill('Emma');
+    const continueButton = page.getByRole('button', { name: 'Continue →' });
+    await hydrated(page, continueButton);
+    await continueButton.click();
+    await page.getByRole('button', { name: /Continue to payment/ }).waitFor({ timeout: WAIT });
   }
   {
     const { page, sent } = await newPage(browser, desktop);
@@ -286,7 +326,7 @@ async function checkSelectorUi(page, prefix) {
     await page.getByLabel('Postal code *', { exact: true }).fill('N6A 1B2');
     await page.getByText('I confirm the name/text I entered').click();
     await page.getByRole('button', { name: /Continue to payment/ }).click();
-    await page.waitForURL('**/cancel', { timeout: 15000 }).catch(() => {});
+    await submitted(page, sent);
     const body = sent[0];
     check('designs: create-checkout reached despite the warning', !!body, sent);
     check('designs: sends shippingMethod "standard"', body?.shippingMethod === 'standard', body?.shippingMethod);
@@ -307,7 +347,7 @@ async function checkSelectorUi(page, prefix) {
     await page.getByLabel('Email *', { exact: true }).fill('test-shipping@example.com');
     await page.getByText('I confirm the name/text I entered').click();
     await page.getByRole('button', { name: /Continue to payment/ }).click();
-    await page.waitForURL('**/cancel', { timeout: 15000 }).catch(() => {});
+    await submitted(page, sent);
     const body = sent[0];
     check('designs pickup: sends "pickup" and no neededByDate', body?.shippingMethod === 'pickup' && !('neededByDate' in body), body);
     await page.context().close();

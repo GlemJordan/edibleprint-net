@@ -26,6 +26,28 @@ const TRK = getShippingMethod('tracked');
 const money = (n) => '$' + n.toFixed(2);
 const LIMIT = orderLimitMessage();
 
+// Every wait is for a CONDITION, never a fixed time: a generous ceiling reached
+// only when something is actually broken. (A fixed sleep, or a click right after
+// "network idle", passes on a warm machine and fails when the page is slow to
+// hydrate.) EP_CPU_THROTTLE=6 slows the page's CPU to hunt for such bugs.
+const WAIT = 90000;
+const CPU_THROTTLE = Number(process.env.EP_CPU_THROTTLE || 1);
+
+// React attaches its props to a DOM node (a __reactProps$… key) once it has
+// hydrated it; clicking or typing before that silently does nothing.
+async function hydrated(page, locator) {
+  const handle = await locator.elementHandle({ timeout: WAIT });
+  await page.waitForFunction((el) => Object.keys(el).some((k) => k.startsWith('__reactProps$')), handle, { timeout: WAIT });
+}
+
+// The mocked create-checkout reply sends the browser to /cancel; wait for the
+// request itself (what the tests assert on), then for that navigation to settle.
+async function submitted(page, sent) {
+  const deadline = Date.now() + WAIT;
+  while (sent.length === 0 && Date.now() < deadline) await page.waitForTimeout(100);
+  await page.waitForURL('**/cancel', { timeout: WAIT }).catch(() => {});
+}
+
 const results = [];
 const check = (test, pass, detail) => { results.push({ test, pass: !!pass, ...(pass ? {} : { detail }) }); };
 
@@ -41,6 +63,8 @@ async function makeExactPdf() {
 async function newPage(browser, viewport) {
   const ctx = await browser.newContext({ viewport });
   const page = await ctx.newPage();
+  page.setDefaultTimeout(WAIT);
+  if (CPU_THROTTLE > 1) await (await ctx.newCDPSession(page)).send('Emulation.setCPUThrottlingRate', { rate: CPU_THROTTLE });
   const sent = [];
   await page.route('**/api/upload-print-file', (r) => r.fulfill({ json: { cloudName: 'test', apiKey: 'k', timestamp: 1, signature: 's', publicId: 'p' } }));
   await page.route('https://api.cloudinary.com/**', (r) => r.fulfill({ json: { secure_url: 'https://res.cloudinary.com/test/raw/upload/p.pdf' } }));
@@ -56,9 +80,17 @@ const plus = (page) => page.getByRole('button', { name: 'Increase quantity' }).f
 // Main editor, upload flow: raise the quantity to `sheets`, then land on step 3 ready to ship.
 async function openMainStep3(page, pdfPath, sheets) {
   await page.goto(BASE_URL, { waitUntil: 'networkidle' });
-  await page.getByRole('button', { name: 'Already have a print-ready file? Upload it directly →' }).click();
+  const uploadButton = page.getByRole('button', { name: 'Already have a print-ready file? Upload it directly →' });
+  await hydrated(page, uploadButton);
+  await uploadButton.click();
   await page.locator('input[type="file"][accept*="application/pdf"]').setInputFiles(pdfPath);
-  await page.waitForTimeout(1500);
+  // The approval checkbox stays disabled until the file is validated and its
+  // preview drawn: that, not a delay, is the signal the editor is ready.
+  await page.waitForFunction(() => {
+    const boxes = document.querySelectorAll('input[type="checkbox"]');
+    const last = boxes[boxes.length - 1];
+    return !!last && !last.disabled;
+  }, null, { timeout: WAIT });
   for (let i = 1; i < sheets; i++) {
     if (await plus(page).isDisabled()) break;
     await plus(page).click();
@@ -142,7 +174,7 @@ async function checkShippingFor(page, prefix, sheets, { totalOf }) {
     // What the browser sends: the quantity the server prices from, and only a method, never an amount.
     await page.locator('input[type="checkbox"]').last().check();
     await page.getByRole('button', { name: /Place Order/ }).click();
-    await page.waitForURL('**/cancel', { timeout: 15000 }).catch(() => {});
+    await submitted(page, sent);
     const body = sent[0];
     check(`main, ${sheets} sheet(s): sends quantity ${sheets} as a number, method "standard", and no shipping amount`,
       body?.designs?.[0]?.quantity === sheets && body?.shippingMethod === 'standard' && !('shippingCost' in body), body);
@@ -178,10 +210,14 @@ async function checkShippingFor(page, prefix, sheets, { totalOf }) {
   const DESIGN_URL = BASE_URL + '/designs/birthday-confetti-01';
   async function openDesignsCheckout(page, quantityText) {
     await page.goto(DESIGN_URL, { waitUntil: 'networkidle' });
-    await page.getByPlaceholder('e.g. Emma').fill('Emma');
+    const nameInput = page.getByPlaceholder('e.g. Emma');
+    await hydrated(page, nameInput);
+    await nameInput.fill('Emma');
     if (quantityText !== undefined) await page.locator('input[type="number"]').first().fill(String(quantityText));
-    await page.getByRole('button', { name: 'Continue →' }).click();
-    await page.getByRole('button', { name: /Continue to payment/ }).waitFor({ timeout: 20000 });
+    const continueButton = page.getByRole('button', { name: 'Continue →' });
+    await hydrated(page, continueButton);
+    await continueButton.click();
+    await page.getByRole('button', { name: /Continue to payment/ }).waitFor({ timeout: WAIT });
     await page.getByText('Ship to my address', { exact: true }).click();
   }
   const formTotal = (page) => page.locator('form').innerText().then((t) => parseFloat(/Total\s*\$([\d.]+)/.exec(t.replace(/\n/g, ' '))[1]));
@@ -196,7 +232,7 @@ async function checkShippingFor(page, prefix, sheets, { totalOf }) {
     await page.getByLabel('Postal code *', { exact: true }).fill('N6A 1B2');
     await page.getByText('I confirm the name/text I entered').click();
     await page.getByRole('button', { name: /Continue to payment/ }).click();
-    await page.waitForURL('**/cancel', { timeout: 15000 }).catch(() => {});
+    await submitted(page, sent);
     check(`designs, ${sheets} sheet(s): sends quantity ${sheets} and method "standard", no shipping amount`,
       sent[0]?.designs?.[0]?.quantity === sheets && sent[0]?.shippingMethod === 'standard' && !('shippingCost' in sent[0]), sent[0]);
     await page.context().close();
@@ -205,6 +241,7 @@ async function checkShippingFor(page, prefix, sheets, { totalOf }) {
     // Typing far past the limit is clamped, and says why.
     const { page, sent } = await newPage(browser, desktop);
     await page.goto(DESIGN_URL, { waitUntil: 'networkidle' });
+    await hydrated(page, page.getByPlaceholder('e.g. Emma'));
     await page.getByPlaceholder('e.g. Emma').fill('Emma');
     const qty = page.locator('input[type="number"]').first();
     await qty.fill('500');
@@ -216,7 +253,7 @@ async function checkShippingFor(page, prefix, sheets, { totalOf }) {
     await page.getByLabel('Email *', { exact: true }).fill('test-shipping@example.com');
     await page.getByText('I confirm the name/text I entered').click();
     await page.getByRole('button', { name: /Continue to payment/ }).click();
-    await page.waitForURL('**/cancel', { timeout: 15000 }).catch(() => {});
+    await submitted(page, sent);
     check(`designs: what is sent is quantity ${MAX_SHEETS_PER_ORDER}, not 500`, sent[0]?.designs?.[0]?.quantity === MAX_SHEETS_PER_ORDER, sent[0]?.designs);
     await page.context().close();
   }

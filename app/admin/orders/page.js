@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { computeUrgency, URGENCY_LABELS, URGENCY_COLORS } from '../../../lib/delivery-urgency.js';
+import { describeDispatch, formatPackageCount } from '../../../lib/shipping-config.js';
 
 const C = {
   brand: '#1B6B4A', brandLight: '#E8F5EE', text: '#1a1a1a',
@@ -211,6 +212,7 @@ export default function AdminOrdersPage() {
                   <th style={{ padding: '10px 14px' }}>Designs</th>
                   <th style={{ padding: '10px 14px', textAlign: 'right' }}>Total</th>
                   <th style={{ padding: '10px 14px' }}>Status</th>
+                  <th style={{ padding: '10px 14px' }}>Ships</th>
                   <th style={{ padding: '10px 14px' }}>PDFs</th>
                   <th style={{ padding: '10px 14px' }}>Delivery</th>
                   <th style={{ padding: '10px 14px' }}>Date</th>
@@ -247,6 +249,20 @@ export default function AdminOrdersPage() {
                       <span style={{ color: STATUS_COLORS[o.status] || STATUS_COLORS.unknown, fontWeight: 600, fontSize: 13 }}>
                         {o.status}
                       </span>
+                    </td>
+                    <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }} data-testid="ships-cell">
+                      {(() => {
+                        // Older rows may lack these fields entirely: they read as standard.
+                        const d = describeDispatch(o.shippingMethod || (o.isPickup ? 'pickup' : undefined), o.packages);
+                        return (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }} title={d.line}>
+                            <span style={{ fontWeight: 600, fontSize: 13, color: d.method === 'pickup' ? C.muted : C.text }}>{d.name}</span>
+                            {d.method !== 'pickup' && d.packages !== null && (
+                              <span style={{ fontSize: 12, color: C.muted }}>{formatPackageCount(d.packages)}</span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td style={{ padding: '10px 14px' }}>
                       {o.missingAssets ? (
@@ -289,7 +305,7 @@ export default function AdminOrdersPage() {
                   </tr>
                 ))}
                 {filteredOrders.length === 0 && (
-                  <tr><td colSpan={9} style={{ padding: '24px 14px', textAlign: 'center', color: C.muted }}>No orders found.</td></tr>
+                  <tr><td colSpan={10} style={{ padding: '24px 14px', textAlign: 'center', color: C.muted }}>No orders found.</td></tr>
                 )}
               </tbody>
             </table>

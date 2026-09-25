@@ -70,6 +70,10 @@
  *   // ship out for everything else. YYYY-MM-DD, no time component — see
  *   // lib/delivery-urgency.js for how it's turned into an urgency bucket.
  *   committedDate?: string,
+ *   // Set by the admin at dispatch (see updateDispatchInfo): the real ship
+ *   // date, YYYY-MM-DD, and the carrier tracking number. Never set on pickup.
+ *   shippedAt?: string,
+ *   trackingNumber?: string,
  *   notes?: string,
  *   urgentFlags?: string[],
  *   notifications?: {

@@ -7,6 +7,22 @@ import { resolveCut } from '../../../../lib/cutting-config.js';
 import { shapeSupportsCutGuide, hasLegacyBakedGuide } from '../../../../lib/cut-guide-config.js';
 import { VALID_STATUSES } from '../../../../lib/production-status.js';
 import { computeUrgency, URGENCY_LABELS, URGENCY_COLORS } from '../../../../lib/delivery-urgency.js';
+import { resolveOrderDispatch, formatPackageCount } from '../../../../lib/shipping-config.js';
+
+// 'YYYY-MM-DD' as a plain calendar date (no timezone shift), e.g. "Thu, Oct 1, 2026".
+function formatCalendarDate(ymd) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd || '');
+  if (!m) return ymd || '';
+  return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString('en-CA', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+// What was charged for shipping, for an order of any age: new records store it;
+// a manual order has one typed total; an older website order simply didn't record it.
+function shippingChargedText(order, dispatch) {
+  if (dispatch.method === 'pickup') return 'Free (pickup)';
+  if (typeof order.shippingCostCharged === 'number') return '$' + order.shippingCostCharged.toFixed(2);
+  return order.source === 'manual' ? 'Included in the total entered' : 'Not recorded (older order)';
+}
 
 const C = {
   brand: '#1B6B4A', brandLight: '#E8F5EE', text: '#1a1a1a',
@@ -35,6 +51,16 @@ export default function AdminOrderDetailPage({ params }) {
   const [committedDateDraft, setCommittedDateDraft] = useState('');
   const [savingDate, setSavingDate] = useState(false);
   const [saveDateMsg, setSaveDateMsg] = useState('');
+  const [shippedAtDraft, setShippedAtDraft] = useState('');
+  const [trackingDraft, setTrackingDraft] = useState('');
+  const [savingDispatch, setSavingDispatch] = useState(false);
+  const [dispatchMsg, setDispatchMsg] = useState('');
+  // Saving a ship date only OFFERS to mark the order shipped; changing the status
+  // is a separate action of the admin's own (see markAsShipped) — nothing here
+  // does it as a side effect of saving.
+  const [offerShipped, setOfferShipped] = useState(false);
+  const [markingShipped, setMarkingShipped] = useState(false);
+  const [markShippedMsg, setMarkShippedMsg] = useState('');
   const [regenerating, setRegenerating] = useState(false);
   const [regenerateMsg, setRegenerateMsg] = useState('');
 
@@ -52,7 +78,13 @@ export default function AdminOrderDetailPage({ params }) {
         if (!r.ok) throw new Error(r.status === 404 ? 'Order not found' : 'Failed to load order');
         return r.json();
       })
-      .then((d) => { setOrder(d); setStatusDraft(d.production?.status || ''); setCommittedDateDraft(d.committedDate || ''); })
+      .then((d) => {
+        setOrder(d);
+        setStatusDraft(d.production?.status || '');
+        setCommittedDateDraft(d.committedDate || '');
+        setShippedAtDraft(d.shippedAt || '');
+        setTrackingDraft(d.trackingNumber || '');
+      })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [authChecked, isAdmin, id]);
@@ -94,6 +126,53 @@ export default function AdminOrderDetailPage({ params }) {
       setSaveDateMsg('Error: ' + e.message);
     } finally {
       setSavingDate(false);
+    }
+  };
+
+  const saveDispatch = async () => {
+    setSavingDispatch(true);
+    setDispatchMsg('');
+    try {
+      const res = await fetch(`/api/admin/orders/${id}/dispatch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shippedAt: shippedAtDraft || null, trackingNumber: trackingDraft.trim() || null }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save dispatch details');
+      setOrder((o) => ({ ...o, shippedAt: data.shippedAt || undefined, trackingNumber: data.trackingNumber || undefined }));
+      setShippedAtDraft(data.shippedAt || '');
+      setTrackingDraft(data.trackingNumber || '');
+      setDispatchMsg('Saved ✓');
+      setMarkShippedMsg('');
+      setOfferShipped(!!data.shippedAt && order?.production?.status !== 'shipped');
+    } catch (e) {
+      setDispatchMsg('Error: ' + e.message);
+    } finally {
+      setSavingDispatch(false);
+    }
+  };
+
+  // The admin's explicit choice, from the prompt shown after saving a ship date.
+  const markAsShipped = async () => {
+    setMarkingShipped(true);
+    setMarkShippedMsg('');
+    try {
+      const res = await fetch(`/api/admin/orders/${id}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'shipped' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update status');
+      setOrder((o) => ({ ...o, production: { ...o.production, status: data.status, updatedAt: data.updatedAt } }));
+      setStatusDraft(data.status);
+      setOfferShipped(false);
+      setMarkShippedMsg('Marked as shipped ✓');
+    } catch (e) {
+      setMarkShippedMsg('Error: ' + e.message);
+    } finally {
+      setMarkingShipped(false);
     }
   };
 
@@ -166,8 +245,19 @@ export default function AdminOrderDetailPage({ params }) {
               <Row label="Phone" value={order.customer?.phone} />
             </Section>
 
+            {(() => {
+              // Older orders carry none of the new fields: they read as standard
+              // (or pickup) with the packages their sheets need — never blank.
+              const dispatch = resolveOrderDispatch(order);
+              return (
             <Section title="Shipping">
-              <Row label="Method" value={order.shipping?.label} />
+              <Row label="Method" value={dispatch.method === 'pickup' ? dispatch.line + ' (nothing to ship)' : dispatch.name} />
+              <Row label="Carrier" value={dispatch.carrier} />
+              {dispatch.method !== 'pickup' && (
+                <Row label="Packages" value={dispatch.packages !== null ? formatPackageCount(dispatch.packages) : '—'} />
+              )}
+              <Row label="Charged" value={shippingChargedText(order, dispatch)} />
+              <Row label="Needed by" value={order.neededByDate ? formatCalendarDate(order.neededByDate) : undefined} />
               {order.shipping?.address && (
                 <Row
                   label="Address"
@@ -175,6 +265,87 @@ export default function AdminOrderDetailPage({ params }) {
                 />
               )}
             </Section>
+              );
+            })()}
+
+            {resolveOrderDispatch(order).method !== 'pickup' && (
+              <Section title="Dispatch">
+                <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                  <label style={{ fontSize: 13, color: C.muted, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    Shipped on
+                    <input
+                      type="date"
+                      aria-label="Shipped on"
+                      value={shippedAtDraft}
+                      onChange={(e) => setShippedAtDraft(e.target.value)}
+                      style={{ padding: '8px 10px', borderRadius: 8, border: '1.5px solid ' + C.border, fontFamily: 'inherit', fontSize: 14 }}
+                    />
+                  </label>
+                  <label style={{ fontSize: 13, color: C.muted, display: 'flex', flexDirection: 'column', gap: 4, flex: '1 1 200px' }}>
+                    Tracking number
+                    <input
+                      type="text"
+                      aria-label="Tracking number"
+                      value={trackingDraft}
+                      maxLength={40}
+                      onChange={(e) => setTrackingDraft(e.target.value)}
+                      style={{ padding: '8px 10px', borderRadius: 8, border: '1.5px solid ' + C.border, fontFamily: 'inherit', fontSize: 14 }}
+                    />
+                  </label>
+                  <button
+                    onClick={saveDispatch}
+                    disabled={savingDispatch || (shippedAtDraft === (order.shippedAt || '') && trackingDraft.trim() === (order.trackingNumber || ''))}
+                    style={{
+                      padding: '8px 16px', borderRadius: 8, border: 'none', background: C.brand, color: '#fff',
+                      fontWeight: 600, fontFamily: 'inherit', fontSize: 14,
+                      cursor: (savingDispatch || (shippedAtDraft === (order.shippedAt || '') && trackingDraft.trim() === (order.trackingNumber || ''))) ? 'not-allowed' : 'pointer',
+                      opacity: (savingDispatch || (shippedAtDraft === (order.shippedAt || '') && trackingDraft.trim() === (order.trackingNumber || ''))) ? 0.5 : 1,
+                    }}
+                  >
+                    {savingDispatch ? 'Saving…' : 'Save dispatch details'}
+                  </button>
+                  {dispatchMsg && <span style={{ fontSize: 13, color: dispatchMsg.startsWith('Error') ? '#DC2626' : '#059669' }}>{dispatchMsg}</span>}
+                </div>
+                {offerShipped && order.production?.status !== 'shipped' && (
+                  <div role="alert" style={{
+                    display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 12,
+                    padding: '10px 14px', borderRadius: 8, background: '#FFF8E6', border: '1px solid #F4D06F', fontSize: 13.5, color: '#5C4A1A',
+                  }}>
+                    <span>This order is not marked as shipped. Mark as shipped?</span>
+                    <button
+                      onClick={markAsShipped}
+                      disabled={markingShipped}
+                      style={{
+                        padding: '6px 14px', borderRadius: 8, border: 'none', background: C.brand, color: '#fff',
+                        fontWeight: 600, fontFamily: 'inherit', fontSize: 13.5,
+                        cursor: markingShipped ? 'not-allowed' : 'pointer', opacity: markingShipped ? 0.6 : 1,
+                      }}
+                    >
+                      {markingShipped ? 'Updating…' : 'Mark as shipped'}
+                    </button>
+                    <button
+                      onClick={() => setOfferShipped(false)}
+                      disabled={markingShipped}
+                      style={{
+                        padding: '6px 14px', borderRadius: 8, border: '1.5px solid ' + C.border, background: C.white, color: C.text,
+                        fontWeight: 600, fontFamily: 'inherit', fontSize: 13.5, cursor: 'pointer',
+                      }}
+                    >
+                      Not now
+                    </button>
+                    {markShippedMsg.startsWith('Error') && <span style={{ color: '#DC2626' }}>{markShippedMsg}</span>}
+                  </div>
+                )}
+                {markShippedMsg && !markShippedMsg.startsWith('Error') && (
+                  <div style={{ fontSize: 13, color: '#059669', marginTop: 8 }}>{markShippedMsg}</div>
+                )}
+                <div style={{ fontSize: 12.5, color: C.muted, marginTop: 8 }}>
+                  {resolveOrderDispatch(order).method === 'tracked'
+                    ? 'This customer paid for tracking — record the number from the Canada Post receipt.'
+                    : 'Standard shipping has no tracking number; leave it blank.'}
+                </div>
+              </Section>
+            )}
 
             <Section title="Designs">
               {(order.designs || []).map((d, i) => {
