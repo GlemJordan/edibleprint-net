@@ -1,10 +1,15 @@
 import LegalLayout from '../_components/LegalLayout';
 import {
   getShippingMethods,
-  getShippingMethod,
   describeShippingMethod,
   formatProductionWindow,
   shippingTimesSentence,
+  standardNotArrivedSentence,
+  getShippingPackages,
+  getShippingCost,
+  orderLimitMessage,
+  SHEETS_PER_PACKAGE,
+  TRACKED_MAX_SHEETS,
 } from '../../lib/shipping-config.js';
 
 export const metadata = {
@@ -20,8 +25,6 @@ const p  = { margin: '0 0 16px', lineHeight: 1.8 };
 const ul = { margin: '0 0 16px', paddingLeft: 22, lineHeight: 1.9 };
 
 export default function ShippingPage() {
-  const standard = getShippingMethod('standard');
-
   return (
     <LegalLayout title="Shipping Policy" lastUpdated="Last updated: September 25, 2026">
 
@@ -35,6 +38,12 @@ export default function ShippingPage() {
           </li>
         ))}
       </ul>
+      <p style={p}>
+        Standard shipping is charged for each package of up to {SHEETS_PER_PACKAGE} sheets: an order of 5 sheets
+        ships in {getShippingPackages('standard', 5)} packages and costs ${getShippingCost('standard', 5).toFixed(2)}.
+        Tracked shipping sends your whole order in one package for one price, up to {TRACKED_MAX_SHEETS} sheets.{' '}
+        {orderLimitMessage()}
+      </p>
       <p style={p}>Free local pickup is available in London, Ontario.</p>
 
       <h2 style={h2}>Production time</h2>
@@ -45,10 +54,8 @@ export default function ShippingPage() {
 
       <h2 style={h2}>If your order hasn&apos;t arrived</h2>
       <p style={p}>
-        If a standard shipping order has not arrived {standard.maxBusinessDays} business days after it was
-        mailed,{' '}
-        <a href={`mailto:${EMAIL}`} style={{ color: C.brand }}>contact us</a>{' '}
-        and we will reprint and resend it once, at no cost.
+        {standardNotArrivedSentence()} You can reach us at{' '}
+        <a href={`mailto:${EMAIL}`} style={{ color: C.brand }}>{EMAIL}</a>.
       </p>
       <p style={p}>
         Standard shipping has no tracking number, so we cannot confirm where a package is once it has been

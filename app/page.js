@@ -7,6 +7,8 @@ import HeroSection from './_components/HeroSection';
 import {
   getShippingCost, getShippingMethod, getShippingMethods, DEFAULT_SHIPPING_METHOD,
   formatBusinessDayRange, formatProductionWindow, shippingTimesSentence,
+  getShippingPackages, resolveMethodForSheets, countSheets, orderLimitMessage, SHEETS_PER_PACKAGE,
+  MAX_SHEETS_PER_DESIGN, MAX_SHEETS_PER_ORDER,
 } from '../lib/shipping-config.js';
 import ShippingMethodSelector from './_components/ShippingMethodSelector';
 import { CATALOG_SIZES } from '../lib/catalog-sizes.js';
@@ -2892,9 +2894,26 @@ export default function EdiblePrintApp() {
     return sum + (dPrice + dCutSurcharge) * d.qty;
   }, 0);
 
+  // Sheets = the sum of every design's quantity. Shipping is per package of
+  // SHEETS_PER_PACKAGE sheets, so it follows this number live; the server
+  // recomputes it from the quantities it receives (create-checkout) and the
+  // amount below is only what's shown. The order limit is enforced there too —
+  // the caps here just keep the controls from offering what it would refuse.
+  const orderSheets = countSheets(designs.map((d) => d.qty));
+  const atSheetLimit = orderSheets >= MAX_SHEETS_PER_ORDER;
+  const sheetLimitNote = atSheetLimit
+    ? <p role="status" style={{ margin: '10px 0 0', fontSize: 13, lineHeight: 1.5, color: C.muted }}>{orderLimitMessage()}</p>
+    : null;
+  // Most this design's quantity can be raised to, given the other designs' sheets.
+  const qtyCap = Math.min(MAX_SHEETS_PER_DESIGN, MAX_SHEETS_PER_ORDER - (orderSheets - qty));
+  // An empty cart has no shipping to price; 1 keeps the summary arithmetic valid.
+  const shippingSheets = Math.max(1, orderSheets);
+
   // What the server is told and what the summary prices: 'pickup' | 'standard' | 'tracked'.
-  const effectiveShippingMethod = shipping === 'pickup' ? 'pickup' : shippingMethod;
-  const shippingCost = getShippingCost(effectiveShippingMethod);
+  // Tracked only holds so many sheets — past that the order falls back to standard.
+  const effectiveShippingMethod = shipping === 'pickup' ? 'pickup' : resolveMethodForSheets(shippingMethod, shippingSheets);
+  const shippingCost = getShippingCost(effectiveShippingMethod, shippingSheets);
+  const shippingPackages = getShippingPackages(effectiveShippingMethod, shippingSheets);
   const total = designsSubtotal + shippingCost;
 
   useEffect(() => {
@@ -2935,6 +2954,7 @@ export default function EdiblePrintApp() {
   const addDesignFromFile = (file) => {
     if (!file) return;
     if (designs.length >= 5) { alert('Maximum 5 designs per order.'); return; }
+    if (atSheetLimit) { alert(orderLimitMessage()); return; }
     trackGA('add_to_design', { method: 'file_upload', design_count: designs.length + 1 });
     const reader = new FileReader();
     reader.onload = (ev) => {
@@ -2977,6 +2997,7 @@ export default function EdiblePrintApp() {
 
   const addTextOnlyDesign = () => {
     if (designs.length >= 5) { alert('Maximum 5 designs per order.'); return; }
+    if (atSheetLimit) { alert(orderLimitMessage()); return; }
     const newId = String(Date.now());
     const newShape = pendingShape || 'circular';
     const newSizeId = pendingSizeId || (SIZES[newShape]?.[SIZES[newShape].length - 1]?.id || 'c8');
@@ -3139,6 +3160,7 @@ export default function EdiblePrintApp() {
   const addDesignFromCustomerFile = (file) => {
     if (!file) return;
     if (designs.length >= 5) { alert('Maximum 5 designs per order.'); return; }
+    if (atSheetLimit) { alert(orderLimitMessage()); return; }
     const check = validateCustomerFilePick(file);
     if (!check.ok) { setUploadFileError(check.message); return; }
     setUploadFileError('');
@@ -3958,7 +3980,7 @@ export default function EdiblePrintApp() {
           {[
             ['What are edible prints made of?', 'We print on two food-safe materials: edible icing sheets (frosting sheets) and wafer paper. You pick which one when you choose your shape \u2014 both are available for Round, Heart, Square, Cookie Sheet, Full Sheet, and Custom prints, at the same price. Both use vibrant, water-based edible inks, are FDA-approved, and are tasteless \u2014 so they won\u2019t affect the flavour of your baked goods. Wafer paper is thinner and more delicate, absorbs moisture more easily, prints with slightly softer colour, and needs no transfer step.'],
             ['How do I apply the edible print?', 'Peel the backing sheet gently and lay the print directly onto a freshly frosted or fondant-covered surface. Press lightly from the centre outward to remove air bubbles. For best results, apply within 30 minutes of frosting and keep refrigerated until serving.'],
-            ['How long does shipping take?', `Free pickup is available at our London, Ontario location. We ship anywhere in Canada via Canada Post. Standard shipping ($${STANDARD_SHIPPING.price.toFixed(2)}) takes ${STANDARD_SHIPPING.minBusinessDays} to ${STANDARD_SHIPPING.maxBusinessDays} business days and does not include a tracking number. Tracked shipping ($${TRACKED_SHIPPING.price.toFixed(2)}) arrives in ${TRACKED_SHIPPING.minBusinessDays} to ${TRACKED_SHIPPING.maxBusinessDays} business days. Orders are printed within ${formatProductionWindow()} before shipping.`],
+            ['How long does shipping take?', `Free pickup is available at our London, Ontario location. We ship anywhere in Canada via Canada Post. Standard shipping ($${STANDARD_SHIPPING.price.toFixed(2)} per package of up to ${SHEETS_PER_PACKAGE} sheets) takes ${STANDARD_SHIPPING.minBusinessDays} to ${STANDARD_SHIPPING.maxBusinessDays} business days and does not include a tracking number. Tracked shipping ($${TRACKED_SHIPPING.price.toFixed(2)}) arrives in ${TRACKED_SHIPPING.minBusinessDays} to ${TRACKED_SHIPPING.maxBusinessDays} business days. Orders are printed within ${formatProductionWindow()} before shipping.`],
             ['What image resolution do I need for good quality?', 'We recommend a minimum of 1000×1000 pixels at 300 DPI. We review every order before printing — if we spot a quality issue with your file, we\'ll reach out before proceeding.'],
             ['Do you ship to all Canadian provinces and territories?', `Yes — we ship to all provinces and territories via Canada Post. ${shippingTimesSentence()}`],
             ['Can I order multiple copies of the same design?', 'Yes — simply increase the quantity at checkout. For bulk orders (20+ units), contact us for a volume pricing quote.'],
@@ -4440,8 +4462,9 @@ export default function EdiblePrintApp() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
                   <button onClick={() => setQty(Math.max(1, qty - 1))} style={{ width: 38, height: 38, borderRadius: 10, border: '1.5px solid ' + C.border, background: C.white, fontSize: 18, cursor: 'pointer', fontWeight: 600 }}>-</button>
                   <span style={{ fontSize: 20, fontWeight: 700, minWidth: 32, textAlign: 'center' }}>{qty}</span>
-                  <button onClick={() => setQty(qty + 1)} style={{ width: 38, height: 38, borderRadius: 10, border: '1.5px solid ' + C.border, background: C.white, fontSize: 18, cursor: 'pointer', fontWeight: 600 }}>+</button>
+                  <button onClick={() => setQty(Math.min(qtyCap, qty + 1))} disabled={qty >= qtyCap} aria-label="Increase quantity" style={{ width: 38, height: 38, borderRadius: 10, border: '1.5px solid ' + C.border, background: C.white, fontSize: 18, cursor: qty >= qtyCap ? 'not-allowed' : 'pointer', opacity: qty >= qtyCap ? 0.45 : 1, fontWeight: 600 }}>+</button>
                 </div>
+                {sheetLimitNote && <div style={{ marginTop: -8, marginBottom: 14 }}>{sheetLimitNote}</div>}
 
                 <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Notes for us (optional)</label>
                 <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything we should know?"
@@ -4818,8 +4841,9 @@ export default function EdiblePrintApp() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                 <button onClick={() => setQty(Math.max(1, qty - 1))} style={{ width: 38, height: 38, borderRadius: 10, border: '1.5px solid ' + C.border, background: C.white, fontSize: 18, cursor: 'pointer', fontWeight: 600 }}>-</button>
                 <span style={{ fontSize: 20, fontWeight: 700, minWidth: 32, textAlign: 'center' }}>{qty}</span>
-                <button onClick={() => setQty(qty + 1)} style={{ width: 38, height: 38, borderRadius: 10, border: '1.5px solid ' + C.border, background: C.white, fontSize: 18, cursor: 'pointer', fontWeight: 600 }}>+</button>
+                <button onClick={() => setQty(Math.min(qtyCap, qty + 1))} disabled={qty >= qtyCap} aria-label="Increase quantity" style={{ width: 38, height: 38, borderRadius: 10, border: '1.5px solid ' + C.border, background: C.white, fontSize: 18, cursor: qty >= qtyCap ? 'not-allowed' : 'pointer', opacity: qty >= qtyCap ? 0.45 : 1, fontWeight: 600 }}>+</button>
               </div>
+              {sheetLimitNote}
             </div>
 
             {/* 5. Background Fill — the prominent, always-visible control (most
@@ -5117,7 +5141,7 @@ export default function EdiblePrintApp() {
               ))}
               {shipping !== 'pickup' && (
                 <ShippingMethodSelector
-                  method={shippingMethod} onMethodChange={setShippingMethod}
+                  method={effectiveShippingMethod} sheets={shippingSheets} onMethodChange={setShippingMethod}
                   neededBy={neededBy} onNeededByChange={setNeededBy}
                   colors={C}
                 />
@@ -5152,9 +5176,10 @@ export default function EdiblePrintApp() {
                 )}
                 {shipping !== 'pickup' && (
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>{getShippingMethod(effectiveShippingMethod).label}</span><span style={{ fontWeight: 600 }}>{'$' + shippingCost.toFixed(2)}</span>
+                    <span>{getShippingMethod(effectiveShippingMethod).label}{shippingPackages > 1 ? ' (' + shippingPackages + ' packages)' : ''}</span><span style={{ fontWeight: 600 }}>{'$' + shippingCost.toFixed(2)}</span>
                   </div>
                 )}
+                {atSheetLimit && <div style={{ fontSize: 13, color: C.muted }}>{orderLimitMessage()}</div>}
                 <div style={{ borderTop: '1.5px solid ' + C.border, paddingTop: 12, display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 20 }}>
                   <span>Total</span>
                   <span style={{ color: C.brand }}>{'$' + total.toFixed(2)} <span style={{ fontSize: 13, fontWeight: 400, color: C.muted }}>CAD</span></span>

@@ -1,6 +1,9 @@
 import Stripe from 'stripe';
 import { NextResponse } from 'next/server';
-import { getShippingCost, getShippingMethod, normalizeShippingMethod, DEFAULT_SHIPPING_METHOD } from '../../../lib/shipping-config.js';
+import {
+  getShippingCost, getShippingPackages, getShippingMethod, normalizeShippingMethod, DEFAULT_SHIPPING_METHOD,
+  validateSheetQuantities, isMethodAvailable, TRACKED_UNAVAILABLE_MESSAGE,
+} from '../../../lib/shipping-config.js';
 import { CATALOG_PRICES, customShapePrice } from '../../../lib/catalog-prices.js';
 import { isValidEmail } from '../../../lib/validate-email.js';
 import { shapeSupportsMaterial, resolveMaterial } from '../../../lib/material-config.js';
@@ -34,9 +37,22 @@ export async function POST(request) {
       designs,
     } = body;
 
-    if (!designs || designs.length === 0) {
+    if (!Array.isArray(designs) || designs.length === 0) {
       return NextResponse.json({ error: 'No designs provided' }, { status: 400 });
     }
+
+    // Quantity is money twice over: it multiplies each design's price below
+    // AND sets how many packages the order ships in. It used to be trusted as
+    // sent, so 0, a negative, a decimal or a numeric string got through and a
+    // customer could pay less than the print cost. Every quantity must be a
+    // whole number from 1 to the per-design cap, and the order's total sheets
+    // can't pass the per-order cap (or its design count the metadata's).
+    // `sheets` from here on is the ONLY sheet count anything uses.
+    const sheetCheck = validateSheetQuantities(designs.map((d) => d?.quantity));
+    if (!sheetCheck.ok) {
+      return NextResponse.json({ error: sheetCheck.error }, { status: 400 });
+    }
+    const sheets = sheetCheck.sheets;
 
     if (!isValidEmail(customerEmail)) {
       return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
@@ -69,9 +85,17 @@ export async function POST(request) {
       neededByDate = neededByDateInput;
     }
 
-    // Shipping cost is recomputed server-side from lib/shipping-config.js,
-    // never trusted from the client, so the charged amount can't be tampered with.
-    const shippingCost = getShippingCost(shippingMethod);
+    // Tracked ships in one envelope with a fixed capacity: an order past it
+    // can't take that method, whatever the browser's selector said.
+    if (!isPickup && !isMethodAvailable(shippingMethod, sheets)) {
+      return NextResponse.json({ error: TRACKED_UNAVAILABLE_MESSAGE }, { status: 400 });
+    }
+
+    // Shipping cost is recomputed server-side from lib/shipping-config.js
+    // (per package, from the validated sheet count), never trusted from the
+    // client, so the charged amount can't be tampered with.
+    const shippingCost = getShippingCost(shippingMethod, sheets);
+    const shippingPackages = getShippingPackages(shippingMethod, sheets);
 
     // Every design's price is recomputed here from the catalog (by shape +
     // sizeId, or the area formula for shape === 'custom') and never trusted
@@ -145,11 +169,19 @@ export async function POST(request) {
 
     const shippingAmount = Math.round(shippingCost * 100);
 
-    // Per-design metadata (max 5 designs × 7 base keys = 35 + 9 customer
-    // keys = 44 total; Stripe's hard cap is 50 keys). d{i}_uploadMeta and
-    // d{i}_catalogId/d{i}_customText are each only added for their own flow
-    // (upload / catalog respectively — a design is never both), so ordinary
-    // editor orders never get closer to the cap than they already were.
+    // Metadata budget — Stripe's hard cap is 50 keys, and a 5-design editor
+    // order WITH a needed-by date uses exactly 50: 11 order-level keys
+    // (customerName, customerPhone, the 4 shippingAddress/City/Province/Postal,
+    // shippingMethod, shippingCost, neededByDate, designConfirmed,
+    // designConfirmedAt) + 4 packed design keys below (designCount, cutFlags,
+    // cutGuideFlags, customShapeKinds) + 5 designs × 7 base keys = 35.
+    // DO NOT ADD A KEY without removing one. That's why the package count is
+    // not stored here: the webhook derives it with getShippingPackages() from
+    // the d{i}_qty values and shippingMethod already in metadata, and saves it
+    // on the order. d{i}_uploadMeta and d{i}_catalogId/d{i}_customText are each
+    // only added for their own flow (upload / catalog respectively — a design
+    // is never both, and those flows have one design), so ordinary editor
+    // orders never get closer to the cap than they already were.
     // Each pair also doubles as its own sourceType marker: presence on a
     // design means "customer-supplied file" / "ready-made catalog design",
     // absence means the existing editor flow, so no separate
@@ -204,7 +236,10 @@ export async function POST(request) {
         ...(isPickup ? [] : [{
           price_data: {
             currency: 'cad',
-            product_data: { name: shippingInfo.label + ' (' + shippingInfo.carrier + ')' },
+            product_data: {
+              name: shippingInfo.label + ' (' + shippingInfo.carrier + ')'
+                + (shippingPackages > 1 ? ' — ' + shippingPackages + ' packages' : ''),
+            },
             unit_amount: shippingAmount,
           },
           quantity: 1,

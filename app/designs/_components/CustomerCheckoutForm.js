@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, cloneElement } from 'react';
-import { getShippingCost, getShippingMethod, DEFAULT_SHIPPING_METHOD } from '../../../lib/shipping-config.js';
+import {
+  getShippingCost, getShippingPackages, getShippingMethod, resolveMethodForSheets, DEFAULT_SHIPPING_METHOD,
+} from '../../../lib/shipping-config.js';
 import ShippingMethodSelector from '../../_components/ShippingMethodSelector';
 
 const C = {
@@ -40,9 +42,14 @@ export default function CustomerCheckoutForm({ design, unitPrice, designPayload,
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  // This flow is one design, so its sheets are its quantity (the server
+  // re-validates and recomputes from what it receives). Tracked only holds so
+  // many sheets — past that the order falls back to standard.
+  const sheets = Math.max(1, designPayload.quantity);
   // 'pickup' | 'standard' | 'tracked' — what the server is told and what the summary prices.
-  const effectiveShippingMethod = fulfillment === 'pickup' ? 'pickup' : shippingMethod;
-  const shippingCost = getShippingCost(effectiveShippingMethod);
+  const effectiveShippingMethod = fulfillment === 'pickup' ? 'pickup' : resolveMethodForSheets(shippingMethod, sheets);
+  const shippingCost = getShippingCost(effectiveShippingMethod, sheets);
+  const shippingPackages = getShippingPackages(effectiveShippingMethod, sheets);
   const total = unitPrice * designPayload.quantity + shippingCost;
 
   const handleSubmit = async (e) => {
@@ -118,7 +125,7 @@ export default function CustomerCheckoutForm({ design, unitPrice, designPayload,
         {fulfillment === 'shipping' && (
           <>
             <ShippingMethodSelector
-              method={shippingMethod} onMethodChange={setShippingMethod}
+              method={effectiveShippingMethod} sheets={sheets} onMethodChange={setShippingMethod}
               neededBy={neededBy} onNeededByChange={setNeededBy}
               colors={C}
             />
@@ -148,7 +155,7 @@ export default function CustomerCheckoutForm({ design, unitPrice, designPayload,
         <span>${(unitPrice * designPayload.quantity).toFixed(2)}</span>
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: C.muted, marginBottom: 12 }}>
-        <span>{fulfillment === 'pickup' ? 'Shipping' : getShippingMethod(effectiveShippingMethod).label}</span>
+        <span>{fulfillment === 'pickup' ? 'Shipping' : getShippingMethod(effectiveShippingMethod).label + (shippingPackages > 1 ? ' (' + shippingPackages + ' packages)' : '')}</span>
         <span>{shippingCost === 0 ? 'Free' : '$' + shippingCost.toFixed(2)}</span>
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 17, fontWeight: 700, color: C.text, marginBottom: 16 }}>

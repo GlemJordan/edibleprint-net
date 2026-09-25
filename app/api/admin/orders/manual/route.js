@@ -3,6 +3,7 @@ import { getAdminSession } from '../../../../../lib/admin-auth.js';
 import { buildManualOrderRecord, generateUniqueOrderId, saveOrderRecord, findRecentDuplicateManualOrders } from '../../../../../lib/order-record.js';
 import { generateOrderPdfs } from '../../../../../lib/order-pdf-pipeline.js';
 import { isValidEmail } from '../../../../../lib/validate-email.js';
+import { normalizeShippingMethod, isMethodAvailable, TRACKED_UNAVAILABLE_MESSAGE } from '../../../../../lib/shipping-config.js';
 
 const CHANNELS = ['marketplace', 'instagram', 'referral', 'walk_in', 'other'];
 const PAYMENT_METHODS = ['cash', 'e_transfer', 'other'];
@@ -33,9 +34,9 @@ export async function POST(request) {
   const {
     customerName, customerEmail, customerPhone,
     channel, paymentMethod,
-    shape, material, size, quantity,
+    shape, material, size, quantity: quantityInput,
     amountCents,
-    isPickup, shippingAddress,
+    shippingMethod: shippingMethodInput, isPickup: isPickupInput, shippingAddress,
     saleDate, notes,
     imageUrl,
     externalRef,
@@ -60,7 +61,28 @@ export async function POST(request) {
   if (!amountCents || amountCents <= 0) {
     return NextResponse.json({ error: 'Amount charged is required' }, { status: 400 });
   }
-  if (!isPickup && !shippingAddress?.line1) {
+
+  // How it leaves: 'pickup' | 'standard' | 'tracked', chosen on the form. A
+  // caller that still sends only the older isPickup flag reads as pickup or
+  // standard. The packages the order ships in are derived from this and the
+  // quantity in buildManualOrderRecord() — same function as the website.
+  const shippingMethod = shippingMethodInput == null
+    ? (isPickupInput ? 'pickup' : 'standard')
+    : normalizeShippingMethod(shippingMethodInput);
+  if (shippingMethod === null) {
+    return NextResponse.json({ error: 'Invalid shipping method' }, { status: 400 });
+  }
+  // The admin isn't held to the customer checkout's sheet cap (a big order
+  // agreed by hand is exactly what this form is for), but the quantity still
+  // has to be a real whole number: it's what the package count comes from.
+  const quantity = quantityInput === undefined ? 1 : quantityInput;
+  if (typeof quantity !== 'number' || !Number.isInteger(quantity) || quantity < 1) {
+    return NextResponse.json({ error: 'Quantity must be a whole number of at least 1' }, { status: 400 });
+  }
+  if (shippingMethod !== 'pickup' && !isMethodAvailable(shippingMethod, quantity)) {
+    return NextResponse.json({ error: TRACKED_UNAVAILABLE_MESSAGE }, { status: 400 });
+  }
+  if (shippingMethod !== 'pickup' && !shippingAddress?.line1) {
     return NextResponse.json({ error: 'Shipping address is required when not picking up' }, { status: 400 });
   }
 
@@ -81,7 +103,7 @@ export async function POST(request) {
     channel, paymentMethod,
     shape, material, size, quantity,
     amountCents,
-    isPickup, shippingAddress,
+    shippingMethod, shippingAddress,
     saleDate, notes,
     imageUrl,
     externalRef,

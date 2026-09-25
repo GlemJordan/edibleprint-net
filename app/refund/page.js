@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import LegalLayout from '../_components/LegalLayout';
-import { getShippingMethod } from '../../lib/shipping-config.js';
+import { standardNotArrivedSentence } from '../../lib/shipping-config.js';
 
 export const metadata = {
   title: 'Refund Policy — EdiblePrint.net',
@@ -51,10 +51,8 @@ export default function RefundPage() {
         shipped at our expense using expedited shipping when possible.
       </p>
       <p style={p}>
-        <strong>Standard shipping orders that don&apos;t arrive.</strong> If a standard shipping order has not
-        arrived {getShippingMethod('standard').maxBusinessDays} business days after it was mailed, contact us and we
-        will reprint and resend it once, at no cost (see our{' '}
-        <Link href="/shipping" style={{ color: C.brand }}>Shipping Policy</Link>).
+        <strong>Standard shipping orders that don&apos;t arrive.</strong> {standardNotArrivedSentence()} (See our{' '}
+        <Link href="/shipping" style={{ color: C.brand }}>Shipping Policy</Link>.)
       </p>
 
       <h2 style={h2}>Order Cancellations</h2>

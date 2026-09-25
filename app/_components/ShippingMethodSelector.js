@@ -4,6 +4,7 @@ import { useId } from 'react';
 import Link from 'next/link';
 import {
   getShippingMethods, describeShippingMethod, assessNeededByDate, formatProductionWindow,
+  isMethodAvailable, multiPackageNotice, TRACKED_UNAVAILABLE_MESSAGE,
 } from '../../lib/shipping-config.js';
 import { todayInBusinessTimezone } from '../../lib/delivery-urgency.js';
 
@@ -12,6 +13,9 @@ import { todayInBusinessTimezone } from '../../lib/delivery-urgency.js';
  * and its advisory warning. Rendered only when the customer chose to ship —
  * pickup never shows it. Every price, window and tracking statement comes
  * from lib/shipping-config.js; nothing about a method is written out here.
+ * Prices are what THIS order pays (shipping is per package, so it depends on
+ * `sheets`), tracked is disabled once the order outgrows its one envelope,
+ * and an order that splits across standard packages says so.
  *
  * Same component in both checkouts (app/page.js and
  * app/designs/_components/CustomerCheckoutForm.js). As with MaterialPicker,
@@ -23,17 +27,20 @@ import { todayInBusinessTimezone } from '../../lib/delivery-urgency.js';
  *
  * @param {{
  *   method: string,
+ *   sheets: number,
  *   onMethodChange: (id: string) => void,
  *   neededBy: string,
  *   onNeededByChange: (date: string) => void,
  *   colors: { brand: string, brandLight: string, border: string, text: string, muted: string, white: string },
  * }} props
  */
-export default function ShippingMethodSelector({ method, onMethodChange, neededBy, onNeededByChange, colors: C }) {
+export default function ShippingMethodSelector({ method, sheets, onMethodChange, neededBy, onNeededByChange, colors: C }) {
   const dateId = useId();
   // 'method-too-slow': another method would make the date. 'unreachable': none
   // would, so the message is about the date and shows whichever is selected.
   const assessment = assessNeededByDate(method, neededBy, todayInBusinessTimezone());
+  const trackedFits = isMethodAvailable('tracked', sheets);
+  const packagesNotice = multiPackageNotice(method, sheets);
   const warning = assessment === 'unreachable'
     ? 'We may not be able to deliver by that date. Please contact us before placing your order.'
     : assessment === 'method-too-slow'
@@ -48,15 +55,17 @@ export default function ShippingMethodSelector({ method, onMethodChange, neededB
       <div role="radiogroup" aria-label="Shipping method">
         {getShippingMethods().map((m) => {
           const selected = method === m.id;
+          const disabled = m.id === 'tracked' && !trackedFits;
           return (
             <label key={m.id} style={{
               display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 14px', borderRadius: 12,
               border: selected ? '2.5px solid ' + C.brand : '2px solid ' + C.border,
-              background: selected ? C.brandLight : C.white, marginBottom: 8, cursor: 'pointer',
+              background: selected ? C.brandLight : C.white, marginBottom: 8,
+              cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.55 : 1,
             }}>
               <input
                 type="radio" name="shipping-method" value={m.id}
-                checked={selected} onChange={() => onMethodChange(m.id)}
+                checked={selected} disabled={disabled} onChange={() => onMethodChange(m.id)}
                 style={{ accentColor: C.brand, width: 18, height: 18, marginTop: 2, flexShrink: 0 }}
               />
               <span style={{ minWidth: 0 }}>
@@ -64,12 +73,20 @@ export default function ShippingMethodSelector({ method, onMethodChange, neededB
                   {m.label} — {m.carrier}
                 </span>
                 <span style={{ display: 'block', fontSize: 12.5, color: C.muted, marginTop: 2 }}>
-                  {describeShippingMethod(m)}
+                  {describeShippingMethod(m, sheets)}
                 </span>
               </span>
             </label>
           );
         })}
+      </div>
+      <div role="status" aria-live="polite">
+        {!trackedFits && (
+          <p style={{ margin: '0 0 8px', fontSize: 13, lineHeight: 1.5, color: C.muted }}>{TRACKED_UNAVAILABLE_MESSAGE}</p>
+        )}
+        {packagesNotice && (
+          <p style={{ margin: '0 0 8px', fontSize: 13, lineHeight: 1.5, color: C.text, fontWeight: 600 }}>{packagesNotice}</p>
+        )}
       </div>
 
       <div style={{ marginTop: 14 }}>

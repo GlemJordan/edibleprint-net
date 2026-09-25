@@ -3,7 +3,11 @@
 // must come from lib/shipping-config.js, and the legal pages must agree with
 // each other. Pure text checks against rendered pages — nothing is submitted.
 import { chromium } from 'playwright';
-import { getShippingMethod, shippingTimesSentence, formatProductionWindow, formatBusinessDayRange, describeShippingMethod } from '../lib/shipping-config.js';
+import {
+  getShippingMethod, shippingTimesSentence, formatProductionWindow, formatBusinessDayRange, describeShippingMethod,
+  getShippingPackages, getShippingCost, orderLimitMessage, SHEETS_PER_PACKAGE, TRACKED_MAX_SHEETS,
+  standardNotArrivedSentence,
+} from '../lib/shipping-config.js';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 const STD = getShippingMethod('standard');
@@ -43,8 +47,9 @@ const check = (test, pass, detail) => results.push({ test, pass: !!pass, ...(pas
   check('sentence from config matches the agreed wording',
     general === 'Standard shipping takes 3 to 10 business days and does not include a tracking number. Tracked shipping arrives in 1 to 2 business days.', general);
   check('/: FAQ carries the general shipping sentence', pages['/'].includes(general));
-  check('/: FAQ states both prices from config',
-    pages['/'].includes(`Standard shipping ($${STD.price.toFixed(2)})`) && pages['/'].includes(`Tracked shipping ($${TRK.price.toFixed(2)})`));
+  check('/: FAQ states both prices from config, standard per package',
+    pages['/'].includes(`Standard shipping ($${STD.price.toFixed(2)} per package of up to ${SHEETS_PER_PACKAGE} sheets)`)
+    && pages['/'].includes(`Tracked shipping ($${TRK.price.toFixed(2)})`));
   check('/: FAQ says orders are printed within the production window',
     pages['/'].includes(`Orders are printed within ${formatProductionWindow()} before shipping.`));
   check('/: delivery bar names both methods with business days',
@@ -62,9 +67,11 @@ const check = (test, pass, detail) => results.push({ test, pass: !!pass, ...(pas
 
   check('/terms: carries the general shipping sentence', pages['/terms'].includes(general));
   check('/terms: carve-out points to the Shipping Policy', pages['/terms'].includes('Except as described in our Shipping Policy'));
-  check('/refund: lost standard orders get a one-time reprint',
-    pages['/refund'].includes(`has not arrived ${STD.maxBusinessDays} business days after it was mailed`)
-    && pages['/refund'].includes('reprint and resend it once, at no cost'));
+  const NOT_ARRIVED = `If part of a standard shipping order has not arrived ${STD.maxBusinessDays} business days after it was mailed, contact us and we will reprint and resend that part once, at no cost.`;
+  check('/refund: only the part that did not arrive is reprinted, once, at no cost', pages['/refund'].includes(NOT_ARRIVED));
+  check('the not-arrived sentence is the config one, word for word', standardNotArrivedSentence() === NOT_ARRIVED, standardNotArrivedSentence());
+  check('/refund + /shipping: no page still promises to reprint "it" (the whole order)',
+    !/reprint and resend it once/.test(pages['/refund']) && !/reprint and resend it once/.test(pages['/shipping']));
   check('/terms + /refund + /shipping: same "Last updated" date',
     ['/terms', '/refund', '/shipping'].every((path) => pages[path].includes('Last updated: September 25, 2026')));
   const ship = pages['/shipping'];
@@ -73,11 +80,16 @@ const check = (test, pass, detail) => results.push({ test, pass: !!pass, ...(pas
     check(`/shipping: lists ${m.id} with carrier, price, window and tracking from config`,
       ship.includes(`${m.label} — ${m.carrier} ${describeShippingMethod(m)}`), describeShippingMethod(m));
   }
+  check('/shipping: explains per-package standard, one-package tracked, and the order limit (all from config)',
+    ship.includes(`Standard shipping is charged for each package of up to ${SHEETS_PER_PACKAGE} sheets: an order of 5 sheets ships in ${getShippingPackages('standard', 5)} packages and costs $${getShippingCost('standard', 5).toFixed(2)}.`)
+    && ship.includes(`Tracked shipping sends your whole order in one package for one price, up to ${TRACKED_MAX_SHEETS} sheets.`)
+    && ship.includes(orderLimitMessage()));
   check('/shipping: free local pickup line', ship.includes('Free local pickup is available in London, Ontario.'));
   check('/shipping: production time from config, delivery times start at shipping',
     ship.includes(`Orders are printed within ${formatProductionWindow()} before they are shipped. The delivery times above start once your order ships.`));
-  check('/shipping: lost standard orders get a one-time reprint (same wording as /refund)',
-    ship.includes(`has not arrived ${STD.maxBusinessDays} business days after it was mailed, contact us and we will reprint and resend it once, at no cost.`));
+  check('/shipping: says exactly the same not-arrived rule as /refund', ship.includes(NOT_ARRIVED));
+  check('/refund and /shipping both point at the same 10-business-day window and neither offers a full-order reprint',
+    pages['/refund'].includes(NOT_ARRIVED) && ship.includes(NOT_ARRIVED));
   check('/shipping: recommends tracked for deadlines and has the address + deadline sections',
     ship.includes('we recommend tracked shipping') && ship.includes('Your address') && ship.includes('Orders with a deadline'));
   check('/shipping: old lost-package rule is gone',

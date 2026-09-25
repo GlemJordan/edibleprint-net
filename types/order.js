@@ -35,6 +35,10 @@
  *   shippingMethod?: 'pickup' | 'standard' | 'tracked',
  *   shippingCarrier?: string,
  *   shippingCostCharged?: number,
+ *   // Packages the order ships in (0 for pickup): one per SHEETS_PER_PACKAGE
+ *   // sheets for standard, one for tracked. Absent on orders saved before
+ *   // per-package shipping — those were charged for a single package.
+ *   shippingPackages?: number,
  *   // Customer's optional "needed by" date, YYYY-MM-DD. Informational; not
  *   // the same as committedDate, which the owner decides.
  *   neededByDate?: string,

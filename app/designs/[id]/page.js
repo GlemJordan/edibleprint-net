@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import { getDesignById, getCategories } from '../../../lib/design-catalog.js';
 import { sizesForShape, findSize } from '../../../lib/catalog-design-sizes.js';
 import { CATALOG_PRICES } from '../../../lib/catalog-prices.js';
+import { MAX_SHEETS_PER_ORDER, orderLimitMessage } from '../../../lib/shipping-config.js';
 import { shapeDisplayLabel } from '../../../lib/paper-config.js';
 import { CATALOG_FONTS, CATALOG_TEXT_COLORS, drawCoverFit, drawZoneText } from '../../../lib/catalog-text-render.js';
 import SheetPreview from '../_components/SheetPreview.js';
@@ -137,7 +138,7 @@ export default function CustomizeDesignPage() {
         customW: '',
         customH: '',
         customShapeKind: '',
-        quantity: Math.max(1, parseInt(quantity, 10) || 1),
+        quantity: Math.min(MAX_SHEETS_PER_ORDER, Math.max(1, parseInt(quantity, 10) || 1)),
         unitPrice,
         imageUrl,
         catalogDesignId: design.id,
@@ -194,7 +195,13 @@ export default function CustomizeDesignPage() {
               </FieldGroup>
 
               <FieldGroup label="Quantity">
-                <input type="number" min="1" style={{ ...inputStyle, maxWidth: 100 }} value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+                <input
+                  type="number" min="1" max={MAX_SHEETS_PER_ORDER} style={{ ...inputStyle, maxWidth: 100 }} value={quantity}
+                  onChange={(e) => setQuantity(parseInt(e.target.value, 10) > MAX_SHEETS_PER_ORDER ? String(MAX_SHEETS_PER_ORDER) : e.target.value)}
+                />
+                {(parseInt(quantity, 10) || 0) >= MAX_SHEETS_PER_ORDER && (
+                  <p role="status" style={{ margin: '8px 0 0', fontSize: 13, color: C.muted }}>{orderLimitMessage()}</p>
+                )}
               </FieldGroup>
 
               <FieldGroup label="Name *">

@@ -6,7 +6,7 @@ import { withRetry } from '../../../lib/with-retry.js';
 import { BUSINESS_ADDRESS_ONE_LINE, BUSINESS_PHONE_DISPLAY } from '../../../lib/business-info.js';
 import { resolveMaterial, materialDisplayLabel } from '../../../lib/material-config.js';
 import { decodeCustomShapeKind } from '../../../lib/cut-guide-config.js';
-import { getShippingMethod, normalizeShippingMethod } from '../../../lib/shipping-config.js';
+import { getShippingMethod, normalizeShippingMethod, getShippingPackages, countSheets } from '../../../lib/shipping-config.js';
 import { confirmationShippingBlock } from '../../../lib/shipping-email.js';
 
 // CASL sender-identification footer for the 4 customer/admin-facing
@@ -315,7 +315,12 @@ async function processOrder(session, orderId) {
   const totalAmt    = session.amount_total / 100;
 
   const shippingInfo = isPickup ? null : getShippingMethod(normalizeShippingMethod(meta.shippingMethod));
-  const shippingLabel = isPickup ? 'Pickup — East London, ON' : shippingInfo.label + ' — ' + shippingInfo.carrier;
+  // Same derivation buildOrderRecord saves as record.shippingPackages, so the
+  // emails and the stored order can't disagree about how many packages ship.
+  const shippingPackages = isPickup ? 0 : getShippingPackages(shippingInfo.id, countSheets(designs.map((d) => d.qty)));
+  const shippingLabel = isPickup
+    ? 'Pickup — East London, ON'
+    : shippingInfo.label + ' — ' + shippingInfo.carrier + (shippingPackages > 1 ? ' — ' + shippingPackages + ' packages' : '');
   // Customer-email block: what they bought and how long it takes once it ships.
   const shippingBlock = shippingInfo
     ? confirmationShippingBlock(shippingInfo, (process.env.NEXT_PUBLIC_SITE_URL || 'https://edibleprint.net') + '/shipping')
