@@ -8,6 +8,7 @@
 // answered here with fabricated orders, so no production data is read or
 // written and no admin login is needed.
 import { chromium } from 'playwright';
+import { deliverDispatchEmail, prepareDispatchEmail } from '../lib/dispatch-email-send.js';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 
@@ -59,7 +60,23 @@ const SHIPPED_ALREADY = base('EP-DONE', {
   shipping: { method: 'canada_post_shipping', label: 'Canada Post Xpresspost', address },
   production: { status: 'shipped', updatedAt: '2026-09-26T16:00:00.000Z' }, shippedAt: '2026-09-26', trackingNumber: 'RB123456789CA',
 });
-const RECORDS = Object.fromEntries([NEW_STANDARD, NEW_TRACKED, NEW_PICKUP, MANUAL_TRACKED, OLD_SHIP, OLD_PICKUP, SHIPPED_ALREADY].map((r) => [r.orderId, r]));
+// For the customer-email tests: a standard order with a ship date but no customer email; a TEST order
+// (Stripe test mode) that must only ever reach the owner; a tracked order ready to send.
+const NO_EMAIL = base('EP-NOML', {
+  designs: [design(1)], shippingMethod: 'standard', shippingPackages: 1, shippedAt: '2026-09-25', customer: { name: 'No Email' },
+  shipping: { method: 'canada_post_shipping', label: 'Canada Post Lettermail', address },
+});
+const TEST_ORDER = base('EP-TEST', {
+  isTest: true, designs: [design(1)], shippingMethod: 'standard', shippingPackages: 1, shippedAt: '2026-09-25',
+  customer: { name: 'Real Looking Customer', email: 'real.customer@example.com' },
+  shipping: { method: 'canada_post_shipping', label: 'Canada Post Lettermail', address },
+});
+const READY_TRACKED = base('EP-RDY1', {
+  designs: [design(2)], shippingMethod: 'tracked', shippingPackages: 1, shippingCostCharged: 29.99, shippedAt: '2026-09-25', trackingNumber: 'RB123456789CA',
+  customer: { name: 'Ready Customer', email: 'ready@example.com' },
+  shipping: { method: 'canada_post_shipping', label: 'Canada Post Xpresspost', address },
+});
+const RECORDS = Object.fromEntries([NEW_STANDARD, NEW_TRACKED, NEW_PICKUP, MANUAL_TRACKED, OLD_SHIP, OLD_PICKUP, SHIPPED_ALREADY, NO_EMAIL, TEST_ORDER, READY_TRACKED].map((r) => [r.orderId, r]));
 
 // List rows exactly as GET /api/admin/orders shapes them; the two old ones omit
 // the new keys entirely, as a row from before this change would.
@@ -85,28 +102,61 @@ async function newAdminPage(browser, viewport = { width: 1400, height: 1000 }) {
   const problems = [];
   const dispatchPosts = [];
   const statusPosts = [];
+  // A private, mutable copy of the fabricated orders: saves in this page change what the next read shows.
+  const records = structuredClone(RECORDS);
+  // What the (real) email code sees as its environment, and what its fake "Resend" was asked to send.
+  const emailEnv = { EMAIL_MODE: 'dry-run', RESEND_API_KEY: 'key_test', ORDER_NOTIFICATION_EMAIL: 'me@example.com' };
+  const emailGets = [];
+  const emailPosts = [];
+  const resendCalls = [];
+  const fakeResend = async (url, init) => { resendCalls.push(JSON.parse(init.body)); return { ok: true, status: 200, text: async () => '' }; };
   page.on('pageerror', (e) => problems.push('pageerror: ' + e.message));
   page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) problems.push('console: ' + m.text()); });
   await page.route('**/api/admin/check', (r) => r.fulfill({ json: { isAdmin: true } }));
   await page.route(/\/api\/admin\/orders(\?.*)?$/, (r) => r.fulfill({ json: { orders: LIST, nextCursor: null, scannedAllResults: true } }));
   await page.route(/\/api\/admin\/orders\/(EP-[A-Z0-9]+)$/, (r) => {
     const id = /(EP-[A-Z0-9]+)$/.exec(r.request().url())[1];
-    return RECORDS[id] ? r.fulfill({ json: RECORDS[id] }) : r.fulfill({ status: 404, json: { error: 'Not found' } });
+    return records[id] ? r.fulfill({ json: records[id] }) : r.fulfill({ status: 404, json: { error: 'Not found' } });
   });
   await page.route(/\/api\/admin\/orders\/EP-[A-Z0-9]+\/status$/, async (r) => {
     const body = r.request().postDataJSON();
     const id = /(EP-[A-Z0-9]+)\/status$/.exec(r.request().url())[1];
     statusPosts.push({ id, ...body });
     if (id === 'EP-NEW1') return r.fulfill({ status: 500, json: { error: 'Cloudinary hiccup' } }); // the failure case
+    records[id].production = { ...records[id].production, status: body.status };
     return r.fulfill({ json: { ok: true, orderId: id, status: body.status, updatedAt: '2026-09-28T12:00:00.000Z' } });
   });
   await page.route(/\/api\/admin\/orders\/EP-[A-Z0-9]+\/dispatch$/, async (r) => {
     const body = r.request().postDataJSON();
     dispatchPosts.push(body);
     if (body.trackingNumber === 'FORCE-ERROR') return r.fulfill({ status: 400, json: { error: 'trackingNumber can only use letters' } });
-    return r.fulfill({ json: { ok: true, shippedAt: body.shippedAt ?? null, trackingNumber: body.trackingNumber ?? null } });
+    const id = /(EP-[A-Z0-9]+)\/dispatch$/.exec(r.request().url())[1];
+    for (const key of ['shippedAt', 'trackingNumber']) {
+      if (!(key in body)) continue;
+      if (body[key]) records[id][key] = body[key]; else delete records[id][key];
+    }
+    return r.fulfill({ json: { ok: true, shippedAt: records[id].shippedAt ?? null, trackingNumber: records[id].trackingNumber ?? null } });
   });
-  return { page, problems, dispatchPosts, statusPosts, ctx };
+  // The customer-email endpoint: the REAL preview/send code from lib/, against the fake order and a fake Resend.
+  await page.route(/\/api\/admin\/orders\/EP-[A-Z0-9]+\/dispatch-email$/, async (r) => {
+    const id = /(EP-[A-Z0-9]+)\/dispatch-email$/.exec(r.request().url())[1];
+    const rec = records[id];
+    if (r.request().method() === 'GET') {
+      emailGets.push(id);
+      if (rec.shippingMethod === 'pickup') return r.fulfill({ status: 400, json: { error: 'Pickup orders are not shipped, so there is no shipping email.' } });
+      return r.fulfill({ json: prepareDispatchEmail(rec, { env: emailEnv, siteUrl: 'https://edibleprint.net', today: '2026-09-28' }) });
+    }
+    const body = r.request().postDataJSON() || {};
+    emailPosts.push({ id, ...body });
+    try {
+      const result = await deliverDispatchEmail(rec, { resend: body.resend === true, env: emailEnv, fetchImpl: fakeResend, now: new Date('2026-09-28T15:00:00.000Z'), siteUrl: 'https://edibleprint.net' });
+      rec.notifications = { ...rec.notifications, ...result.notifications };
+      return r.fulfill({ json: { ok: true, mode: result.mode, sent: result.sent, to: result.to, subject: result.subject, redirected: result.redirected, at: result.at, notifications: result.notifications, recorded: true } });
+    } catch (e) {
+      return r.fulfill({ status: e.status || 500, json: { error: e.message, code: e.code } });
+    }
+  });
+  return { page, problems, dispatchPosts, statusPosts, emailEnv, emailGets, emailPosts, resendCalls, records, ctx };
 }
 
 const section = (page, title) => page.locator('h3', { hasText: new RegExp('^' + title + '$', 'i') }).locator('..');
@@ -297,6 +347,129 @@ async function openDetail(page, id) {
     await page.getByText(/^Error: Cloudinary hiccup/).waitFor();
     check('shipped prompt: a failed status change shows the error, keeps the prompt, and the status stays', await prompt().isVisible() && (await statusSelect()) === 'printed');
     check('shipped prompt: no page errors', problems.length === 0, problems);
+    await ctx.close();
+  }
+
+  // ── Customer shipping email: preview, guarded send, explicit resend ──
+  {
+    const { page, problems, statusPosts, emailEnv, emailGets, emailPosts, resendCalls, ctx } = await newAdminPage(browser);
+    const box = () => page.getByTestId('customer-email');
+    const sendBtn = () => page.getByRole('button', { name: /^(Send shipping email|Shipping email sent|Sending…)$/ });
+    const saveDispatch = page.getByRole('button', { name: 'Save dispatch details' });
+    const previewFrame = () => page.frameLocator('iframe[title="Customer email preview"]').locator('body');
+    const inbox = async () => text(box());
+    const setDispatch = async (date, tracking) => {
+      if (date !== undefined) await page.getByLabel('Shipped on').fill(date);
+      if (tracking !== undefined) await page.getByLabel('Tracking number').fill(tracking);
+      await saveDispatch.click();
+      await page.getByText('Saved ✓').last().waitFor();
+    };
+
+    // 1. Tracked order, nothing recorded yet
+    await openDetail(page, 'EP-NEW2');
+    await box().waitFor();
+    check('email: the Customer email section is there (dry-run banner shown)', (await inbox()).includes('Email mode: DRY RUN'), await inbox());
+    check('email: not sent yet is stated', (await inbox()).includes('Shipping email not sent yet'));
+    check('email: Send is disabled without a ship date, and says why', await sendBtn().isDisabled() && (await inbox()).includes('Save a ship date first: a shipping email needs one.'), await inbox());
+
+    await page.getByRole('button', { name: 'Preview customer email' }).click();
+    await page.getByTestId('email-preview').waitFor();
+    const pv = await text(page.getByTestId('email-preview'));
+    check('email preview: shows subject, recipient, and that no ship date is saved yet (assumes today)',
+      pv.includes('Subject: Your EdiblePrint order EP-NEW2 has shipped') && pv.includes('To: fake@example.com') && pv.includes('No ship date is saved yet, so this assumes today (2026-09-28)'), pv);
+    check('email preview: the email itself is rendered, with the tracking placeholder for a tracked order not yet numbered',
+      (await text(previewFrame())).includes('Your order has shipped') && (await text(previewFrame())).includes('(tracking number not recorded yet)'), await text(previewFrame()));
+    check('email preview: reading it sent nothing and changed nothing', emailPosts.length === 0 && resendCalls.length === 0);
+
+    await setDispatch('2026-09-25');
+    check('email: after saving a date, tracked still cannot send until the number is recorded', await sendBtn().isDisabled() && (await inbox()).includes('Record the tracking number first'), await inbox());
+    await setDispatch(undefined, 'RB123456789CA');
+    await page.waitForFunction(() => { const b = [...document.querySelectorAll('button')].find((x) => x.textContent === 'Send shipping email'); return b && !b.disabled; });
+    check('email: with date and tracking number, Send is enabled', await sendBtn().isEnabled());
+    check('email: saving the date and the number sent NO email by itself', emailPosts.length === 0 && resendCalls.length === 0);
+    const pv2 = await text(previewFrame());
+    check('email preview (after saving): real ship date, expected-by (Sep 29), tracking number and Canada Post link',
+      pv2.includes('Friday, September 25, 2026') && pv2.includes('Tuesday, September 29, 2026') && pv2.includes('RB123456789CA')
+      && (await page.frameLocator('iframe[title="Customer email preview"]').getByRole('link', { name: 'Track your package' }).getAttribute('href')) === 'https://www.canadapost-postescanada.ca/track-reperage/en#/details/RB123456789CA', pv2);
+
+    // marking as shipped is its own action and must not send anything
+    await page.getByText('This order is not marked as shipped. Mark as shipped?', { exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Mark as shipped' }).click();
+    await page.getByText('Marked as shipped ✓').waitFor();
+    check('email: marking the order shipped changed the status but sent NO email', statusPosts.some((s) => s.id === 'EP-NEW2' && s.status === 'shipped') && emailPosts.length === 0 && resendCalls.length === 0);
+
+    // 2. Dry run: recorded, sends nothing, does not lock the button
+    await sendBtn().click();
+    await page.getByText(/^Dry run: nothing was sent/).waitFor();
+    check('email dry-run: the request was made, but nothing reached the (fake) email service', emailPosts.length === 1 && resendCalls.length === 0, { emailPosts, resendCalls });
+    check('email dry-run: records what would have been sent, and to whom', (await inbox()).includes('Last dry run:') && (await inbox()).includes('would have sent to fake@example.com'), await inbox());
+    check('email dry-run: still says not sent, and Send stays available', (await inbox()).includes('Shipping email not sent yet') && await sendBtn().isEnabled());
+
+    // 3. Live mode → really sends, once
+    emailEnv.EMAIL_MODE = 'send';
+    await openDetail(page, 'EP-NEW2');
+    await box().waitFor();
+    check('email send-mode: the dry-run banner is gone', !(await inbox()).includes('DRY RUN'));
+    await sendBtn().click();
+    await page.getByText(/^Sent ✓ to fake@example.com/).waitFor();
+    check('email send: exactly one email went out, to the customer', resendCalls.length === 1 && resendCalls[0].to.join() === 'fake@example.com' && emailPosts[emailPosts.length - 1].resend === undefined, resendCalls);
+    check('email send: the button now reads "Shipping email sent" and is disabled', await sendBtn().innerText() === 'Shipping email sent' && await sendBtn().isDisabled());
+    check('email send: shows when it was sent and to whom', /Shipping email sent on .* to fake@example\.com/.test(await inbox()), await inbox());
+    check('email send: there is no second automatic send', resendCalls.length === 1);
+
+    // 4. Resending is a separate, explicit action
+    await page.getByRole('button', { name: 'Send again…' }).click();
+    await page.getByRole('alert').filter({ hasText: 'Send it again?' }).waitFor();
+    check('email resend: asks first ("was already sent to … Send it again?")', (await text(page.getByRole('alert').filter({ hasText: 'Send it again?' }))).includes('fake@example.com'));
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    check('email resend: Cancel sends nothing', resendCalls.length === 1 && (await page.getByRole('button', { name: 'Yes, send it again' }).count()) === 0);
+    await page.getByRole('button', { name: 'Send again…' }).click();
+    await page.getByRole('button', { name: 'Yes, send it again' }).click();
+    await page.getByText(/sent 2 times/).waitFor();
+    check('email resend: "Yes, send it again" sends with resend:true and counts 2', resendCalls.length === 2 && emailPosts[emailPosts.length - 1].resend === true, emailPosts);
+    check('email: no page errors so far', problems.length === 0, problems);
+    await ctx.close();
+  }
+
+  {
+    // 5. No customer email
+    const { page, emailPosts, ctx } = await newAdminPage(browser);
+    await openDetail(page, 'EP-NOML');
+    await page.getByTestId('customer-email').waitFor();
+    const b = page.getByRole('button', { name: 'Send shipping email' });
+    check('email: an order with no customer email cannot send, and says nobody to notify',
+      await b.isDisabled() && (await text(page.getByTestId('customer-email'))).includes('This order has no customer email, so there is nobody to notify.'));
+    check('email: a disabled Send sends nothing', emailPosts.length === 0);
+    await ctx.close();
+  }
+
+  {
+    // 6. TEST order in live mode: only ever the owner
+    const { page, emailEnv, emailPosts, resendCalls, ctx } = await newAdminPage(browser);
+    emailEnv.EMAIL_MODE = 'send';
+    await openDetail(page, 'EP-TEST');
+    await page.getByTestId('customer-email').waitFor();
+    check('email test order: says the email goes to the owner, never the customer',
+      (await text(page.getByTestId('customer-email'))).includes('Test order: the email goes to you (me@example.com), never to the customer.'));
+    await page.getByRole('button', { name: 'Preview customer email' }).click();
+    const pv = await text(page.getByTestId('email-preview'));
+    check('email test order: the preview shows the owner as recipient, the [TEST] subject, and who it would have gone to',
+      pv.includes('Subject: [TEST] Your EdiblePrint order EP-TEST has shipped') && pv.includes('To: me@example.com') && pv.includes('instead of real.customer@example.com'), pv);
+    await page.getByRole('button', { name: 'Send shipping email' }).click();
+    await page.getByText(/^Sent ✓ to me@example.com/).waitFor();
+    check('email test order: the only recipient of the real send is the owner — the customer address never appears in "to"',
+      resendCalls.length === 1 && resendCalls[0].to.join() === 'me@example.com' && !JSON.stringify(resendCalls[0].to).includes('real.customer') && resendCalls[0].subject.startsWith('[TEST] '), resendCalls);
+    check('email test order: the panel says it went to the owner', (await text(page.getByTestId('customer-email'))).includes('test order: delivered to you, not the customer'));
+    check('email test order: one request only', emailPosts.length === 1);
+    await ctx.close();
+  }
+
+  {
+    // 7. Pickup orders: no email section, and the preview endpoint is never asked
+    const { page, emailGets, ctx } = await newAdminPage(browser);
+    await openDetail(page, 'EP-PICK');
+    check('email pickup: no Customer email section', (await page.getByTestId('customer-email').count()) === 0);
+    check('email pickup: the preview is never requested', emailGets.length === 0, emailGets);
     await ctx.close();
   }
 

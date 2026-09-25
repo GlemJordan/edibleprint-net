@@ -26,6 +26,7 @@ const DEFAULT_TESTS = [
   'checkout-pricing.mjs',
   'order-packages.mjs',
   'dispatch-info.mjs',
+  'dispatch-email.mjs',
 ];
 
 // Hits real Cloudinary + creates a real (unpaid, self-expiring) Stripe

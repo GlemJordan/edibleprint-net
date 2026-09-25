@@ -8,6 +8,7 @@ import { shapeSupportsCutGuide, hasLegacyBakedGuide } from '../../../../lib/cut-
 import { VALID_STATUSES } from '../../../../lib/production-status.js';
 import { computeUrgency, URGENCY_LABELS, URGENCY_COLORS } from '../../../../lib/delivery-urgency.js';
 import { resolveOrderDispatch, formatPackageCount } from '../../../../lib/shipping-config.js';
+import { dispatchEmailStatus } from '../../../../lib/dispatch-email.js';
 
 // 'YYYY-MM-DD' as a plain calendar date (no timezone shift), e.g. "Thu, Oct 1, 2026".
 function formatCalendarDate(ymd) {
@@ -61,6 +62,14 @@ export default function AdminOrderDetailPage({ params }) {
   const [offerShipped, setOfferShipped] = useState(false);
   const [markingShipped, setMarkingShipped] = useState(false);
   const [markShippedMsg, setMarkShippedMsg] = useState('');
+  // The customer shipping email — a decision of its own, separate from the status
+  // and from saving a date. emailInfo is the server's preview (no side effects).
+  const [emailInfo, setEmailInfo] = useState(null);
+  const [emailInfoError, setEmailInfoError] = useState('');
+  const [showEmailPreview, setShowEmailPreview] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [emailMsg, setEmailMsg] = useState('');
+  const [confirmResend, setConfirmResend] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [regenerateMsg, setRegenerateMsg] = useState('');
 
@@ -84,10 +93,47 @@ export default function AdminOrderDetailPage({ params }) {
         setCommittedDateDraft(d.committedDate || '');
         setShippedAtDraft(d.shippedAt || '');
         setTrackingDraft(d.trackingNumber || '');
+        if (resolveOrderDispatch(d).method !== 'pickup') refreshEmailInfo();
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [authChecked, isAdmin, id]);
+
+  const refreshEmailInfo = async () => {
+    try {
+      const res = await fetch(`/api/admin/orders/${id}/dispatch-email`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to load the email preview');
+      setEmailInfo(data);
+      setEmailInfoError('');
+    } catch (e) {
+      setEmailInfoError(e.message);
+    }
+  };
+
+  const sendShippingEmail = async (resend) => {
+    setSendingEmail(true);
+    setEmailMsg('');
+    try {
+      const res = await fetch(`/api/admin/orders/${id}/dispatch-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(resend ? { resend: true } : {}),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to send the email');
+      setOrder((o) => ({ ...o, notifications: { ...o.notifications, ...data.notifications } }));
+      setConfirmResend(false);
+      setEmailMsg(data.sent
+        ? 'Sent ✓ to ' + data.to + (data.redirected ? ' (test order: it went to you, not the customer)' : '') + (data.warning ? ' — ' + data.warning : '')
+        : 'Dry run: nothing was sent. It would have gone to ' + data.to + '. Recorded below.');
+      refreshEmailInfo();
+    } catch (e) {
+      setEmailMsg('Error: ' + e.message);
+    } finally {
+      setSendingEmail(false);
+    }
+  };
 
   const saveStatus = async () => {
     setSaving(true);
@@ -146,6 +192,7 @@ export default function AdminOrderDetailPage({ params }) {
       setDispatchMsg('Saved ✓');
       setMarkShippedMsg('');
       setOfferShipped(!!data.shippedAt && order?.production?.status !== 'shipped');
+      refreshEmailInfo();
     } catch (e) {
       setDispatchMsg('Error: ' + e.message);
     } finally {
@@ -344,6 +391,111 @@ export default function AdminOrderDetailPage({ params }) {
                     ? 'This customer paid for tracking — record the number from the Canada Post receipt.'
                     : 'Standard shipping has no tracking number; leave it blank.'}
                 </div>
+
+                {(() => {
+                  const st = dispatchEmailStatus(order);
+                  const smallMuted = { fontSize: 12.5, color: C.muted, marginTop: 6 };
+                  const btn = (enabled) => ({
+                    padding: '8px 16px', borderRadius: 8, fontWeight: 600, fontFamily: 'inherit', fontSize: 14,
+                    cursor: enabled ? 'pointer' : 'not-allowed', opacity: enabled ? 1 : 0.5,
+                  });
+                  const n = order.notifications || {};
+                  return (
+                    <div data-testid="customer-email" style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid ' + C.border }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: C.brand, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Customer email</div>
+
+                      {emailInfo?.mode === 'dry-run' && (
+                        <div style={{ fontSize: 13, padding: '8px 12px', borderRadius: 8, background: '#FFF8E6', border: '1px solid #F4D06F', color: '#5C4A1A', marginBottom: 8 }}>
+                          Email mode: <strong>DRY RUN</strong> — nothing is actually sent. Sending only records what would have gone out, and to whom.
+                          {emailInfo.source === 'invalid-EMAIL_MODE' && ' (EMAIL_MODE has a value that is not recognised, so it is treated as dry-run.)'}
+                        </div>
+                      )}
+                      {emailInfo?.mode === 'send' && emailInfo.recipient?.redirected && (
+                        <div style={{ fontSize: 13, padding: '8px 12px', borderRadius: 8, background: '#EEF2FF', border: '1px solid #C7D2FE', color: '#3730A3', marginBottom: 8 }}>
+                          Test order: the email goes to you ({emailInfo.recipient.to}), never to the customer.
+                        </div>
+                      )}
+                      {emailInfoError && <div style={{ fontSize: 13, color: '#DC2626', marginBottom: 8 }}>Could not load the email preview: {emailInfoError}</div>}
+
+                      <div style={{ fontSize: 14, marginBottom: 10 }}>
+                        {st.sent
+                          ? <>Shipping email sent on <strong>{new Date(st.sent.at).toLocaleString('en-CA')}</strong> to {st.sent.to}
+                              {st.sent.redirected ? ' (test order: delivered to you, not the customer)' : ''}
+                              {st.sent.count > 1 ? ` · sent ${st.sent.count} times` : ''}</>
+                          : <span style={{ color: C.muted }}>Shipping email not sent yet.</span>}
+                      </div>
+                      {n.dispatchEmailDryRunAt && (
+                        <div style={{ ...smallMuted, marginTop: 0, marginBottom: 10 }}>
+                          Last dry run: {new Date(n.dispatchEmailDryRunAt).toLocaleString('en-CA')} — would have sent to {n.dispatchEmailDryRunTo}.
+                        </div>
+                      )}
+
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <button
+                          onClick={() => setShowEmailPreview((v) => !v)}
+                          disabled={!emailInfo}
+                          style={{ ...btn(!!emailInfo), border: '1.5px solid ' + C.border, background: C.white, color: C.text }}
+                        >
+                          {showEmailPreview ? 'Hide preview' : 'Preview customer email'}
+                        </button>
+                        <button
+                          onClick={() => sendShippingEmail(false)}
+                          disabled={!st.canSend || !!st.sent || sendingEmail}
+                          style={{ ...btn(st.canSend && !st.sent && !sendingEmail), border: 'none', background: C.brand, color: '#fff' }}
+                        >
+                          {st.sent ? 'Shipping email sent' : sendingEmail ? 'Sending…' : 'Send shipping email'}
+                        </button>
+                        {st.sent && st.canSend && !confirmResend && (
+                          <button
+                            onClick={() => setConfirmResend(true)}
+                            disabled={sendingEmail}
+                            style={{ ...btn(!sendingEmail), border: '1.5px solid ' + C.border, background: C.white, color: C.text }}
+                          >
+                            Send again…
+                          </button>
+                        )}
+                      </div>
+
+                      {!st.canSend && st.reason && <div role="status" style={smallMuted}>{st.reason}</div>}
+
+                      {confirmResend && st.sent && (
+                        <div role="alert" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 12, padding: '10px 14px', borderRadius: 8, background: '#FEF2F2', border: '1px solid #FECACA', fontSize: 13.5, color: '#7F1D1D' }}>
+                          <span>This email was already sent to {st.sent.to}. Send it again?</span>
+                          <button onClick={() => sendShippingEmail(true)} disabled={sendingEmail} style={{ ...btn(!sendingEmail), padding: '6px 14px', border: 'none', background: '#B91C1C', color: '#fff' }}>
+                            {sendingEmail ? 'Sending…' : 'Yes, send it again'}
+                          </button>
+                          <button onClick={() => setConfirmResend(false)} disabled={sendingEmail} style={{ ...btn(!sendingEmail), padding: '6px 14px', border: '1.5px solid ' + C.border, background: C.white, color: C.text }}>
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+
+                      {emailMsg && (
+                        <div style={{ fontSize: 13, marginTop: 8, color: emailMsg.startsWith('Error') ? '#DC2626' : '#059669' }}>{emailMsg}</div>
+                      )}
+
+                      {showEmailPreview && emailInfo && (
+                        <div data-testid="email-preview" style={{ marginTop: 12 }}>
+                          <div style={{ fontSize: 13, marginBottom: 2 }}><span style={{ color: C.muted }}>Subject:</span> {emailInfo.email.subject}</div>
+                          <div style={{ fontSize: 13, marginBottom: 2 }}>
+                            <span style={{ color: C.muted }}>To:</span> {emailInfo.recipient.to || '(no customer email)'}
+                            {emailInfo.recipient.redirected && ` — test order, instead of ${emailInfo.recipient.originalTo || 'the customer'}`}
+                          </div>
+                          <div style={{ ...smallMuted, marginTop: 0, marginBottom: 8 }}>
+                            Built from the details saved on this order.
+                            {emailInfo.email.usedPlaceholderDate && ` No ship date is saved yet, so this assumes today (${emailInfo.email.shippedAt}).`}
+                          </div>
+                          <iframe
+                            title="Customer email preview"
+                            sandbox=""
+                            srcDoc={emailInfo.email.html}
+                            style={{ width: '100%', height: 560, border: '1px solid ' + C.border, borderRadius: 8, background: '#fff' }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </Section>
             )}
 
