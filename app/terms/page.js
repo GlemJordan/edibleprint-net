@@ -16,7 +16,7 @@ const ul = { margin: '0 0 16px', paddingLeft: 22, lineHeight: 1.9 };
 
 export default function TermsPage() {
   return (
-    <LegalLayout title="Terms of Service" lastUpdated="Last updated: September 24, 2026">
+    <LegalLayout title="Terms of Service" lastUpdated="Last updated: September 25, 2026">
 
       <p style={p}>
         Welcome to EdiblePrint. By accessing or using edibleprint.net, you agree to these Terms of Service.

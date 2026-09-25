@@ -2,11 +2,8 @@
 // may still carry the old single-rate wording, the general shipping sentence
 // must come from lib/shipping-config.js, and the legal pages must agree with
 // each other. Pure text checks against rendered pages — nothing is submitted.
-//
-// /shipping is deliberately NOT in the stale-wording sweep yet: that page is
-// rewritten in its own stage. Add it to PAGES_WITHOUT_OLD_WORDING once done.
 import { chromium } from 'playwright';
-import { getShippingMethod, shippingTimesSentence, formatProductionWindow } from '../lib/shipping-config.js';
+import { getShippingMethod, shippingTimesSentence, formatProductionWindow, formatBusinessDayRange, describeShippingMethod } from '../lib/shipping-config.js';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 const STD = getShippingMethod('standard');
@@ -20,7 +17,7 @@ const OLD_WORDING = [
   [/flat[- ]rate/i, '"flat rate"'],
   [/Canada Post Shipping —/i, 'the old "Canada Post Shipping — $9.99" option label'],
 ];
-const PAGES_WITHOUT_OLD_WORDING = ['/', '/about', '/edible-images-for-cakes', '/terms', '/refund'];
+const PAGES_WITHOUT_OLD_WORDING = ['/', '/about', '/edible-images-for-cakes', '/terms', '/refund', '/shipping'];
 
 const results = [];
 const check = (test, pass, detail) => results.push({ test, pass: !!pass, ...(pass ? {} : { detail }) });
@@ -56,6 +53,9 @@ const check = (test, pass, detail) => results.push({ test, pass: !!pass, ...(pas
     pages['/'].includes(`Standard: ${STD.minBusinessDays}–${STD.maxBusinessDays} business days`)
     && pages['/'].includes(`Tracked: ${TRK.minBusinessDays}–${TRK.maxBusinessDays} business days`));
   check('/: price footer says shipping is "from" the lowest price', pages['/'].includes(`Canada-wide shipping from $${STD.price.toFixed(2)}`));
+  check('/: banner promises pickup/shipping in the production window, not "next business day"',
+    pages['/'].includes(`Ready for pickup or shipping in ${formatProductionWindow()}`) && !/Ready for pickup or shipping next business day/.test(pages['/']));
+  check('/: "How it works" no longer promises delivery "in days"', !/ship to your door in days/.test(pages['/']));
   const cardLines = (pages['/'].match(/🚀 Production:/g) || []).length;
   const cleanCardLines = (pages['/'].match(new RegExp('🚀 Production: ' + formatProductionWindow() + '(?! ·)', 'g')) || []).length;
   check('/: every size card shows production only (no shipping window)', cardLines > 0 && cardLines === cleanCardLines, { cardLines, cleanCardLines });
@@ -65,12 +65,52 @@ const check = (test, pass, detail) => results.push({ test, pass: !!pass, ...(pas
   check('/refund: lost standard orders get a one-time reprint',
     pages['/refund'].includes(`has not arrived ${STD.maxBusinessDays} business days after it was mailed`)
     && pages['/refund'].includes('reprint and resend it once, at no cost'));
-  check('/terms + /refund: "Last updated" refreshed',
-    pages['/terms'].includes('Last updated: September 24, 2026') && pages['/refund'].includes('Last updated: September 24, 2026'));
+  check('/terms + /refund + /shipping: same "Last updated" date',
+    ['/terms', '/refund', '/shipping'].every((path) => pages[path].includes('Last updated: September 25, 2026')));
+  const ship = pages['/shipping'];
+  check('/shipping: carries the general shipping sentence', ship.includes(general));
+  for (const m of [STD, TRK]) {
+    check(`/shipping: lists ${m.id} with carrier, price, window and tracking from config`,
+      ship.includes(`${m.label} — ${m.carrier} ${describeShippingMethod(m)}`), describeShippingMethod(m));
+  }
+  check('/shipping: free local pickup line', ship.includes('Free local pickup is available in London, Ontario.'));
+  check('/shipping: production time from config, delivery times start at shipping',
+    ship.includes(`Orders are printed within ${formatProductionWindow()} before they are shipped. The delivery times above start once your order ships.`));
+  check('/shipping: lost standard orders get a one-time reprint (same wording as /refund)',
+    ship.includes(`has not arrived ${STD.maxBusinessDays} business days after it was mailed, contact us and we will reprint and resend it once, at no cost.`));
+  check('/shipping: recommends tracked for deadlines and has the address + deadline sections',
+    ship.includes('we recommend tracked shipping') && ship.includes('Your address') && ship.includes('Orders with a deadline'));
+  check('/shipping: old lost-package rule is gone',
+    !/neighbors|hasn't arrived within|Lettermail does not include/i.test(ship), (/neighbors|hasn't arrived within|Lettermail does not include/i.exec(ship) || [])[0]);
   for (const path of ['/about', '/edible-images-for-cakes']) {
     check(`${path}: names both methods and their windows`,
       pages[path].includes(`standard (${STD.minBusinessDays}–${STD.maxBusinessDays} business days, no tracking number) or tracked (${TRK.minBusinessDays}–${TRK.maxBusinessDays} business days)`));
   }
+
+  const successText = async (shipping_method) => {
+    const ctx = await browser.newContext();
+    const sp = await ctx.newPage();
+    await sp.route('**/api/get-order-summary*', (route) => route.fulfill({ json: {
+      transaction_id: 'EP-TEST0000', value: 10, currency: 'CAD', items: [], payment_status: 'paid', session_status: 'complete',
+      ...(shipping_method ? { shipping_method } : {}),
+    } }));
+    await sp.goto(BASE_URL + '/success?session_id=cs_test_copycheck_' + (shipping_method || 'none'), { waitUntil: 'domcontentloaded', timeout: 90000 });
+    await sp.getByText('What happens next?').waitFor({ timeout: 90000 });
+    const text = (await sp.locator('body').innerText()).replace(/\s+/g, ' ');
+    await ctx.close();
+    return text;
+  };
+  const pickup = await successText('pickup');
+  check('/success pickup: pickup message, no Canada Post or shipping windows',
+    pickup.includes('confirm your pickup time') && !/Canada Post|business days|ship/i.test(pickup), pickup);
+  for (const m of [STD, TRK]) {
+    const t = await successText(m.id);
+    check(`/success ${m.id}: names ${m.carrier}, its window and tracking`,
+      t.includes(`ship it via ${m.carrier}`) && t.includes(formatBusinessDayRange(m))
+      && t.includes(m.tracking ? 'tracking number included' : 'no tracking number') && !t.includes('pickup time'), t);
+  }
+  const legacy = await successText(null);
+  check('/success with no stored method reads as standard', legacy.includes(`ship it via ${STD.carrier}`), legacy);
 
   await browser.close();
   console.log(JSON.stringify(results.filter((r) => !r.pass), null, 2));

@@ -17,7 +17,7 @@ const ol = { margin: '0 0 16px', paddingLeft: 22, lineHeight: 1.9 };
 
 export default function RefundPage() {
   return (
-    <LegalLayout title="Refund Policy" lastUpdated="Last updated: September 24, 2026">
+    <LegalLayout title="Refund Policy" lastUpdated="Last updated: September 25, 2026">
 
       <p style={p}>
         Because every EdiblePrint order is custom-made to your design, our refund policy is tailored to protect

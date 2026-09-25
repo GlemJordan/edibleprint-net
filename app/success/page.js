@@ -7,6 +7,7 @@ function SuccessContent() {
   const searchParams = useSearchParams();
   const sessionId = searchParams.get('session_id');
   const [paymentStatus, setPaymentStatus] = useState('loading');
+  const [shippingMethod, setShippingMethod] = useState('standard');
 
   useEffect(() => {
     if (!sessionId) { setPaymentStatus('no_session'); return; }
@@ -17,6 +18,7 @@ function SuccessContent() {
         if (data.error) { setPaymentStatus('error'); return; }
 
         const isPaid = data.payment_status === 'paid' && data.session_status === 'complete';
+        setShippingMethod(data.shipping_method || 'standard');
         setPaymentStatus(isPaid ? 'paid' : 'unpaid');
 
         if (isPaid) {
@@ -97,6 +99,8 @@ function SuccessContent() {
     );
   }
 
+  const method = getShippingMethod(shippingMethod);
+
   return wrap(
     <>
       <div style={{ width: 72, height: 72, borderRadius: '50%', background: '#E8F5EE', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 36, marginBottom: 20 }}>
@@ -113,8 +117,17 @@ function SuccessContent() {
         <strong>What happens next?</strong><br />
         1. We review your image for print quality (within 24h)<br />
         2. If adjustments are needed, we contact you by email<br />
-        3. We print your edible sheet and ship via Canada Post<br />
-        4. You receive it at your door — standard shipping takes {formatBusinessDayRange(getShippingMethod('standard'))} (no tracking number); tracked shipping takes {formatBusinessDayRange(getShippingMethod('tracked'))}.
+        {shippingMethod === 'pickup' ? (
+          <>
+            3. We print your edible sheet<br />
+            4. We email you when it is ready and confirm your pickup time
+          </>
+        ) : (
+          <>
+            3. We print your edible sheet and ship it via {method.carrier}<br />
+            4. You receive it at your door — {formatBusinessDayRange(method)} after it ships ({method.tracking ? 'tracking number included' : 'no tracking number'})
+          </>
+        )}
       </div>
       <a href="/" style={{ display: 'inline-block', background: '#1B6B4A', color: '#fff', borderRadius: 12, padding: '14px 32px', fontSize: 16, fontWeight: 600, textDecoration: 'none' }}>
         Back to Home

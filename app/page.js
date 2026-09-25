@@ -3302,7 +3302,7 @@ export default function EdiblePrintApp() {
         const h = Math.floor(minsLeft / 60), m = minsLeft % 60;
         setCutoffMsg({ green: true, text: `Order in the next ${h}h ${m}min for same-day production!` });
       } else {
-        setCutoffMsg({ green: false, text: 'Order now — production starts next business day' });
+        setCutoffMsg({ green: false, text: `Order now — ready for pickup or shipping in ${formatProductionWindow()}` });
       }
     }
     computeCutoff();
@@ -3578,7 +3578,7 @@ export default function EdiblePrintApp() {
             ))}
           </div>
           <div style={{ background: '#FFF8E6', border: '1px solid #F4D06F', borderRadius: 8, padding: '10px 20px', textAlign: 'center', fontSize: 13, color: '#5C4A1A', fontWeight: 500, maxWidth: 600, margin: '16px auto 0' }}>
-            🎯 Order before <strong>2 PM EST</strong> for same-day production · Ready for pickup or shipping next business day
+            🎯 Order before <strong>2 PM EST</strong> for same-day production · Ready for pickup or shipping in {formatProductionWindow()}
           </div>
         </div>
         {/* ── DELIVERY TIMES BAR ── */}
@@ -3599,7 +3599,7 @@ export default function EdiblePrintApp() {
               { num: '01', icon: '📤', title: 'Upload', desc: 'Upload your photo, logo, or any custom design', bg: stepColors[0] },
               { num: '02', icon: '✂️', title: 'Customize', desc: 'Choose shape, size, and adjust the print area', bg: stepColors[1] },
               { num: '03', icon: '💳', title: 'Pay Securely', desc: 'Visa, Mastercard, Apple Pay & more', bg: stepColors[2] },
-              { num: '04', icon: '📬', title: 'Receive', desc: 'We review, print & ship to your door in days', bg: stepColors[3] },
+              { num: '04', icon: '📬', title: 'Receive', desc: 'We review, print & ship to your door', bg: stepColors[3] },
             ].map((item, i) => (
               <div key={i} style={{ background: item.bg, borderRadius: 16, textAlign: 'center', padding: '30px 20px', position: 'relative',
                 border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
