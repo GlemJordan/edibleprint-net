@@ -1,4 +1,6 @@
+import Link from 'next/link';
 import LegalLayout from '../_components/LegalLayout';
+import { getShippingMethod } from '../../lib/shipping-config.js';
 
 export const metadata = {
   title: 'Refund Policy — EdiblePrint.net',
@@ -15,7 +17,7 @@ const ol = { margin: '0 0 16px', paddingLeft: 22, lineHeight: 1.9 };
 
 export default function RefundPage() {
   return (
-    <LegalLayout title="Refund Policy" lastUpdated="Last updated: April 16, 2026">
+    <LegalLayout title="Refund Policy" lastUpdated="Last updated: September 24, 2026">
 
       <p style={p}>
         Because every EdiblePrint order is custom-made to your design, our refund policy is tailored to protect
@@ -47,6 +49,12 @@ export default function RefundPage() {
       <p style={p}>
         We will respond within 1 business day and confirm whether we reprint or refund. Approved reprints are
         shipped at our expense using expedited shipping when possible.
+      </p>
+      <p style={p}>
+        <strong>Standard shipping orders that don&apos;t arrive.</strong> If a standard shipping order has not
+        arrived {getShippingMethod('standard').maxBusinessDays} business days after it was mailed, contact us and we
+        will reprint and resend it once, at no cost (see our{' '}
+        <Link href="/shipping" style={{ color: C.brand }}>Shipping Policy</Link>).
       </p>
 
       <h2 style={h2}>Order Cancellations</h2>

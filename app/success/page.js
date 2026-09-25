@@ -1,6 +1,7 @@
 'use client';
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { getShippingMethod, formatBusinessDayRange } from '../../lib/shipping-config.js';
 
 function SuccessContent() {
   const searchParams = useSearchParams();
@@ -113,7 +114,7 @@ function SuccessContent() {
         1. We review your image for print quality (within 24h)<br />
         2. If adjustments are needed, we contact you by email<br />
         3. We print your edible sheet and ship via Canada Post<br />
-        4. You receive it at your door!
+        4. You receive it at your door — standard shipping takes {formatBusinessDayRange(getShippingMethod('standard'))} (no tracking number); tracked shipping takes {formatBusinessDayRange(getShippingMethod('tracked'))}.
       </div>
       <a href="/" style={{ display: 'inline-block', background: '#1B6B4A', color: '#fff', borderRadius: 12, padding: '14px 32px', fontSize: 16, fontWeight: 600, textDecoration: 'none' }}>
         Back to Home

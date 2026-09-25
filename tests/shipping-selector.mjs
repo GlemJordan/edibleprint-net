@@ -155,6 +155,10 @@ async function checkSelectorUi(page, prefix) {
     await openMainStep3(page, pdfPath);
     await fillMainAddress(page);
     await checkSelectorUi(page, 'main');
+    const addrBox = page.getByText('Please double-check your address', { exact: false });
+    check('main: address reminder box is shown', await addrBox.isVisible());
+    const addrBoxText = await addrBox.innerText();
+    check('main: address reminder repeats no price or delivery window', !/\$|business day/i.test(addrBoxText), addrBoxText);
 
     const sum = await summaryCard(page).innerText();
     check('main: summary shows the Standard method name + its cost',

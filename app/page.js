@@ -4,7 +4,10 @@ import { useState, useRef, useEffect } from 'react';
 import NextImage from 'next/image';
 import './globals.css';
 import HeroSection from './_components/HeroSection';
-import { getShippingCost, getShippingMethod, DEFAULT_SHIPPING_METHOD } from '../lib/shipping-config.js';
+import {
+  getShippingCost, getShippingMethod, getShippingMethods, DEFAULT_SHIPPING_METHOD,
+  formatBusinessDayRange, formatProductionWindow, shippingTimesSentence,
+} from '../lib/shipping-config.js';
 import ShippingMethodSelector from './_components/ShippingMethodSelector';
 import { CATALOG_SIZES } from '../lib/catalog-sizes.js';
 import { CATALOG_PRICES } from '../lib/catalog-prices.js';
@@ -94,8 +97,15 @@ function computeContainFit(sourceW, sourceH, targetW, targetH) {
 }
 
 /* ═══ SHIPPING ═══ */
-function getDeliveryEstimate() {
-  return 'Canada Post shipping — flat rate $9.99, approx. 3–5 business days anywhere in Canada.';
+// Every shipping price/window on this page reads lib/shipping-config.js.
+const STANDARD_SHIPPING = getShippingMethod('standard');
+const TRACKED_SHIPPING = getShippingMethod('tracked');
+const LOWEST_SHIPPING_PRICE = Math.min(...getShippingMethods().map((m) => m.price));
+
+// The checkout's address box. Prices and delivery windows live in the shipping
+// selector right below it — this only says what the selector doesn't.
+function getAddressReminder() {
+  return "We ship anywhere in Canada. Please double-check your address — you're responsible for providing a complete and correct mailing address.";
 }
 
 function trackGA(event, params) {
@@ -3554,7 +3564,7 @@ export default function EdiblePrintApp() {
             {[
               { icon: '🖨️', title: '300 DPI Print Quality', sub: 'Crystal-clear results' },
               { icon: '🍰', title: '100% Food-Safe', sub: 'FDA-approved inks & sheets' },
-              { icon: '🚚', title: '1–2 Day Production', sub: 'Ships in approx. 3–5 days' },
+              { icon: '🚚', title: '1–2 Day Production', sub: 'Standard: ' + formatBusinessDayRange(STANDARD_SHIPPING) + '\nTracked: ' + formatBusinessDayRange(TRACKED_SHIPPING) },
               { icon: '✅', title: '100% Satisfaction', sub: 'We make it right, guaranteed' },
             ].map((b, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 22px',
@@ -3562,7 +3572,7 @@ export default function EdiblePrintApp() {
                 <span style={{ fontSize: 22 }}>{b.icon}</span>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 13, color: C.text }}>{b.title}</div>
-                  <div style={{ fontSize: 11.5, color: C.muted }}>{b.sub}</div>
+                  <div style={{ fontSize: 11.5, color: C.muted, whiteSpace: 'pre-line' }}>{b.sub}</div>
                 </div>
               </div>
             ))}
@@ -3576,7 +3586,7 @@ export default function EdiblePrintApp() {
           <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '8px 32px', fontSize: 13.5, fontWeight: 600, color: C.brandDark }}>
             <span>📦 Production: 1–2 business days</span>
             <span style={{ color: '#C6E6D6' }}>|</span>
-            <span>🚚 Canada-wide shipping: Approx. 3–5 business days</span>
+            <span>🚚 Standard shipping: {formatBusinessDayRange(STANDARD_SHIPPING)} · Tracked: {formatBusinessDayRange(TRACKED_SHIPPING)}</span>
             <span style={{ color: '#C6E6D6' }}>|</span>
             <span>🎯 Order before 2 PM EST for same-day production</span>
           </div>
@@ -3687,13 +3697,13 @@ export default function EdiblePrintApp() {
                   <div style={{ fontSize: 32, fontWeight: 700, color: C.brand, marginBottom: 4 }}>{'$' + sz.price.toFixed(2)}</div>
                   <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 6 }}>{sz.label}</div>
                   <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5, marginBottom: 6 }}>{descriptions[sz.id] || ''}</div>
-                  <div style={{ fontSize: 12, color: '#059669', fontWeight: 600, marginBottom: 10 }}>🚀 Production: 1–2 days · Ships in ~3–5 days</div>
+                  <div style={{ fontSize: 12, color: '#059669', fontWeight: 600, marginBottom: 10 }}>🚀 Production: {formatProductionWindow()}</div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: isHovered ? C.brand : C.muted, opacity: isHovered ? 1 : 0.6 }}>Order this size →</div>
                 </div>
               );
             })}
           </div>
-          <p style={{ fontSize: 13, color: '#bbb', marginTop: 20 }}>Custom sizes available · Free local pickup · Flat-rate Canada-wide shipping $9.99 · No tax charged</p>
+          <p style={{ fontSize: 13, color: '#bbb', marginTop: 20 }}>Custom sizes available · Free local pickup · Canada-wide shipping from {'$' + LOWEST_SHIPPING_PRICE.toFixed(2)} · No tax charged</p>
         </section>
 
         {/* ── PDF DOWNLOAD SECTION ── */}
@@ -3948,9 +3958,9 @@ export default function EdiblePrintApp() {
           {[
             ['What are edible prints made of?', 'We print on two food-safe materials: edible icing sheets (frosting sheets) and wafer paper. You pick which one when you choose your shape \u2014 both are available for Round, Heart, Square, Cookie Sheet, Full Sheet, and Custom prints, at the same price. Both use vibrant, water-based edible inks, are FDA-approved, and are tasteless \u2014 so they won\u2019t affect the flavour of your baked goods. Wafer paper is thinner and more delicate, absorbs moisture more easily, prints with slightly softer colour, and needs no transfer step.'],
             ['How do I apply the edible print?', 'Peel the backing sheet gently and lay the print directly onto a freshly frosted or fondant-covered surface. Press lightly from the centre outward to remove air bubbles. For best results, apply within 30 minutes of frosting and keep refrigerated until serving.'],
-            ['How long does shipping take?', 'Free pickup is available at our London, Ontario location. Canada Post shipping is a flat rate of $9.99 anywhere in Canada — approx. 3–5 business days, no tracking number included.'],
+            ['How long does shipping take?', `Free pickup is available at our London, Ontario location. We ship anywhere in Canada via Canada Post. Standard shipping ($${STANDARD_SHIPPING.price.toFixed(2)}) takes ${STANDARD_SHIPPING.minBusinessDays} to ${STANDARD_SHIPPING.maxBusinessDays} business days and does not include a tracking number. Tracked shipping ($${TRACKED_SHIPPING.price.toFixed(2)}) arrives in ${TRACKED_SHIPPING.minBusinessDays} to ${TRACKED_SHIPPING.maxBusinessDays} business days. Orders are printed within ${formatProductionWindow()} before shipping.`],
             ['What image resolution do I need for good quality?', 'We recommend a minimum of 1000×1000 pixels at 300 DPI. We review every order before printing — if we spot a quality issue with your file, we\'ll reach out before proceeding.'],
-            ['Do you ship to all Canadian provinces and territories?', 'Yes — we ship to all provinces and territories via Canada Post at a flat rate of $9.99. Approx. 3–5 business days.'],
+            ['Do you ship to all Canadian provinces and territories?', `Yes — we ship to all provinces and territories via Canada Post. ${shippingTimesSentence()}`],
             ['Can I order multiple copies of the same design?', 'Yes — simply increase the quantity at checkout. For bulk orders (20+ units), contact us for a volume pricing quote.'],
             ['Can I include multiple different designs in one order?', 'Absolutely. Use the "Add Another Design" button to include up to 5 different designs in a single order. Each design can have its own shape, size, image, and quantity.'],
             ['How long do edible prints last?', 'Stored in the original sealed packaging in a cool, dry place, edible prints last up to 12 months. Once applied to a frosted cake, they are best consumed within 3–5 days.'],
@@ -5080,7 +5090,7 @@ export default function EdiblePrintApp() {
               </div>
               <div style={{ background: C.brandLight, border: '1px solid #C6E6D6', borderRadius: 10,
                 padding: '10px 16px', fontSize: 13.5, color: C.brandDark, fontWeight: 600 }}>
-                📦 {getDeliveryEstimate()}
+                📦 {getAddressReminder()}
               </div>
               </>)}
             </div>
