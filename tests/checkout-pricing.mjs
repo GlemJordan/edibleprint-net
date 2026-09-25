@@ -8,7 +8,7 @@
 //
 //   sheets:      1  2  3  4  5  6  7
 //   standard  $ 9.99 9.99 19.98 19.98 29.97 29.97 39.96   (ceil(sheets/2) × 9.99)
-//   tracked   $29.99 flat, up to TRACKED_MAX_SHEETS; refused above it
+//   tracked   $29.99 flat, up to TRACKED_MAX_SHEETS (provisional); refused above it
 //   pickup    $0, no shipping line at all
 import https from 'https';
 import { EventEmitter } from 'events';
@@ -107,10 +107,16 @@ for (const sheets of [1, 2, 3, 4, 5]) {
     std.call && { stripe: totalCents(std.call), shown: printCents + cents(getShippingCost('standard', sheets)) });
 
   const trk = await checkout(payload({ shippingMethod: 'tracked', designs: [design(sheets)] }));
-  const trkShip = trk.call && shippingLine(trk.call);
-  check(`tracked, ${sheets} sheet(s): Stripe charges a flat $29.99`, trk.status === 200 && trkShip?.cents === cents(29.99), { status: trk.status, trkShip });
-  check(`tracked, ${sheets} sheet(s): total to Stripe = prints + shipping = what the checkout shows`,
-    trk.call && totalCents(trk.call) === printCents + cents(getShippingCost('tracked', sheets)));
+  if (sheets <= TRACKED_MAX_SHEETS) {
+    const trkShip = trk.call && shippingLine(trk.call);
+    check(`tracked, ${sheets} sheet(s): Stripe charges a flat $29.99`, trk.status === 200 && trkShip?.cents === cents(29.99), { status: trk.status, trkShip });
+    check(`tracked, ${sheets} sheet(s): total to Stripe = prints + shipping = what the checkout shows`,
+      trk.call && totalCents(trk.call) === printCents + cents(getShippingCost('tracked', sheets)));
+  } else {
+    // Past the envelope's capacity tracked isn't sold at all (the limit is provisional; see shipping-config.js).
+    check(`tracked, ${sheets} sheet(s): past the limit of ${TRACKED_MAX_SHEETS}, refused with 400 and nothing reaches Stripe`,
+      trk.status === 400 && trk.call === null && /not available for orders this size/.test(trk.json.error), { status: trk.status, json: trk.json });
+  }
 
   const pick = await checkout(payload({ shippingMethod: 'pickup', designs: [design(sheets)] }));
   check(`pickup, ${sheets} sheet(s): no shipping line, total is just the prints`,
@@ -140,7 +146,7 @@ check(`tracked: ${TRACKED_MAX_SHEETS + 1} sheets is refused with 400 and nothing
   trkOver.status === 400 && trkOver.call === null && /not available for orders this size/.test(trkOver.json.error), trkOver);
 const trkOverSplit = await checkout(payload({ shippingMethod: 'tracked', designs: [design(4), design(3)] }));
 check('tracked: the limit is on the order total, not per design (4 + 3 sheets)', trkOverSplit.status === 400 && trkOverSplit.call === null, trkOverSplit.json);
-const stdBig = await checkout(payload({ designs: [design(TRACKED_MAX_SHEETS + 1)] }));
+const stdBig = await checkout(payload({ designs: [design(7)] })); // 7 sheets: past the tracked limit whatever it is set to
 check('standard still works past the tracked limit (7 sheets = 4 packages = $39.96)',
   stdBig.status === 200 && shippingLine(stdBig.call)?.cents === cents(39.96), stdBig.json);
 const pickBig = await checkout(payload({ shippingMethod: 'pickup', designs: [design(MAX_SHEETS_PER_ORDER)] }));
