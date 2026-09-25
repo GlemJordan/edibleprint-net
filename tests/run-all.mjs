@@ -17,6 +17,7 @@ const DEFAULT_TESTS = [
   'upload-flow-stage1.mjs',
   'upload-flow-stage2.mjs',
   'print-preview-mobile.mjs',
+  'shipping-selector.mjs',
 ];
 
 // Hits real Cloudinary + creates a real (unpaid, self-expiring) Stripe

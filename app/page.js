@@ -4,7 +4,8 @@ import { useState, useRef, useEffect } from 'react';
 import NextImage from 'next/image';
 import './globals.css';
 import HeroSection from './_components/HeroSection';
-import { getShippingCost } from '../lib/shipping-config.js';
+import { getShippingCost, getShippingMethod, DEFAULT_SHIPPING_METHOD } from '../lib/shipping-config.js';
+import ShippingMethodSelector from './_components/ShippingMethodSelector';
 import { CATALOG_SIZES } from '../lib/catalog-sizes.js';
 import { CATALOG_PRICES } from '../lib/catalog-prices.js';
 import {
@@ -2741,6 +2742,11 @@ export default function EdiblePrintApp() {
   const [designs, setDesigns] = useState([]);
   const [activeDesignId, setActiveDesignId] = useState(null);
   const [shipping, setShipping] = useState('shipping');
+  // Which paid method ('standard' | 'tracked') applies when shipping !== 'pickup',
+  // and the customer's optional needed-by date (YYYY-MM-DD). Kept apart from
+  // `shipping` so the pickup-vs-ship choice keeps working exactly as before.
+  const [shippingMethod, setShippingMethod] = useState(DEFAULT_SHIPPING_METHOD);
+  const [neededBy, setNeededBy] = useState('');
   const [pricingTab, setPricingTab] = useState('circular');
   const [hoveredCardId, setHoveredCardId] = useState(null);
   const [pendingShape, setPendingShape] = useState(null);
@@ -2876,7 +2882,9 @@ export default function EdiblePrintApp() {
     return sum + (dPrice + dCutSurcharge) * d.qty;
   }, 0);
 
-  const shippingCost = getShippingCost(shipping);
+  // What the server is told and what the summary prices: 'pickup' | 'standard' | 'tracked'.
+  const effectiveShippingMethod = shipping === 'pickup' ? 'pickup' : shippingMethod;
+  const shippingCost = getShippingCost(effectiveShippingMethod);
   const total = designsSubtotal + shippingCost;
 
   useEffect(() => {
@@ -3445,8 +3453,9 @@ export default function EdiblePrintApp() {
           shippingCity: form.city,
           shippingProvince: form.province,
           shippingPostal: form.postal,
-          shippingMethod: shipping,
-          shippingCost: shippingCost,
+          // Selection only — the server recomputes the price from lib/shipping-config.js.
+          shippingMethod: effectiveShippingMethod,
+          ...(shipping !== 'pickup' && neededBy ? { neededByDate: neededBy } : {}),
           designConfirmed: acceptedDesign,
           designConfirmedAt: new Date().toISOString(),
           designs: uploadedDesigns.map(d => {
@@ -5079,7 +5088,7 @@ export default function EdiblePrintApp() {
               <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 10 }}>Shipping Method</label>
               {[
                 { key: 'pickup', label: 'Free Pickup — London, ON', price: 0, note: "East London, ON. We'll confirm the exact time by email." },
-                { key: 'shipping', label: 'Canada Post Shipping — $9.99', price: getShippingCost('shipping'), note: 'Flat rate shipping across Canada via Canada Post — no tracking number included. Approx. 3–5 business days.' },
+                { key: 'shipping', label: 'Ship to my address', price: null, note: null },
               ].map((opt) => (
                 <label key={opt.key} style={{
                   display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 12,
@@ -5093,9 +5102,16 @@ export default function EdiblePrintApp() {
                       <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{opt.note}</div>
                     )}
                   </div>
-                  <span style={{ fontWeight: 700, fontSize: 14, color: C.brand }}>{'$' + opt.price.toFixed(2)}</span>
+                  {opt.price != null && <span style={{ fontWeight: 700, fontSize: 14, color: C.brand }}>{'$' + opt.price.toFixed(2)}</span>}
                 </label>
               ))}
+              {shipping !== 'pickup' && (
+                <ShippingMethodSelector
+                  method={shippingMethod} onMethodChange={setShippingMethod}
+                  neededBy={neededBy} onNeededByChange={setNeededBy}
+                  colors={C}
+                />
+              )}
             </div>
             <div style={{ ...card, marginTop: 26 }}>
               <h3 style={{ margin: '0 0 14px', fontSize: 16, fontWeight: 700 }}>Order Summary</h3>
@@ -5126,7 +5142,7 @@ export default function EdiblePrintApp() {
                 )}
                 {shipping !== 'pickup' && (
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Shipping</span><span style={{ fontWeight: 600 }}>{'$' + shippingCost.toFixed(2)}</span>
+                    <span>{getShippingMethod(effectiveShippingMethod).label}</span><span style={{ fontWeight: 600 }}>{'$' + shippingCost.toFixed(2)}</span>
                   </div>
                 )}
                 <div style={{ borderTop: '1.5px solid ' + C.border, paddingTop: 12, display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 20 }}>

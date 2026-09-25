@@ -1,11 +1,13 @@
 'use client';
 
 import { useState, cloneElement } from 'react';
-import { getShippingCost } from '../../../lib/shipping-config.js';
+import { getShippingCost, getShippingMethod, DEFAULT_SHIPPING_METHOD } from '../../../lib/shipping-config.js';
+import ShippingMethodSelector from '../../_components/ShippingMethodSelector';
 
 const C = {
   brand: '#1f5236', accent: '#e8704a', text: '#1a2420', muted: '#5c6b62',
   border: '#d9e2d6', white: '#fff', bg: '#FAFBF9',
+  brandLight: '#e8f3ec', // selected-option fill for ShippingMethodSelector
 };
 
 const inputStyle = {
@@ -32,11 +34,15 @@ export default function CustomerCheckoutForm({ design, unitPrice, designPayload,
   const [province, setProvince] = useState('Ontario');
   const [postal, setPostal] = useState('');
   const [notes, setNotes] = useState('');
+  const [shippingMethod, setShippingMethod] = useState(DEFAULT_SHIPPING_METHOD);
+  const [neededBy, setNeededBy] = useState('');
   const [confirmed, setConfirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const shippingCost = getShippingCost(fulfillment === 'pickup' ? 'pickup' : 'shipping');
+  // 'pickup' | 'standard' | 'tracked' — what the server is told and what the summary prices.
+  const effectiveShippingMethod = fulfillment === 'pickup' ? 'pickup' : shippingMethod;
+  const shippingCost = getShippingCost(effectiveShippingMethod);
   const total = unitPrice * designPayload.quantity + shippingCost;
 
   const handleSubmit = async (e) => {
@@ -62,8 +68,9 @@ export default function CustomerCheckoutForm({ design, unitPrice, designPayload,
           shippingCity: city.trim(),
           shippingProvince: province.trim(),
           shippingPostal: postal.trim(),
-          shippingMethod: fulfillment === 'pickup' ? 'pickup' : 'shipping',
-          shippingCost,
+          // Selection only — the server recomputes the price from lib/shipping-config.js.
+          shippingMethod: effectiveShippingMethod,
+          ...(fulfillment === 'shipping' && neededBy ? { neededByDate: neededBy } : {}),
           designConfirmed: confirmed,
           designConfirmedAt: new Date().toISOString(),
           designs: [{ ...designPayload, notes: notes.trim() }],
@@ -105,11 +112,17 @@ export default function CustomerCheckoutForm({ design, unitPrice, designPayload,
             <input type="radio" checked={fulfillment === 'pickup'} onChange={() => setFulfillment('pickup')} /> Pickup — East London, ON (free)
           </label>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, cursor: 'pointer' }}>
-            <input type="radio" checked={fulfillment === 'shipping'} onChange={() => setFulfillment('shipping')} /> Ship (${getShippingCost('shipping').toFixed(2)})
+            <input type="radio" checked={fulfillment === 'shipping'} onChange={() => setFulfillment('shipping')} /> Ship to my address
           </label>
         </div>
         {fulfillment === 'shipping' && (
           <>
+            <ShippingMethodSelector
+              method={shippingMethod} onMethodChange={setShippingMethod}
+              neededBy={neededBy} onNeededByChange={setNeededBy}
+              colors={C}
+            />
+            <div style={{ height: 14 }} />
             <Field label="Address *"><input style={inputStyle} value={address} onChange={(e) => setAddress(e.target.value)} /></Field>
             <Field label="Unit / Apt (optional)"><input style={inputStyle} value={unit} onChange={(e) => setUnit(e.target.value)} /></Field>
             <Row2>
@@ -135,7 +148,7 @@ export default function CustomerCheckoutForm({ design, unitPrice, designPayload,
         <span>${(unitPrice * designPayload.quantity).toFixed(2)}</span>
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: C.muted, marginBottom: 12 }}>
-        <span>Shipping</span>
+        <span>{fulfillment === 'pickup' ? 'Shipping' : getShippingMethod(effectiveShippingMethod).label}</span>
         <span>{shippingCost === 0 ? 'Free' : '$' + shippingCost.toFixed(2)}</span>
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 17, fontWeight: 700, color: C.text, marginBottom: 16 }}>
