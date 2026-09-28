@@ -5,7 +5,8 @@ import { resolvePrintReadyUrls } from '../../../../../../lib/order-record.js';
 import { buildPdfFilename } from '../../../../../../lib/pdf-filename.js';
 import { generatePrintPdf, parseDesignSizeForPdf } from '../../../../../../lib/generate-pdf.js';
 import { resolveMaterial } from '../../../../../../lib/material-config.js';
-import { shapeSupportsCutGuide, hasLegacyBakedGuide } from '../../../../../../lib/cut-guide-config.js';
+import { shapeSupportsCutGuide, hasLegacyBakedGuide, designHasCutOutline } from '../../../../../../lib/cut-guide-config.js';
+import { buildCutSvg } from '../../../../../../lib/cut-svg.js';
 
 // Proxies an order's production slip / print-ready PDF through our own
 // origin so the browser gets our ddmmyy-CustomerName filename instead of
@@ -21,7 +22,7 @@ export async function GET(request, { params }) {
 
   const { id: orderId } = await params;
   const { searchParams } = new URL(request.url);
-  const type = searchParams.get('type'); // 'slip' | 'print'
+  const type = searchParams.get('type'); // 'slip' | 'print' | 'cutsvg'
   const index = parseInt(searchParams.get('index'), 10) || 0;
   // 'with guide' / 'without guide' override (see the admin order page) —
   // absent for the normal single download link, which just serves whatever
@@ -44,6 +45,31 @@ export async function GET(request, { params }) {
   let bytes;
   let contentType = 'application/pdf';
   let labelSuffix = '';
+
+  if (type === 'cutsvg') {
+    // Cut outline for the Brother ScanNCut (lib/cut-svg.js). Built from the
+    // stored design's shape/size alone — no image is fetched, so it also works
+    // for an order whose print-ready PDFs are missing. Admin-only like every
+    // other type here (session checked above); the customer never sees it.
+    const designs = record.designs || [];
+    const design = designs[index];
+    if (!designHasCutOutline(design)) {
+      return NextResponse.json({ error: 'This design has no cut outline' }, { status: 404 });
+    }
+    const baseFilename = buildPdfFilename({
+      purchaseDate: record.saleDate || record.createdAt,
+      customerName: record.customer?.name,
+      fallbackId: record.orderNumber || record.orderId,
+    });
+    const suffix = designs.length > 1 ? `-${index + 1}` : '';
+    return new NextResponse(buildCutSvg(design), {
+      status: 200,
+      headers: {
+        'Content-Type': 'image/svg+xml; charset=utf-8',
+        'Content-Disposition': `attachment; filename="${baseFilename.replace(/\.pdf$/i, `${suffix}-cut.svg`)}"`,
+      },
+    });
+  }
 
   if (type === 'slip') {
     const assetUrl = record.assets?.productionSlipUrl;

@@ -27,6 +27,7 @@ const DEFAULT_TESTS = [
   'order-packages.mjs',
   'dispatch-info.mjs',
   'dispatch-email.mjs',
+  'cut-svg.mjs',
 ];
 
 // Hits real Cloudinary + creates a real (unpaid, self-expiring) Stripe
