@@ -806,9 +806,11 @@ function drawCropInteractionOverlay(ctx, cw, ch, boundsFn, overlayOpacity) {
    (lib/shape-paths.js) — the SAME geometry function the server-side PDF
    generator (lib/generate-pdf.js) draws from, so the guide shown here can
    never trace a different line than the one that actually prints. Styled
-   from lib/cut-guide-config.js's one shared spec, distinct from the plain
-   grey shape-boundary line drawn elsewhere in this function (that one is
-   just editor chrome; this one is a preview of ink that will be printed). */
+   from lib/cut-guide-config.js's one shared spec. It is the only resting
+   outline of the shape on the canvas: the editor's other boundary marks are
+   the white crop line + dark mask shown only while a layer is being dragged
+   or scaled (drawCropInteractionOverlay), never in the print preview, and
+   that is editor chrome — this one is a preview of ink that will be printed. */
 function strokeCutGuide(ctx, d) {
   ctx.save();
   ctx.strokeStyle = CUT_GUIDE_COLOR;
@@ -4629,6 +4631,35 @@ export default function EdiblePrintApp() {
                 customShapeKind={customShapeKind}
                 cutGuide={cutGuide}
               />
+              {/* Cut guide — lib/cut-guide-config.js. Lives right under the
+                  editor (not down with Shape/Size/"Cut to shape") so on a
+                  phone the customer sees it while adjusting the image, with
+                  the line drawn on the canvas just above. ON by default: a
+                  design that doesn't fill its shape (e.g. an illustration on
+                  a white background) gives the customer no reference for
+                  where to cut without this line, so a clean sheet is the
+                  worse default — customers who don't want it can still
+                  switch it off here. Distinct from "Cut to shape (plotter)"
+                  below — this is a printed dashed line customers can trim to
+                  themselves, not us physically cutting it. Renders nothing
+                  for shapes with no outline to trace (fullsheet/
+                  waferletter) or a Custom design with no sub-shape chosen
+                  yet. */}
+              {shapeSupportsCutGuide(shape, customShapeKind) && (
+                <label style={{
+                  display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+                  marginTop: 12, padding: '12px 14px', borderRadius: 12,
+                  border: '2px solid ' + (cutGuide ? C.brand : C.border),
+                  background: cutGuide ? C.brandLight : C.white,
+                }}>
+                  <input type="checkbox" checked={cutGuide} onChange={(e) => setCutGuide(e.target.checked)}
+                    style={{ width: 18, height: 18, cursor: 'pointer', accentColor: C.brand, flexShrink: 0 }} />
+                  <span style={{ flex: 1 }}>
+                    <span style={{ fontWeight: 700, fontSize: 14, color: C.text, display: 'block' }}>Add a cut guide</span>
+                    <span style={{ fontSize: 12.5, color: C.muted }}>A thin dashed line marking the design edge, so you can trim it yourself — it will be printed on the sheet.</span>
+                  </span>
+                </label>
+              )}
               {whiteBgSuggestion && !removeWhiteBg && (
                 <div style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
@@ -4803,34 +4834,6 @@ export default function EdiblePrintApp() {
                     <span style={{ fontSize: 12.5, color: C.muted }}>We will precision-cut this on our plotter instead of leaving it as a full sheet.</span>
                   </span>
                   <span style={{ fontWeight: 700, fontSize: 14, color: C.brand, flexShrink: 0 }}>+${cutSurchargeFor(shape, sizeId).toFixed(2)}</span>
-                </label>
-              </div>
-            )}
-
-            {/* Cut guide — lib/cut-guide-config.js. ON by default: a design
-                that doesn't fill its shape (e.g. an illustration on a white
-                background) gives the customer no reference for where to cut
-                without this line, so a clean sheet is the worse default —
-                customers who don't want it can still switch it off here.
-                Distinct from "Cut to shape (plotter)" above — this is a
-                printed dashed line customers can trim to themselves, not us
-                physically cutting it. Renders nothing for shapes with no
-                outline to trace (fullsheet/waferletter) or a Custom design
-                with no sub-shape chosen yet. */}
-            {shapeSupportsCutGuide(shape, customShapeKind) && (
-              <div style={{ marginBottom: 22 }}>
-                <label style={{
-                  display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
-                  padding: '12px 14px', borderRadius: 12,
-                  border: '2px solid ' + (cutGuide ? C.brand : C.border),
-                  background: cutGuide ? C.brandLight : C.white,
-                }}>
-                  <input type="checkbox" checked={cutGuide} onChange={(e) => setCutGuide(e.target.checked)}
-                    style={{ width: 18, height: 18, cursor: 'pointer', accentColor: C.brand, flexShrink: 0 }} />
-                  <span style={{ flex: 1 }}>
-                    <span style={{ fontWeight: 700, fontSize: 14, color: C.text, display: 'block' }}>Add a cut guide</span>
-                    <span style={{ fontSize: 12.5, color: C.muted }}>A thin dashed line marking the design edge, so you can trim it yourself — it will be printed on the sheet.</span>
-                  </span>
                 </label>
               </div>
             )}

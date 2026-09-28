@@ -4,7 +4,7 @@ import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import { resolveMaterial, materialDisplayLabel } from '../../../../lib/material-config.js';
 import { resolveCut } from '../../../../lib/cutting-config.js';
-import { shapeSupportsCutGuide, hasLegacyBakedGuide } from '../../../../lib/cut-guide-config.js';
+import { shapeSupportsCutGuide, hasLegacyBakedGuide, designHasCutOutline } from '../../../../lib/cut-guide-config.js';
 import { VALID_STATUSES } from '../../../../lib/production-status.js';
 import { computeUrgency, URGENCY_LABELS, URGENCY_COLORS } from '../../../../lib/delivery-urgency.js';
 import { resolveOrderDispatch, formatPackageCount } from '../../../../lib/shipping-config.js';
@@ -544,6 +544,24 @@ export default function AdminOrderDetailPage({ params }) {
                   {d.imageUrl && (
                     <div style={{ marginTop: 4 }}>
                       <a href={d.imageUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12.5, color: C.brand }}>View file →</a>
+                    </div>
+                  )}
+                  {/* Cut outline for the Brother ScanNCut (lib/cut-svg.js) —
+                      admin-only: this page is behind the admin session and
+                      so is the route. Built from shape/size alone, so it
+                      doesn't depend on the design's image or PDFs existing. */}
+                  {designHasCutOutline(d) && (
+                    <div style={{ marginTop: 8 }}>
+                      <a
+                        href={`/api/admin/orders/${id}/download?type=cutsvg&index=${i}`}
+                        style={{
+                          display: 'inline-block', padding: '6px 12px', borderRadius: 8,
+                          background: C.brand, color: '#fff', textDecoration: 'none',
+                          fontWeight: 600, fontSize: 13,
+                        }}
+                      >
+                        ✂ Download cut SVG
+                      </a>
                     </div>
                   )}
                 </div>
