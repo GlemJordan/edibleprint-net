@@ -1,7 +1,7 @@
 // Verifies Stage 2 of the "I already have my design" flow: size/proportion
 // check, DPI check (PNG exact / PDF disclaimer), margin check, multi-page
 // PDF picker, and the confirm-anyway gate.
-import { chromium } from 'playwright';
+import { launchBrowser, hydrated, appears } from './_stress.mjs';
 import { PDFDocument, rgb } from 'pdf-lib';
 import fs from 'fs';
 import path from 'path';
@@ -59,7 +59,9 @@ async function makeMultiPagePdf(name, numPages) {
 
 async function uploadViaFullSheet(page, imagePath) {
   await page.goto(BASE_URL, { waitUntil: 'networkidle' });
-  await page.getByRole('button', { name: 'Already have a print-ready file? Upload it directly →' }).click();
+  const uploadButton = page.getByRole('button', { name: 'Already have a print-ready file? Upload it directly →' });
+  await hydrated(page, uploadButton); // a click before React hydrates the button does nothing
+  await uploadButton.click();
   await page.waitForTimeout(200);
   const fileInput = page.locator('input[type="file"][accept*="application/pdf"]');
   await fileInput.setInputFiles(imagePath);
@@ -67,7 +69,7 @@ async function uploadViaFullSheet(page, imagePath) {
 }
 
 (async () => {
-  const browser = await chromium.launch();
+  const browser = await launchBrowser();
   const results = [];
 
   // 1) PNG exact Full Sheet proportions (default sheet type = fullsheet, true A4), high DPI
@@ -78,8 +80,8 @@ async function uploadViaFullSheet(page, imagePath) {
       w: Math.round(FULLSHEET_IN.w * 300), h: Math.round(FULLSHEET_IN.h * 300),
     });
     await uploadViaFullSheet(page, p);
-    await page.waitForTimeout(1500);
-    const goodSize = await page.getByText("proportions match this sheet", { exact: false }).isVisible().catch(() => false);
+    // Wait for the validation note itself, not a fixed 1500 ms (too short on a slow page).
+    const goodSize = await appears(page.getByText("proportions match this sheet", { exact: false }));
     const goodDpi = await page.getByText('Resolution looks good', { exact: false }).isVisible().catch(() => false);
     const continueBtn = page.getByRole('button', { name: 'Continue →' });
     // No mismatch/DPI issue here, so the only gate left is Stage 3's
@@ -99,8 +101,7 @@ async function uploadViaFullSheet(page, imagePath) {
     const page = await browser.newPage({ viewport: { width: 1280, height: 1400 } });
     const p = await makePng(page, { name: 'lowdpi.png', w: 255, h: 330 });
     await uploadViaFullSheet(page, p);
-    await page.waitForTimeout(1500);
-    const lowDpiWarning = await page.getByText('below our recommended', { exact: false }).isVisible().catch(() => false);
+    const lowDpiWarning = await appears(page.getByText('below our recommended', { exact: false }));
     const canvaTip = await page.getByText('exports at screen resolution by default', { exact: false }).isVisible().catch(() => false);
     const continueBtn = page.getByRole('button', { name: 'Continue →' });
     const disabledBeforeConfirm = !(await continueBtn.isEnabled().catch(() => true));
@@ -122,8 +123,7 @@ async function uploadViaFullSheet(page, imagePath) {
     const page = await browser.newPage({ viewport: { width: 1280, height: 1400 } });
     const p = await makePng(page, { name: 'wrongshape.png', w: 4000, h: 4000 });
     await uploadViaFullSheet(page, p);
-    await page.waitForTimeout(1500);
-    const mismatchMsg = await page.getByText('little different from', { exact: false }).isVisible().catch(() => false);
+    const mismatchMsg = await appears(page.getByText('little different from', { exact: false }));
     const noCropClaim = await page.getByText('Nothing will be cropped', { exact: false }).isVisible().catch(() => false);
     const formattedTargetSize = await page.getByText('A4 (8.27" × 11.69")', { exact: false }).isVisible().catch(() => false);
     const noConfirmCheckboxShown = !(await page.getByText("I've reviewed the notes", { exact: false }).isVisible().catch(() => true));
@@ -145,8 +145,7 @@ async function uploadViaFullSheet(page, imagePath) {
     const page = await browser.newPage({ viewport: { width: 1280, height: 1400 } });
     const p = await makePng(page, { name: 'edgecontent.png', w: 2550, h: 3300, edgeContent: true });
     await uploadViaFullSheet(page, p);
-    await page.waitForTimeout(1500);
-    const marginWarning = await page.getByText('may be lost when trimmed', { exact: false }).isVisible().catch(() => false);
+    const marginWarning = await appears(page.getByText('may be lost when trimmed', { exact: false }));
     const confirmCheckboxShown = await page.getByText("I've reviewed the notes", { exact: false }).isVisible().catch(() => false);
     results.push({ test: '4a-margin-warning-shown-for-edge-content', pass: marginWarning });
     results.push({ test: '4b-confirm-checkbox-required-for-margin-warning', pass: confirmCheckboxShown });
@@ -159,10 +158,10 @@ async function uploadViaFullSheet(page, imagePath) {
     const p = await makeSinglePagePdf('exact.pdf', FULLSHEET_IN.w, FULLSHEET_IN.h);
     await uploadViaFullSheet(page, p);
     // PDF validation loads pdf.js first, which takes longer than the plain
-    // image-based checks above — 1500ms was too tight and flaked here.
-    await page.waitForTimeout(4000);
-    const dpiDisclaimer = await page.getByText("can't automatically check the resolution", { exact: false }).isVisible().catch(() => false);
-    const cmykNote = await page.getByText('CMYK files may shift', { exact: false }).isVisible().catch(() => false);
+    // image-based checks above (a fixed 1500 ms flaked, and so does 4000 on a slow
+    // page) — so wait for the notes to actually appear.
+    const dpiDisclaimer = await appears(page.getByText("can't automatically check the resolution", { exact: false }));
+    const cmykNote = await appears(page.getByText('CMYK files may shift', { exact: false }));
     results.push({ test: '5a-pdf-dpi-disclaimer-shown', pass: dpiDisclaimer });
     results.push({ test: '5b-pdf-cmyk-note-shown', pass: cmykNote });
     await page.close();
@@ -173,17 +172,17 @@ async function uploadViaFullSheet(page, imagePath) {
     const page = await browser.newPage({ viewport: { width: 1280, height: 1400 } });
     const p = await makeMultiPagePdf('multi.pdf', 3);
     await uploadViaFullSheet(page, p);
-    await page.waitForTimeout(4500); // pdf.js load + multi-page thumbnail rendering takes a while
-    const pickerVisible = await page.getByText('This PDF has 3 pages', { exact: false }).isVisible().catch(() => false);
+    // pdf.js load + multi-page thumbnail rendering takes a while: wait for it, don't sleep.
+    const pickerVisible = await appears(page.getByText('This PDF has 3 pages', { exact: false }));
     results.push({ test: '6a-multipage-picker-shown', pass: pickerVisible });
     const page2Btn = page.getByRole('button', { name: /Page 2/ });
-    const page2Visible = await page2Btn.isVisible().catch(() => false);
+    const page2Visible = await appears(page2Btn);
     results.push({ test: '6b-page-thumbnails-rendered', pass: page2Visible });
     if (page2Visible) {
+      await hydrated(page, page2Btn);
       await page2Btn.click();
-      await page.waitForTimeout(1200);
       // After picking page 2, validation should re-run without erroring / picker should still show selection
-      const stillOnReview = await page.getByRole('heading', { name: 'Review Your File' }).isVisible().catch(() => false);
+      const stillOnReview = await appears(page.getByRole('heading', { name: 'Review Your File' }));
       results.push({ test: '6c-page-switch-revalidates-without-crash', pass: stillOnReview });
     } else {
       results.push({ test: '6c-page-switch-revalidates-without-crash', pass: false, detail: 'page 2 thumb not found' });
