@@ -1,5 +1,6 @@
 import Stripe from 'stripe';
 import { NextResponse } from 'next/server';
+import { normalizeShippingMethod, DEFAULT_SHIPPING_METHOD } from '../../../lib/shipping-config.js';
 
 const isTest = process.env.STRIPE_MODE === 'test';
 const stripeKey = isTest
@@ -42,6 +43,9 @@ export async function GET(request) {
       items,
       payment_status: session.payment_status,
       session_status: session.status,
+      // What the success page words its "what happens next" steps from.
+      // Sessions from before shipping methods existed have none: read as standard.
+      shipping_method: normalizeShippingMethod(meta.shippingMethod) || DEFAULT_SHIPPING_METHOD,
     });
   } catch (err) {
     console.error('get-order-summary error:', err);

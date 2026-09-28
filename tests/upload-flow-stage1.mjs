@@ -4,7 +4,7 @@
 //  - oversized file gets rejected
 //  - a valid PDF gets accepted, added to the cart, and priced correctly
 //  - the cart flows through to Details (step 3) with the right summary line
-import { chromium } from 'playwright';
+import { launchBrowser, hydrated } from './_stress.mjs';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -32,15 +32,18 @@ startxref
 %%EOF`;
 
 (async () => {
-  const browser = await chromium.launch();
+  const browser = await launchBrowser();
   const page = await browser.newPage({ viewport: { width: 1280, height: 1400 } });
   const results = [];
 
-  await page.goto(BASE_URL, { waitUntil: 'networkidle' });
+  // Not 'networkidle': on a slow page it can take longer than any sensible ceiling to
+  // settle, and it says nothing about hydration — hydrated() below is the real signal.
+  await page.goto(BASE_URL, { waitUntil: 'domcontentloaded' });
 
   // 1) Hero secondary CTA visible + reachable
   const heroLink = page.getByRole('button', { name: 'Already have a print-ready file? Upload it directly →' });
   results.push({ test: '1-hero-cta-visible', pass: await heroLink.isVisible().catch(() => false) });
+  await hydrated(page, heroLink); // a click before React hydrates the button does nothing
   await heroLink.click();
   await page.waitForTimeout(300);
   const uploadHeaderVisible = await page.getByRole('heading', { name: 'Upload Your Print-Ready File' }).isVisible().catch(() => false);

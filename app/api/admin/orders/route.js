@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAdminSession } from '../../../../lib/admin-auth.js';
-import { searchOrders, ORDER_PUBLIC_ID_RE } from '../../../../lib/cloudinary-ops.js';
+import { searchOrders, fetchRawText, orderFolderPath, ORDER_PUBLIC_ID_RE } from '../../../../lib/cloudinary-ops.js';
+import { fillLegacyDispatch } from '../../../../lib/order-list-dispatch.js';
 
 const MAX_PAGES = 10; // safety cap: up to 1000 raw search results scanned per request
 
@@ -58,10 +59,20 @@ export async function GET(request) {
           committedDate: context.committedDate || null,
           isPickup:      context.isPickup === 'true',
           paymentStatus: context.paymentStatus || 'paid',
+          // How it ships, for planning the trip to the post office. Orders
+          // saved before these were written to context have neither: their
+          // method reads as standard (or pickup), and the package count is
+          // filled in below where it still matters.
+          shippingMethod: context.shippingMethod || (context.isPickup === 'true' ? 'pickup' : 'standard'),
+          packages: context.packages ? parseInt(context.packages, 10) : (context.isPickup === 'true' ? 0 : null),
         });
       }
       cursor = lastResult.next_cursor || null;
     } while (cursor && pagesFetched < MAX_PAGES);
+
+    // Older orders still waiting to go out get their package count from their
+    // order body (see fillLegacyDispatch); everything else already has it.
+    await fillLegacyDispatch(orders, async (orderId) => JSON.parse(await fetchRawText(`${orderFolderPath(orderId)}/order`)));
 
     return NextResponse.json({
       orders,

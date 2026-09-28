@@ -6,7 +6,7 @@ const OG_IMAGE_URL = 'https://edibleprint.net/logo-assets/og-image.png';
 
 export const metadata = {
   title: 'Custom Edible Image Printing Canada | EdiblePrint.net',
-  description: 'Order custom edible image prints for cakes, cookies and cupcakes. Upload your photo online — 1–2 day production, flat-rate shipping across Canada, and free local pickup in London, Ontario.',
+  description: 'Order custom edible image prints for cakes, cookies and cupcakes. Upload your photo online — 1–2 day production, standard or tracked shipping across Canada, and free local pickup in London, Ontario.',
   keywords: 'edible print, edible image, cake topper, custom edible printing, edible paper, Canada, icing sheet, wafer paper, London Ontario, edible cake topper, custom cookie printing, edible photo',
   icons: {
     icon: [

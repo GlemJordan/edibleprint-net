@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { formatProductionWindow } from '../../lib/shipping-config.js';
 
 const SLIDES = [
   { tag: 'Photo cake',     after: '/hero/ejemplo-1-after.jpg', before: '/hero/ejemplo-1-before.jpg' },
@@ -244,7 +245,7 @@ export default function HeroSection({ onOrderClick, onUploadFileClick, cutoffMsg
               border: cutoffMsg?.green ? '1px solid #6EE7B7' : 'none',
             }}>
               {cutoffMsg?.green ? '🟢' : '🕒'}{' '}
-              {cutoffMsg?.text ?? 'Order now — production starts next business day'}
+              {cutoffMsg?.text ?? `Order now — ready for pickup or shipping in ${formatProductionWindow()}`}
             </div>
 
           </div>

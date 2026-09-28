@@ -1,4 +1,5 @@
 import LegalLayout from '../_components/LegalLayout';
+import { formatProductionWindow, shippingTimesSentence } from '../../lib/shipping-config.js';
 
 export const metadata = {
   title: 'Terms of Service — EdiblePrint.net',
@@ -15,7 +16,7 @@ const ul = { margin: '0 0 16px', paddingLeft: 22, lineHeight: 1.9 };
 
 export default function TermsPage() {
   return (
-    <LegalLayout title="Terms of Service" lastUpdated="Last updated: April 16, 2026">
+    <LegalLayout title="Terms of Service" lastUpdated="Last updated: September 25, 2026">
 
       <p style={p}>
         Welcome to EdiblePrint. By accessing or using edibleprint.net, you agree to these Terms of Service.
@@ -45,9 +46,9 @@ export default function TermsPage() {
 
       <h2 style={h2}>4. Production and Shipping</h2>
       <p style={p}>
-        Orders are produced within 1–2 business days of payment confirmation. Shipping times vary by destination
-        (see our Shipping Policy). We are not responsible for delays caused by shipping carriers, weather,
-        or other circumstances beyond our control.
+        Orders are produced within {formatProductionWindow()} of payment confirmation. {shippingTimesSentence()} See
+        our Shipping Policy for details. Except as described in our Shipping Policy, we are not responsible for
+        delays caused by shipping carriers, weather, or other circumstances beyond our control.
       </p>
 
       <h2 style={h2}>5. Uploaded Content and Intellectual Property</h2>

@@ -30,6 +30,18 @@
  *   isTest: boolean,
  *   customer: { name: string, email?: string, phone?: string },
  *   designs: DesignRecord[],
+ *   // What the customer chose at checkout. Absent on orders saved before the
+ *   // standard/tracked split — read via resolveOrderShippingMethod().
+ *   shippingMethod?: 'pickup' | 'standard' | 'tracked',
+ *   shippingCarrier?: string,
+ *   shippingCostCharged?: number,
+ *   // Packages the order ships in (0 for pickup): one per SHEETS_PER_PACKAGE
+ *   // sheets for standard, one for tracked. Absent on orders saved before
+ *   // per-package shipping — those were charged for a single package.
+ *   shippingPackages?: number,
+ *   // Customer's optional "needed by" date, YYYY-MM-DD. Informational; not
+ *   // the same as committedDate, which the owner decides.
+ *   neededByDate?: string,
  *   shipping: {
  *     method: 'pickup' | 'local_delivery' | 'canada_post_standard' | 'canada_post_express',
  *     label: string,
@@ -58,6 +70,10 @@
  *   // ship out for everything else. YYYY-MM-DD, no time component — see
  *   // lib/delivery-urgency.js for how it's turned into an urgency bucket.
  *   committedDate?: string,
+ *   // Set by the admin at dispatch (see updateDispatchInfo): the real ship
+ *   // date, YYYY-MM-DD, and the carrier tracking number. Never set on pickup.
+ *   shippedAt?: string,
+ *   trackingNumber?: string,
  *   notes?: string,
  *   urgentFlags?: string[],
  *   notifications?: {

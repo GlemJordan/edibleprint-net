@@ -5,6 +5,9 @@ import Link from 'next/link';
 import { shapeDisplayLabel } from '../../../../lib/paper-config.js';
 import { shapeSupportsMaterial } from '../../../../lib/material-config.js';
 import MaterialPicker from '../../../_components/MaterialPicker.js';
+import {
+  getShippingMethods, getShippingPackages, isMethodAvailable, TRACKED_UNAVAILABLE_MESSAGE,
+} from '../../../../lib/shipping-config.js';
 
 const C = {
   brand: '#1B6B4A', brandLight: '#E8F5EE', text: '#1a1a1a',
@@ -74,7 +77,7 @@ export default function AddManualOrderPage() {
   const [size, setSize] = useState('');
   const [quantity, setQuantity] = useState('1');
   const [amountDollars, setAmountDollars] = useState('');
-  const [isPickup, setIsPickup] = useState(true);
+  const [shippingMethod, setShippingMethod] = useState('pickup');
   const [shipLine1, setShipLine1] = useState('');
   const [shipCity, setShipCity] = useState('');
   const [shipProvince, setShipProvince] = useState('Ontario');
@@ -136,6 +139,13 @@ export default function AddManualOrderPage() {
     return uploadResult.secure_url;
   }
 
+  const isPickup = shippingMethod === 'pickup';
+  // Live from the quantity typed (a bad value just shows no package count —
+  // the server is what actually validates it).
+  const sheetCount = Number.isInteger(Number(quantity)) && Number(quantity) >= 1 ? Number(quantity) : null;
+  const trackedFits = sheetCount === null || isMethodAvailable('tracked', sheetCount);
+  const packages = !isPickup && sheetCount !== null ? getShippingPackages(shippingMethod, sheetCount) : null;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -149,6 +159,8 @@ export default function AddManualOrderPage() {
     const amountCents = Math.round(parseFloat(amountDollars || '0') * 100);
     if (!amountCents || amountCents <= 0) return setError('Enter the amount charged.');
     if (!isPickup && !shipLine1.trim()) return setError('Shipping address is required when not picking up.');
+    if (!Number.isInteger(Number(quantity)) || Number(quantity) < 1) return setError('Quantity must be a whole number of at least 1.');
+    if (!isMethodAvailable(shippingMethod, Number(quantity))) return setError(TRACKED_UNAVAILABLE_MESSAGE);
 
     setSubmitting(true);
     try {
@@ -163,9 +175,9 @@ export default function AddManualOrderPage() {
         customerPhone: customerPhone.trim() || undefined,
         channel, paymentMethod,
         shape, material: shapeSupportsMaterial(shape) ? material : undefined,
-        size: size.trim(), quantity: parseInt(quantity, 10) || 1,
+        size: size.trim(), quantity: parseInt(quantity, 10),
         amountCents,
-        isPickup,
+        shippingMethod,
         shippingAddress: isPickup ? undefined : {
           line1: shipLine1.trim(), city: shipCity.trim(),
           province: shipProvince.trim(), postalCode: shipPostal.trim(), country: 'CA',
@@ -330,14 +342,26 @@ export default function AddManualOrderPage() {
             </Section>
 
             <Section title="Fulfillment">
-              <div style={{ display: 'flex', gap: 16, marginBottom: 12 }}>
+              <div role="radiogroup" aria-label="Fulfillment method" style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginBottom: 12 }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, cursor: 'pointer' }}>
-                  <input type="radio" checked={isPickup} onChange={() => setIsPickup(true)} /> Pickup
+                  <input type="radio" name="fulfillment" checked={isPickup} onChange={() => setShippingMethod('pickup')} /> Pickup
                 </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, cursor: 'pointer' }}>
-                  <input type="radio" checked={!isPickup} onChange={() => setIsPickup(false)} /> Shipping
-                </label>
+                {getShippingMethods().map((m) => {
+                  const disabled = m.id === 'tracked' && !trackedFits;
+                  return (
+                    <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.55 : 1 }}>
+                      <input type="radio" name="fulfillment" checked={shippingMethod === m.id} disabled={disabled} onChange={() => setShippingMethod(m.id)} />
+                      {m.label} — {m.carrier}
+                    </label>
+                  );
+                })}
               </div>
+              {!trackedFits && <p style={{ fontSize: 12.5, color: C.muted, margin: '0 0 12px' }}>{TRACKED_UNAVAILABLE_MESSAGE}</p>}
+              {packages !== null && (
+                <p style={{ fontSize: 13, color: C.text, margin: '0 0 12px' }}>
+                  Ships in <strong>{packages} {packages === 1 ? 'package' : 'packages'}</strong>.
+                </p>
+              )}
               {!isPickup && (
                 <>
                   <Field label="Address *"><input style={inputStyle} value={shipLine1} onChange={(e) => setShipLine1(e.target.value)} /></Field>

@@ -17,6 +17,16 @@ const DEFAULT_TESTS = [
   'upload-flow-stage1.mjs',
   'upload-flow-stage2.mjs',
   'print-preview-mobile.mjs',
+  'shipping-selector.mjs',
+  'shipping-packages-ui.mjs',
+  'admin-dispatch-ui.mjs',
+  'shipping-copy.mjs',
+  // The two below need no dev server (pure functions / the route handler run
+  // in-process with Stripe's transport stubbed).
+  'checkout-pricing.mjs',
+  'order-packages.mjs',
+  'dispatch-info.mjs',
+  'dispatch-email.mjs',
 ];
 
 // Hits real Cloudinary + creates a real (unpaid, self-expiring) Stripe

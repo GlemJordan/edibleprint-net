@@ -3,7 +3,7 @@
 // ratios), across all 7 catalog shapes. Confirms/refutes the fix in
 // app/page.js (drawLayers now sizes off native image dimensions instead of
 // whatever bitmap getImg() happens to return).
-import { chromium } from 'playwright';
+import { launchBrowser, hydrated } from './_stress.mjs';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -103,12 +103,19 @@ const CASES = [
 
 async function selectShapeAndUpload(page, shape, imagePath) {
   await page.goto(BASE_URL, { waitUntil: 'networkidle' });
+  // Each click waits for React to hydrate its target first: an earlier click does nothing.
   if (shape.via === 'footer') {
-    await page.locator('footer').getByText(shape.text, { exact: true }).click();
+    const link = page.locator('footer').getByText(shape.text, { exact: true });
+    await hydrated(page, link);
+    await link.click();
   } else {
-    await page.locator('#pricing').getByRole('button', { name: shape.tabText, exact: true }).click();
+    const tab = page.locator('#pricing').getByRole('button', { name: shape.tabText, exact: true });
+    await hydrated(page, tab);
+    await tab.click();
     await page.waitForTimeout(150);
-    await page.locator('#pricing').getByText(shape.cardText, { exact: true }).click();
+    const card = page.locator('#pricing').getByText(shape.cardText, { exact: true });
+    await hydrated(page, card);
+    await card.click();
   }
   const fileInput = page.locator('input[type="file"][accept="image/*,.pdf"]');
   await fileInput.setInputFiles(imagePath);
@@ -117,7 +124,7 @@ async function selectShapeAndUpload(page, shape, imagePath) {
 }
 
 (async () => {
-  const browser = await chromium.launch();
+  const browser = await launchBrowser();
   const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } });
 
   const results = [];

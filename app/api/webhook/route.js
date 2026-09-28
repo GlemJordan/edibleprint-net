@@ -6,6 +6,8 @@ import { withRetry } from '../../../lib/with-retry.js';
 import { BUSINESS_ADDRESS_ONE_LINE, BUSINESS_PHONE_DISPLAY } from '../../../lib/business-info.js';
 import { resolveMaterial, materialDisplayLabel } from '../../../lib/material-config.js';
 import { decodeCustomShapeKind } from '../../../lib/cut-guide-config.js';
+import { getShippingMethod, normalizeShippingMethod, getShippingPackages, countSheets } from '../../../lib/shipping-config.js';
+import { confirmationShippingBlock } from '../../../lib/shipping-email.js';
 
 // CASL sender-identification footer for the 4 customer/admin-facing
 // templates (owner order email, customer confirmation, magic link,
@@ -312,7 +314,17 @@ async function processOrder(session, orderId) {
   const shippingAmt = parseFloat(meta.shippingCost) || 0;
   const totalAmt    = session.amount_total / 100;
 
-  const shippingLabel = meta.shippingMethod === 'pickup' ? 'Pickup — East London, ON' : 'Canada Post Shipping';
+  const shippingInfo = isPickup ? null : getShippingMethod(normalizeShippingMethod(meta.shippingMethod));
+  // Same derivation buildOrderRecord saves as record.shippingPackages, so the
+  // emails and the stored order can't disagree about how many packages ship.
+  const shippingPackages = isPickup ? 0 : getShippingPackages(shippingInfo.id, countSheets(designs.map((d) => d.qty)));
+  const shippingLabel = isPickup
+    ? 'Pickup — East London, ON'
+    : shippingInfo.label + ' — ' + shippingInfo.carrier + (shippingPackages > 1 ? ' — ' + shippingPackages + ' packages' : '');
+  // Customer-email block: what they bought and how long it takes once it ships.
+  const shippingBlock = shippingInfo
+    ? confirmationShippingBlock(shippingInfo, (process.env.NEXT_PUBLIC_SITE_URL || 'https://edibleprint.net') + '/shipping')
+    : null;
 
   // 1. Build + save OrderRecord (order.json + notes.txt → Cloudinary).
   // Isolated in its own try/catch: if this specific step fails after
@@ -517,6 +529,7 @@ async function processOrder(session, orderId) {
           + (designs.some(d => d.sourceType === 'upload') ? ' (Files uploaded through "I already have my design" print exactly as approved, without review.)' : ''))
     + '</p>'
     + '</div>'
+    + (shippingBlock ? shippingBlock.html : '')
     + (isPickup
       ? '<div style="background:#FFF4EB;border-left:4px solid #E8873C;padding:14px 16px;border-radius:0 6px 6px 0;margin-bottom:20px;">'
         + '<p style="margin:0 0 6px;font-size:14px;font-weight:600;color:#374151;">Pickup Address</p>'
@@ -542,6 +555,7 @@ async function processOrder(session, orderId) {
     + (designs.every(d => d.sourceType === 'upload')
         ? 'Your file' + (designs.length > 1 ? 's' : '') + ' will be printed exactly as you approved — no review or changes needed.\n\n'
         : 'We\'ll review your image' + (designs.length > 1 ? 's' : '') + ' within 24 hours and contact you if any adjustments are needed.\n\n')
+    + (shippingBlock ? shippingBlock.text : '')
     + (isPickup
         ? 'Pickup Address\n' + BUSINESS_ADDRESS_ONE_LINE + '\nPlease wait for our confirmation email with your pickup time.\n\n'
         : '')
