@@ -5,7 +5,7 @@
 //     and NOT for a normal (content-filling) image.
 //  C) Clicking "Remove it ->" opens Advanced options, flips the toggle on,
 //     and the edge-tolerance warning becomes visible.
-import { chromium } from 'playwright';
+import { launchBrowser, hydrated } from './_stress.mjs';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -33,7 +33,9 @@ async function makeTestImage(page, { name, w, h, subjectSize, bg }) {
 
 async function uploadViaFullSheet(page, imagePath) {
   await page.goto(BASE_URL, { waitUntil: 'networkidle' });
-  await page.locator('footer').getByText('Full Sheet Prints', { exact: true }).click();
+  const fullSheet = page.locator('footer').getByText('Full Sheet Prints', { exact: true });
+  await hydrated(page, fullSheet); // a click before React hydrates the link does nothing
+  await fullSheet.click();
   const fileInput = page.locator('input[type="file"][accept="image/*,.pdf"]');
   await fileInput.setInputFiles(imagePath);
   await page.waitForSelector('canvas', { state: 'attached' });
@@ -41,7 +43,7 @@ async function uploadViaFullSheet(page, imagePath) {
 }
 
 (async () => {
-  const browser = await chromium.launch();
+  const browser = await launchBrowser();
   const results = [];
 
   // --- Test A + B: white-margin image, default settings, no worker created ---

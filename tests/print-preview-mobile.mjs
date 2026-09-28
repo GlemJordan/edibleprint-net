@@ -1,6 +1,6 @@
 // Verify the print-preview modal sizing fix: the sheet must never overflow
 // past the safe visible area on mobile, across shapes and viewports.
-import { chromium } from 'playwright';
+import { launchBrowser, hydrated } from './_stress.mjs';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -82,7 +82,7 @@ async function measureModal(page, label) {
 }
 
 (async () => {
-  const browser = await chromium.launch();
+  const browser = await launchBrowser();
   const allResults = [];
 
   for (const vp of VIEWPORTS) {
@@ -103,7 +103,9 @@ async function measureModal(page, label) {
     page.on('pageerror', err => console.log(vp.name, 'PAGE ERROR:', err.message));
 
     await page.goto(BASE_URL, { waitUntil: 'networkidle' });
-    await page.getByRole('button', { name: 'Upload Your Photo →' }).click();
+    const uploadPhoto = page.getByRole('button', { name: 'Upload Your Photo →' });
+    await hydrated(page, uploadPhoto); // a click before React hydrates the button does nothing
+    await uploadPhoto.click();
     await page.waitForTimeout(300);
     const imgPath = await dataUrlToFile(page);
     const fileInput = page.locator('input[type="file"][accept="image/*,.pdf"]');

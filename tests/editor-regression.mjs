@@ -1,6 +1,6 @@
 // Regression check: the existing editor flow must be completely unaffected
 // by the new "I already have my design" entry point.
-import { chromium } from 'playwright';
+import { launchBrowser, hydrated } from './_stress.mjs';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -9,14 +9,17 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 const TMP_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'ep-editor-regress-'));
 
 (async () => {
-  const browser = await chromium.launch();
+  const browser = await launchBrowser();
   const page = await browser.newPage({ viewport: { width: 1280, height: 1400 } });
   const results = [];
 
-  await page.goto(BASE_URL, { waitUntil: 'networkidle' });
+  // Not 'networkidle': on a slow page it can take longer than any sensible ceiling to
+  // settle, and it says nothing about hydration — hydrated() below is the real signal.
+  await page.goto(BASE_URL, { waitUntil: 'domcontentloaded' });
 
   const primaryCta = page.getByRole('button', { name: 'Upload Your Photo →' });
   results.push({ test: '1-primary-cta-still-visible', pass: await primaryCta.isVisible().catch(() => false) });
+  await hydrated(page, primaryCta); // a click before React hydrates the button does nothing
   await primaryCta.click();
   await page.waitForTimeout(300);
   const uploadImageHeader = await page.getByRole('heading', { name: 'Upload Your Image' }).isVisible().catch(() => false);
