@@ -1036,13 +1036,14 @@ function renderPreviewCore(ctx, cw, ch, {
    own doc comment for why reading it is safe, and why that's what keeps a
    drag smooth), or the modal's own `sub`/offscreen render — never re-derived
    here, so this can never drift from what actually prints; it only composes
-   that render smaller, on backing, with a shadow. Cookie Sheets are the one
-   exception (buildCutCircleCell() below renders its own single circle) since
-   there's no single already-rendered source to crop a clean piece from — see
-   its own doc comment. */
+   that render AT THE SAME SIZE AND POSITION, on backing, with a shadow —
+   never shrunk to make room for the backing, or a Round 8" would look
+   smaller with "Cut to shape" than with "Printed sheet". Cookie Sheets are
+   the one exception (buildCutCircleCell() below renders its own single
+   circle) since there's no single already-rendered source to crop a clean
+   piece from — see its own doc comment; every circle still lands at its
+   real tiled position, same as the non-cut render. */
 
-// Fraction of a piece's own box kept as backing margin on every side.
-const CUT_PREVIEW_INSET_FRAC = 0.12;
 const CUT_PREVIEW_SHADOW = { color: 'rgba(0,0,0,0.28)', blur: 6, offsetY: 2 };
 const CUT_PREVIEW_BORDER = 'rgba(0,0,0,0.22)';
 
@@ -1063,31 +1064,33 @@ function fillCutBacking(ctx, x, y, w, h) {
 }
 
 /* Draws `source` (an already-rendered, un-inset, normal design — see this
-   file's own callers) shrunk and centered into (x,y,w,h), over a
-   backing fill the caller already painted there — so the margin around the
-   piece reads as backing, not leftover sheet. The drop shadow (skipped
-   while `noShadow`, for a smooth drag) is cast by drawImage() itself
-   following `source`'s own alpha — unclipped, so it can spill past the
-   piece into the backing — which hugs round/heart/custom exactly and reads
-   as a plain rectangular shadow for square, with no separate shape lookup
-   needed for the shadow itself. The border is traced explicitly with
-   `kind` (lib/shape-paths.js — the SAME geometry the cut guide and the
-   admin cut SVG use) since a shadow alone doesn't read as a hard edge. */
+   file's own callers) at (x,y,w,h) — the EXACT same size and position the
+   non-cut render already uses there, never shrunk: the piece has to look
+   identically sized/placed whichever option the customer picks, or a Round
+   8" would look like it shrank to the eye. The backing shows through only
+   where `source` is naturally transparent outside the shape at this same
+   size (round/heart/custom's own corners) — never an inset margin added
+   here. The drop shadow (skipped while `noShadow`, for a smooth drag) is
+   cast by drawImage() itself following `source`'s own alpha — unclipped, so
+   it can spill past the piece into the backing where there's room for it
+   (a square/rectangle piece that already fills its own box has none, and
+   that's fine — see this feature's own commit message). The border is
+   traced explicitly with `kind` (lib/shape-paths.js — the SAME geometry the
+   cut guide and the admin cut SVG use) since a shadow alone doesn't read as
+   a hard edge. */
 function drawCutPiece(ctx, source, x, y, w, h, kind, noShadow) {
-  const inset = Math.round(Math.min(w, h) * CUT_PREVIEW_INSET_FRAC);
-  const px = x + inset, py = y + inset, pw = w - inset * 2, ph = h - inset * 2;
   ctx.save();
   if (!noShadow) {
     ctx.shadowColor = CUT_PREVIEW_SHADOW.color;
     ctx.shadowBlur = CUT_PREVIEW_SHADOW.blur;
     ctx.shadowOffsetY = CUT_PREVIEW_SHADOW.offsetY;
   }
-  ctx.drawImage(source, px, py, pw, ph);
+  ctx.drawImage(source, x, y, w, h);
   ctx.restore();
   ctx.save();
   ctx.strokeStyle = CUT_PREVIEW_BORDER;
   ctx.lineWidth = 1;
-  ctx.stroke(new Path2D(shapeOutlinePath(kind, px, py, pw, ph)));
+  ctx.stroke(new Path2D(shapeOutlinePath(kind, x, y, w, h)));
   ctx.restore();
 }
 
@@ -1606,7 +1609,15 @@ function ImageEditor({ layers, onLayersChange, shape, sizeId, sizeObj, onCrop, o
         showWatermark: true, customShapeKind: previewDesign.customShapeKind, cutGuide: pCutGuide,
       });
       if (pCutActive) {
-        fillCutBacking(ctx, offPxX, offPxY, designPxW, designPxH);
+        // The backing is the WHOLE A4 sheet, not just the design's own box —
+        // once cut, none of the surrounding sheet reaches the customer
+        // either, so painting over just the paper background drawn above
+        // (line ~1394) would leave a paper-coloured margin nobody actually
+        // gets. The piece itself is drawn unchanged at the SAME offPxX/
+        // offPxY/designPxW/designPxH computeSheetPlacement() already gives
+        // the normal (non-cut) render below — same position and size the
+        // production PDF places it at, not shrunk for the backing.
+        fillCutBacking(ctx, 0, 0, cw, ch);
         drawCutPiece(ctx, sub, offPxX, offPxY, designPxW, designPxH, cutGuideShapeKind(pShape, previewDesign.customShapeKind), false);
       } else {
         ctx.drawImage(sub, offPxX, offPxY, designPxW, designPxH);
