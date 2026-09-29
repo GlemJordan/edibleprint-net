@@ -1151,7 +1151,7 @@ function drawCutMulticircle(ctx, cell, cw, ch, circlePx, mcCols, mcRows, mcOffse
    public/bg-remove-worker.js (same flood-fill + feather algorithm, moved
    verbatim) and removeWhiteBackgroundViaWorker() inside ImageEditor below. */
 
-function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF', textOverlay = null, onTextPositionChange, removeWhiteBg = false, bgRemoveTolerance = 30, onBgProcessingChange, onWhiteBgSuggestion, sizeLabel = '', isMobile = false, designs = [], activeDesignId = null, customShapeKind = undefined, cutGuide = false, cutActive = false }) {
+function ImageEditor({ layers, onLayersChange, shape, sizeId, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF', textOverlay = null, onTextPositionChange, removeWhiteBg = false, bgRemoveTolerance = 30, onBgProcessingChange, onWhiteBgSuggestion, sizeLabel = '', isMobile = false, designs = [], activeDesignId = null, customShapeKind = undefined, cutGuide = false, cutActive = false, setCutToShape, setCutGuide }) {
   /* Declared early: several hooks below depend on these */
   const isMultiCircle = shape === 'multicircle';
   const isBWSheet = shape === 'bwsheet';
@@ -2774,6 +2774,57 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
         </details>
       )}
 
+      {/* How would you like it? — lib/cutting-config.js / lib/cut-guide-config.js.
+          The one choice between a printed sheet (trim it yourself, with an
+          optional printed guide) and cutting to shape ourselves (+$5.00/sheet,
+          no guide — nothing to trim). Right here, below the image controls
+          and before the print preview, so the choice and its effect on the
+          preview are seen together. Renders nothing for a shape with no cut
+          option (fullsheet/bwsheet/waferletter) — see shapeSupportsCut(). */}
+      {shapeSupportsCut(shape, sizeId) && (
+        <div style={{ width: '100%' }}>
+          <div style={{ fontWeight: 600, fontSize: 13, color: C.text, marginBottom: 8 }}>How would you like it?</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <label style={{
+              flex: 1, minWidth: 0, display: 'block', cursor: 'pointer', boxSizing: 'border-box',
+              padding: '10px 10px', borderRadius: 12,
+              border: '2px solid ' + (!cutActive ? C.brand : C.border),
+              background: !cutActive ? C.brandLight : C.white,
+            }}>
+              <input type="radio" name="cutChoice" checked={!cutActive} onChange={() => setCutToShape(false)}
+                style={{ accentColor: C.brand, marginRight: 6 }} />
+              <span style={{ fontWeight: 700, fontSize: 12.5, color: C.text }}>Printed sheet</span>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>You trim it yourself</div>
+            </label>
+            <label style={{
+              flex: 1, minWidth: 0, display: 'block', cursor: 'pointer', boxSizing: 'border-box',
+              padding: '10px 10px', borderRadius: 12,
+              border: '2px solid ' + (cutActive ? C.brand : C.border),
+              background: cutActive ? C.brandLight : C.white,
+            }}>
+              <input type="radio" name="cutChoice" checked={cutActive} onChange={() => setCutToShape(true)}
+                style={{ accentColor: C.brand, marginRight: 6 }} />
+              <span style={{ fontWeight: 700, fontSize: 12.5, color: C.text }}>Cut to shape</span>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>We cut it for you, ready to peel</div>
+              <div style={{ fontSize: 11, color: C.brand, fontWeight: 700, marginTop: 2 }}>+$5.00 per sheet</div>
+            </label>
+          </div>
+        </div>
+      )}
+      {/* Cut guide — a discreet one-liner (not a card): only when a guide
+          would even mean something for this shape, and only under "Printed
+          sheet" — once cutting is chosen there is nothing left to trim, and
+          the server already forces the guide off regardless of this value
+          (see resolveCutGuide()/create-checkout), so hiding it here is purely
+          about not showing a choice that no longer does anything. */}
+      {shapeSupportsCutGuide(shape, customShapeKind) && !cutActive && (
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+          <input type="checkbox" checked={cutGuide} onChange={(e) => setCutGuide(e.target.checked)}
+            style={{ width: 13, height: 13, cursor: 'pointer', accentColor: C.brand, flexShrink: 0 }} />
+          <span style={{ fontSize: 11.5, color: C.muted }}>Print a cut guide (dashed line to trim along)</span>
+        </label>
+      )}
+
       <p style={{ fontSize: 11, color: '#bbb', margin: 0 }}>Print output: {hiResW}×{hiResH}px ({DPI} DPI)</p>
 
       <button onClick={() => setShowPrintPreview(true)}
@@ -3965,7 +4016,7 @@ export default function EdiblePrintApp() {
             })}
           </div>
           <p style={{ fontSize: 13, color: '#bbb', marginTop: 20 }}>Custom sizes available · Free local pickup · Canada-wide shipping from {'$' + LOWEST_SHIPPING_PRICE.toFixed(2)} · No tax charged</p>
-          <p style={{ fontSize: 13, color: '#bbb', marginTop: 6 }}>Cut to shape available on Round, Heart, Square, Custom and Cookie Sheets: +$5.00 per sheet</p>
+          <p style={{ fontSize: 13, color: '#bbb', marginTop: 6 }}>Choose &quot;Cut to shape&quot; on Round, Heart, Square, Custom or Cookie Sheets: +$5.00 per sheet, we cut it for you</p>
         </section>
 
         {/* ── PDF DOWNLOAD SECTION ── */}
@@ -4228,7 +4279,7 @@ export default function EdiblePrintApp() {
             ['How long do edible prints last?', 'Stored in the original sealed packaging in a cool, dry place, edible prints last up to 12 months. Once applied to a frosted cake, they are best consumed within 3–5 days.'],
             ['Are your products allergen-free?', 'Our edible inks and sheets are free from the most common allergens. However, they are produced in a facility that may handle nuts and dairy. Please review our full allergen statement for details.'],
             ['What if my order arrives damaged or the print quality is poor?', 'We stand behind every order. If your print arrives damaged or doesn\'t meet the quality you expected, contact us within 48 hours and we\'ll reprint it or issue a full refund — no questions asked.'],
-            ['Can you cut my print to shape?', 'Yes. Tick "Cut to shape (plotter)" when you customize a Round, Heart, Square, Custom or Cookie Sheet print. We cut every sheet on our plotter for $5.00 per sheet, and no cut guide is printed. Without it, your print comes on the full A4 sheet, with an optional printed guide for trimming yourself.'],
+            ['Can you cut my print to shape?', 'Yes. When you customize a Round, Heart, Square, Custom or Cookie Sheet print, choose "Cut to shape" under "How would you like it?" — we cut every sheet on our plotter for $5.00 per sheet, and no cut guide is printed. Choose "Printed sheet" instead and your print comes on the full A4 sheet, with an optional printed guide for trimming yourself.'],
           ].map(([q, a], i) => (
             <details key={i} style={{ borderBottom: '1px solid ' + C.border, paddingBottom: 16, marginBottom: 16 }}>
               <summary style={{ fontWeight: 600, fontSize: 15, cursor: 'pointer', listStyle: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
@@ -4853,6 +4904,7 @@ export default function EdiblePrintApp() {
                 layers={layers}
                 onLayersChange={setLayers}
                 shape={shape}
+                sizeId={sizeId}
                 sizeObj={effectiveSize}
                 onCrop={setCropPreview}
                 onHiResCrop={setHiResCrop}
@@ -4870,52 +4922,13 @@ export default function EdiblePrintApp() {
                 customShapeKind={customShapeKind}
                 cutGuide={guideOn}
                 cutActive={cutActive}
+                setCutToShape={setCutToShape}
+                setCutGuide={setCutGuide}
               />
               {cutActive && (
                 <p style={{ fontSize: 12, color: C.muted, textAlign: 'center', margin: '8px 0 0' }}>
                   Preview of your cut toppers. They arrive on a clear backing, ready to peel off.
                 </p>
-              )}
-              {/* Cut guide — lib/cut-guide-config.js. Lives right under the
-                  editor (not down with Shape/Size/"Cut to shape") so on a
-                  phone the customer sees it while adjusting the image, with
-                  the line drawn on the canvas just above. ON by default: a
-                  design that doesn't fill its shape (e.g. an illustration on
-                  a white background) gives the customer no reference for
-                  where to cut without this line, so a clean sheet is the
-                  worse default — customers who don't want it can still
-                  switch it off here. Distinct from "Cut to shape (plotter)"
-                  below — this is a printed dashed line customers can trim to
-                  themselves, not us physically cutting it. Renders nothing
-                  for shapes with no outline to trace (fullsheet/
-                  waferletter) or a Custom design with no sub-shape chosen
-                  yet. */}
-              {shapeSupportsCutGuide(shape, customShapeKind) && (
-                /* While "Cut to shape (plotter)" is ticked no guide is printed —
-                   we cut it ourselves — so this is shown off and disabled, with
-                   the reason. The customer's own choice (`cutGuide`) is kept
-                   and returns when they untick the cut. */
-                <label style={{
-                  display: 'flex', alignItems: 'center', gap: 10, cursor: cutActive ? 'default' : 'pointer',
-                  marginTop: 12, padding: '12px 14px', borderRadius: 12,
-                  border: '2px solid ' + (guideOn ? C.brand : C.border),
-                  background: guideOn ? C.brandLight : C.white,
-                  opacity: cutActive ? 0.6 : 1,
-                }}>
-                  <input type="checkbox" checked={guideOn} disabled={cutActive} onChange={(e) => setCutGuide(e.target.checked)}
-                    style={{ width: 18, height: 18, cursor: cutActive ? 'default' : 'pointer', accentColor: C.brand, flexShrink: 0 }} />
-                  <span style={{ flex: 1 }}>
-                    <span style={{ fontWeight: 700, fontSize: 14, color: C.text, display: 'block' }}>Add a cut guide</span>
-                    <span style={{ fontSize: 12.5, color: C.muted }}>
-                      {cutActive
-                        ? 'Not needed — we cut your design to shape for you, so no guide is printed.'
-                        : 'A thin dashed line marking the design edge, so you can trim it yourself — it will be printed on the sheet.'}
-                      {!cutActive && shapeSupportsCut(shape, sizeId) && (
-                        <><br />Prefer not to trim? Choose &quot;Cut to shape (plotter)&quot; and we cut it for you (+$5.00 per sheet).</>
-                      )}
-                    </span>
-                  </span>
-                </label>
               )}
               {whiteBgSuggestion && !removeWhiteBg && (
                 <div style={{
@@ -5065,32 +5078,6 @@ export default function EdiblePrintApp() {
                   )}
                 </div>
                 <p style={{ fontSize: 12, color: C.muted, margin: '0 0 0', textAlign: 'center' }}>Max size: 8″ × 11″ (A4 sheet)</p>
-              </div>
-            )}
-
-            {/* Cut to shape (plotter) — lib/cutting-config.js. Renders
-                nothing at all (not a disabled/"coming soon" state) whenever
-                shapeSupportsCut() is false: while CUTTING_ENABLED is off,
-                for fullsheet/bwsheet (no outline to cut), or for a size
-                withdrawn with a `null` surcharge. Advertising something
-                that can't be fulfilled invites questions and expectations
-                for nothing — better to simply not offer it. */}
-            {shapeSupportsCut(shape, sizeId) && (
-              <div style={{ marginBottom: 22 }}>
-                <label style={{
-                  display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
-                  padding: '12px 14px', borderRadius: 12,
-                  border: '2px solid ' + (cutToShape ? C.brand : C.border),
-                  background: cutToShape ? C.brandLight : C.white,
-                }}>
-                  <input type="checkbox" checked={cutToShape} onChange={(e) => setCutToShape(e.target.checked)}
-                    style={{ width: 18, height: 18, cursor: 'pointer', accentColor: C.brand, flexShrink: 0 }} />
-                  <span style={{ flex: 1 }}>
-                    <span style={{ fontWeight: 700, fontSize: 14, color: C.text, display: 'block' }}>Cut to shape (plotter)</span>
-                    <span style={{ fontSize: 12.5, color: C.muted }}>We cut each sheet to shape on our plotter for you, so there&apos;s nothing to trim. No cut guide is printed.</span>
-                  </span>
-                  <span style={{ fontWeight: 700, fontSize: 14, color: C.brand, flexShrink: 0 }}>+${cutSurchargeFor(shape, sizeId).toFixed(2)} per sheet</span>
-                </label>
               </div>
             )}
 

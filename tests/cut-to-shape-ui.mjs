@@ -1,10 +1,15 @@
-// "Cut to shape (plotter)" as the customer and the owner see it.
+// "How would you like it?" — the Printed sheet / Cut to shape choice, as the
+// customer and the owner see it.
 //
-// Editor: which shapes show the checkbox, that ticking it disables the cut guide
-// with a note (and the guide stops being drawn), that the surcharge shows in the
-// summary, and what the browser sends to /api/create-checkout.
-// Admin: an order that was cut to shape says so, has no guide, and still offers
-// "Download cut SVG" (only for designs that have an outline).
+// Editor: which shapes show the two cards, that "Printed sheet" is the
+// default and never the cut option, that choosing "Cut to shape" hides the
+// cut guide checkbox entirely (and stops the guide being drawn) while
+// "Printed sheet" keeps it, checked by default, that the surcharge shows in
+// the summary, and what the browser sends to /api/create-checkout.
+// Admin: an order that was cut to shape says so, has no guide, and still
+// offers "Download cut SVG" (only for designs that have an outline). The
+// admin panel and Stripe/slip/email wording all still say
+// "Cut to shape (plotter)" — only the customer-facing editor choice changed.
 //
 // Fully isolated — Cloudinary uploads, /api/create-checkout and every /api/admin/*
 // call are answered here, so nothing is uploaded, charged or read from production.
@@ -17,8 +22,6 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 const TMP_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'ep-cut-'));
 const results = [];
 const check = (test, pass, detail) => results.push({ test, pass: !!pass, ...(pass ? {} : { detail }) });
-const CUT_LABEL = 'Cut to shape (plotter)';
-const GUIDE_NOTE = 'Not needed — we cut your design to shape for you, so no guide is printed.';
 
 async function makeDesign(page) {
   const dataUrl = await page.evaluate(() => {
@@ -61,39 +64,44 @@ async function openEditor(browser, viewport = { width: 1280, height: 1500 }) {
   return { page, sent, ctx };
 }
 const shapeBtn = (page, re) => page.getByRole('button', { name: re }).first();
-// Anchored (^): "Add a cut guide"'s own description now mentions "Cut to
-// shape (plotter)" too (it points the customer at this checkbox instead of
-// trimming themselves — see app/page.js), so an unanchored match is ambiguous.
-const cutBox = (page) => page.getByLabel(/^Cut to shape \(plotter\)/);
-const guideBox = (page) => page.getByLabel(/Add a cut guide/);
+const heading = (page) => page.getByText('How would you like it?', { exact: true });
+const printedRadio = (page) => page.getByRole('radio', { name: /^Printed sheet/ });
+const cutRadio = (page) => page.getByRole('radio', { name: /^Cut to shape/ });
+const guideBox = (page) => page.getByLabel(/Print a cut guide/);
 
 (async () => {
   const browser = await launchBrowser();
 
-  // ── Which shapes show the checkbox ──
+  // ── Which shapes show the choice, and what "Printed sheet" is the default ──
   {
     const { page, ctx } = await openEditor(browser);
     for (const [name, re] of [['Round', /Round/], ['Heart', /Heart/], ['Square', /Square/], ['Custom', /Custom/]]) {
       await shapeBtn(page, re).click();
-      check(`${name}: "${CUT_LABEL}" is offered, +$5.00 per sheet`, await appears(page.getByText(CUT_LABEL, { exact: true })) && await page.getByText('+$5.00 per sheet', { exact: true }).isVisible());
+      await heading(page).waitFor();
+      check(`${name}: the choice is offered, "Printed sheet" is selected by default`,
+        await printedRadio(page).isChecked() && !(await cutRadio(page).isChecked()));
+      check(`${name}: "Cut to shape" states +$5.00 per sheet`, await page.getByText('+$5.00 per sheet', { exact: true }).isVisible());
     }
-    // Cookie sheets: offered at BOTH sizes (2" of 15 and 3" of 6), +$5.00 each.
+    // Cookie sheets: offered at BOTH sizes (2" of 15 and 3" of 6), +$5.00 each, still defaulting to Printed sheet.
     await shapeBtn(page, /Cookie Sheet/).click();
     const mcSizes = page.getByRole('button', { name: /Circles on A4/ });
     await mcSizes.first().waitFor();
     for (let i = 0; i < await mcSizes.count(); i++) {
       await mcSizes.nth(i).click();
       const label = (await mcSizes.nth(i).innerText()).replace(/\s+/g, ' ').slice(0, 30);
-      check(`Cookie Sheet (${label}): "${CUT_LABEL}" is offered, +$5.00 per sheet`, await appears(page.getByText(CUT_LABEL, { exact: true })) && await page.getByText('+$5.00 per sheet', { exact: true }).isVisible());
+      check(`Cookie Sheet (${label}): the choice is offered, defaults to "Printed sheet"`,
+        await appears(heading(page)) && await printedRadio(page).isChecked() && !(await cutRadio(page).isChecked()));
     }
     check('Cookie Sheet: both sizes were checked (2 of them)', await mcSizes.count() === 2, await mcSizes.count());
     for (const [name, re] of [['Full Sheet', /Full Sheet/], ['B&W Sheet', /B&W Sheet/]]) {
       await shapeBtn(page, re).click();
       // The size chips re-render; give the page a real signal that the shape switched.
       await page.getByRole('button', { name: /Continue →/ }).waitFor();
-      const gone = await page.getByText(CUT_LABEL, { exact: true }).count() === 0;
-      check(`${name}: "${CUT_LABEL}" is NOT offered`, gone, await page.getByText(CUT_LABEL, { exact: true }).count());
+      const gone = await heading(page).count() === 0;
+      check(`${name}: the "How would you like it?" choice is NOT offered`, gone, await heading(page).count());
     }
+    // B&W Sheet keeps only the discreet guide checkbox (no cutting on this shape).
+    check('B&W Sheet: the guide checkbox is still offered on its own', await guideBox(page).count() === 1);
     await ctx.close();
   }
 
@@ -105,25 +113,25 @@ const guideBox = (page) => page.getByLabel(/Add a cut guide/);
     await guideBox(page).waitFor();
     await page.waitForFunction(() => document.querySelector('canvas') !== null);
 
-    check('round: the guide checkbox is on and enabled by default', await guideBox(page).isChecked() && await guideBox(page).isEnabled());
+    check('round: "Printed sheet" is selected, the guide checkbox is on by default', await printedRadio(page).isChecked() && await guideBox(page).isChecked());
     // The canvas redraws asynchronously after a change: wait for the count to settle on what we expect.
     let withGuide = 0;
     for (let i = 0; i < 40 && withGuide < 200; i++) { withGuide = await greyPixels(page); if (withGuide < 200) await page.waitForTimeout(150); }
     check('round: the guide is drawn on the canvas (grey pixels)', withGuide >= 200, withGuide);
 
-    await cutBox(page).check();
-    check('cut ticked: the guide checkbox is disabled and unticked', !(await guideBox(page).isEnabled()) && !(await guideBox(page).isChecked()));
-    check('cut ticked: the note explains why', await appears(page.getByText(GUIDE_NOTE, { exact: true })));
+    await cutRadio(page).check();
+    check('cut selected: "Printed sheet" is no longer selected', !(await printedRadio(page).isChecked()));
+    check('cut selected: the guide checkbox is gone entirely (not just disabled)', await guideBox(page).count() === 0);
     let withoutGuide = withGuide;
     for (let i = 0; i < 40 && withoutGuide > withGuide - 150; i++) { withoutGuide = await greyPixels(page); if (withoutGuide > withGuide - 150) await page.waitForTimeout(150); }
-    check('cut ticked: the guide is no longer drawn on the canvas', withGuide - withoutGuide > 150, { withGuide, withoutGuide });
+    check('cut selected: the guide is no longer drawn on the canvas', withGuide - withoutGuide > 150, { withGuide, withoutGuide });
 
-    await cutBox(page).uncheck();
-    check('cut unticked: the guide comes back (checked, enabled, original text)',
-      await guideBox(page).isChecked() && await guideBox(page).isEnabled() && await page.getByText(GUIDE_NOTE, { exact: true }).count() === 0);
+    await printedRadio(page).check();
+    check('back to printed sheet: the guide checkbox returns, checked (the earlier choice was kept)',
+      await appears(guideBox(page)) && await guideBox(page).isChecked());
 
-    // Order with the cut on: summary and payload
-    await cutBox(page).check();
+    // Order with the cut selected: summary and payload
+    await cutRadio(page).check();
     await page.getByRole('button', { name: 'Continue →' }).click();
     await page.getByRole('heading', { name: 'Shipping & Payment' }).waitFor();
     await page.getByText('Free Pickup — London, ON').click();
@@ -149,8 +157,8 @@ const guideBox = (page) => page.getByLabel(/Add a cut guide/);
     await page.getByRole('button', { name: /2” Circles on A4/ }).click();
     const plus = page.getByRole('button', { name: 'Increase quantity' });
     await plus.click(); await plus.click();
-    await cutBox(page).check();
-    check('cookie sheet cut: the guide checkbox is disabled with the note', !(await guideBox(page).isEnabled()) && await appears(page.getByText(GUIDE_NOTE, { exact: true })));
+    await cutRadio(page).check();
+    check('cookie sheet cut: the guide checkbox is gone (nothing to trim)', await guideBox(page).count() === 0);
     await page.getByRole('button', { name: 'Continue →' }).click();
     await page.getByRole('heading', { name: 'Shipping & Payment' }).waitFor();
     await page.getByText('Free Pickup — London, ON').click();
@@ -167,7 +175,7 @@ const guideBox = (page) => page.getByLabel(/Add a cut guide/);
     await ctx.close();
   }
 
-  // ── Admin: order panel ──
+  // ── Admin: order panel (unaffected by the editor's choice UI — still says "Cut to shape (plotter)") ──
   {
     const design = (over) => ({ shape: 'circular', shapeLabel: 'Round', size: '6" Round', quantity: 1, unitPrice: 19.99, material: 'icing', cutToShape: false, cutGuide: false, imageUrl: 'https://res.cloudinary.com/x/y.png', ...over });
     const order = (id, designs) => ({

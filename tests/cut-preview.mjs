@@ -1,5 +1,6 @@
-// "Cut to shape" preview: what ticking "Cut to shape (plotter)" shows the
-// customer — each piece on its clear plastic backing, no dashed guide — in
+// "Cut to shape" preview: what choosing "Cut to shape" under "How would you
+// like it?" shows the customer — each piece on its clear plastic backing,
+// no dashed guide — in
 // the inline editor and the print-preview modal, for round/heart/cookie
 // sheet. Also confirms it is purely visual: the hi-res raster the real PDF
 // is built from is byte-identical whether the preview is on or off.
@@ -15,7 +16,6 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 const TMP_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'ep-cutpreview-'));
 const results = [];
 const check = (test, pass, detail) => results.push({ test, pass: !!pass, ...(pass ? {} : { detail }) });
-const CUT_BOX_RE = /^Cut to shape \(plotter\)/;
 const CAPTION = 'Preview of your cut toppers. They arrive on a clear backing, ready to peel off.';
 
 async function makeDesignFile(page) {
@@ -83,11 +83,12 @@ async function openEditor(browser) {
     check(`${name}: no caption before ticking the cut`, await page.getByText(CAPTION, { exact: true }).count() === 0);
 
     const hiBefore = await hiResDataUrl(page);
-    const cutBox = page.getByLabel(CUT_BOX_RE);
-    await cutBox.check();
+    const printedRadio = page.getByRole('radio', { name: /^Printed sheet/ });
+    const cutRadio = page.getByRole('radio', { name: /^Cut to shape/ });
+    await cutRadio.check();
     await page.waitForTimeout(900);
 
-    check(`${name}: the guide checkbox is disabled once cut is ticked`, !(await page.getByLabel(/Add a cut guide/).isEnabled()));
+    check(`${name}: the guide checkbox is gone entirely once "Cut to shape" is chosen`, await page.getByLabel(/Print a cut guide/).count() === 0);
     const backing = await backingPixelCount(page);
     check(`${name}: the overlay shows real backing pixels`, backing > 500, backing);
     check(`${name}: caption shown under the live editor`, await appears(page.getByText(CAPTION, { exact: true })));
@@ -103,14 +104,14 @@ async function openEditor(browser) {
     await page.getByRole('button', { name: 'Close preview' }).click();
     await page.waitForTimeout(300);
 
-    // Untick: overlay/caption gone immediately, guide checkbox re-enabled.
-    await cutBox.uncheck();
+    // Back to "Printed sheet": overlay/caption gone immediately, guide checkbox back.
+    await printedRadio.check();
     await page.waitForTimeout(700);
-    check(`${name}: unticking removes the overlay canvas`, await backingPixelCount(page) === -1);
-    check(`${name}: unticking removes the caption`, await page.getByText(CAPTION, { exact: true }).count() === 0);
-    check(`${name}: unticking re-enables the guide checkbox`, await page.getByLabel(/Add a cut guide/).isEnabled());
+    check(`${name}: choosing "Printed sheet" removes the overlay canvas`, await backingPixelCount(page) === -1);
+    check(`${name}: choosing "Printed sheet" removes the caption`, await page.getByText(CAPTION, { exact: true }).count() === 0);
+    check(`${name}: choosing "Printed sheet" brings the guide checkbox back, checked`, await page.getByLabel(/Print a cut guide/).isChecked());
     const hiAfterOff = await hiResDataUrl(page);
-    check(`${name}: hi-res raster round-trips back identical after unticking`, hiAfterOff === hiBefore);
+    check(`${name}: hi-res raster round-trips back identical after switching back`, hiAfterOff === hiBefore);
 
     check(`${name}: no page errors`, problems.length === 0, problems);
     await ctx.close();
@@ -121,7 +122,7 @@ async function openEditor(browser) {
     const { page, ctx, problems } = await openEditor(browser);
     await page.getByRole('button', { name: /Round/ }).first().click();
     await page.waitForTimeout(600);
-    await page.getByLabel(CUT_BOX_RE).check();
+    await page.getByRole('radio', { name: /^Cut to shape/ }).check();
     await page.waitForTimeout(700);
     const canvas = page.locator('canvas').first();
     await canvas.scrollIntoViewIfNeeded();
