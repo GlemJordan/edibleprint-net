@@ -52,7 +52,7 @@ const cents = (d) => Math.round(d * 100);
 // ── Which shapes offer it, and at what price ────────────────────────────────
 check('the feature is on', CUTTING_ENABLED === true);
 for (const [shape, sizeId] of [['circular', 'c6'], ['heart', 'h6'], ['square', 's6'], ['custom', 'custom'], ['multicircle', 'mc2'], ['multicircle', 'mc3']]) {
-  check(`${shape} ${sizeId}: offered, +$5.00 per sheet`, shapeSupportsCut(shape, sizeId) && cutSurchargeFor(shape, sizeId) === 5, { offered: shapeSupportsCut(shape, sizeId), price: cutSurchargeFor(shape, sizeId) });
+  check(`${shape} ${sizeId}: offered, +$4.99 per sheet`, shapeSupportsCut(shape, sizeId) && cutSurchargeFor(shape, sizeId) === 4.99, { offered: shapeSupportsCut(shape, sizeId), price: cutSurchargeFor(shape, sizeId) });
 }
 for (const shape of ['fullsheet', 'bwsheet', 'waferletter']) {
   check(`${shape}: not offered`, !shapeSupportsCut(shape, 'a4') && !shapeSupportsCut(shape, 'bw1'));
@@ -89,8 +89,8 @@ for (const [name, shapeFields, unit] of CASES) {
 
   // The browser claims a price of $0.01 and a guide: the server ignores the price and drops the guide.
   const cut = await checkout(payload([base({ ...shapeFields, quantity: 2, cutToShape: true, cutGuide: true, unitPrice: 0.01 })]));
-  check(`${name}, cut: Stripe charges 2 × ($${unit} + $5.00) = $${((unit + 5) * 2).toFixed(2)} though the browser sent $0.01`,
-    cut.status === 200 && printCents(cut.call)[0] === cents((unit + 5) * 2), { status: cut.status, cents: cut.call && printCents(cut.call) });
+  check(`${name}, cut: Stripe charges 2 × ($${unit} + $4.99) = $${((unit + 4.99) * 2).toFixed(2)} though the browser sent $0.01`,
+    cut.status === 200 && printCents(cut.call)[0] === cents((unit + 4.99) * 2), { status: cut.status, cents: cut.call && printCents(cut.call) });
   check(`${name}, cut: cutFlags 1 and the guide is forced OFF although the browser sent cutGuide:true`,
     meta(cut.call, 'cutFlags') === '1' && meta(cut.call, 'cutGuideFlags') === '0', [meta(cut.call, 'cutFlags'), meta(cut.call, 'cutGuideFlags')]);
 }
@@ -109,20 +109,20 @@ for (const [name, fields, unit] of [
   const withGuide = await checkout(payload([base({ quantity: 2, cutToShape: true, cutGuide: true })]));
   const noGuide = await checkout(payload([base({ quantity: 2, cutToShape: true, cutGuide: false })]));
   check('cut + guide:false → still cut (cutFlags 1), same price as with guide:true, guide 0',
-    meta(noGuide.call, 'cutFlags') === '1' && meta(noGuide.call, 'cutGuideFlags') === '0' && printCents(noGuide.call)[0] === printCents(withGuide.call)[0] && printCents(noGuide.call)[0] === cents((14.99 + 5) * 2),
+    meta(noGuide.call, 'cutFlags') === '1' && meta(noGuide.call, 'cutGuideFlags') === '0' && printCents(noGuide.call)[0] === printCents(withGuide.call)[0] && printCents(noGuide.call)[0] === cents((14.99 + 4.99) * 2),
     [meta(noGuide.call, 'cutFlags'), meta(noGuide.call, 'cutGuideFlags'), printCents(noGuide.call)]);
   const guideOnly = await checkout(payload([base({ quantity: 2, cutToShape: false, cutGuide: true })]));
   check('no cut + guide:true → guide kept (1), not cut (0), no surcharge',
     meta(guideOnly.call, 'cutFlags') === '0' && meta(guideOnly.call, 'cutGuideFlags') === '1' && printCents(guideOnly.call)[0] === cents(14.99 * 2));
 }
 
-// 3 cookie sheets cut = $15.00 of surcharge, recomputed by the server.
+// 3 cookie sheets cut = $14.97 of surcharge, recomputed by the server.
 for (const [name, fields] of [['2"', { sizeId: 'mc2', size: '2” Circles on A4 Sheet' }], ['3"', { sizeId: 'mc3', size: '3” Circles on A4 Sheet' }]]) {
   const plain = await checkout(payload([base({ shape: 'multicircle', ...fields, quantity: 3 })]));
   const cut = await checkout(payload([base({ shape: 'multicircle', ...fields, quantity: 3, cutToShape: true, unitPrice: 0.01 })]));
   const diff = printCents(cut.call)[0] - printCents(plain.call)[0];
-  check(`3 cookie sheets ${name}, cut: Stripe charges $74.97 = 3 × ($19.99 + $5.00), surcharge $15.00 (browser sent $0.01)`,
-    cut.status === 200 && printCents(cut.call)[0] === 7497 && diff === 1500, { status: cut.status, cents: cut.call && printCents(cut.call), diff });
+  check(`3 cookie sheets ${name}, cut: Stripe charges $74.94 = 3 × ($19.99 + $4.99), surcharge $14.97 (browser sent $0.01)`,
+    cut.status === 200 && printCents(cut.call)[0] === 7494 && diff === 1497, { status: cut.status, cents: cut.call && printCents(cut.call), diff });
 }
 
 // Several designs: each keeps its own cut flag and price; shipping still follows the sheets.
@@ -133,8 +133,8 @@ for (const [name, fields] of [['2"', { sizeId: 'mc2', size: '2” Circles on A4 
     base({ shape: 'square', sizeId: 's6', size: '6" Square', quantity: 1, cutToShape: true }),
   ], { shippingMethod: 'standard' }));
   const c = r.call && printCents(r.call);
-  check('3 designs, 2 cut: each priced on its own (19.99 · 29.98 · 19.99) + 2 packages of shipping',
-    r.status === 200 && c[0] === 1999 && c[1] === 2998 && c[2] === 1999 && c[3] === 1998, { status: r.status, c });
+  check('3 designs, 2 cut: each priced on its own (19.98 · 29.98 · 19.98) + 2 packages of shipping',
+    r.status === 200 && c[0] === 1998 && c[1] === 2998 && c[2] === 1998 && c[3] === 1998, { status: r.status, c });
   check('3 designs: flags are per design (cutFlags 101, cutGuideFlags 010)', r.call && meta(r.call, 'cutFlags') === '101' && meta(r.call, 'cutGuideFlags') === '010', r.call && [meta(r.call, 'cutFlags'), meta(r.call, 'cutGuideFlags')]);
 }
 

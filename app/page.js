@@ -2787,8 +2787,8 @@ function ImageEditor({ layers, onLayersChange, shape, sizeId, sizeObj, onCrop, o
 
       {/* How would you like it? — lib/cutting-config.js / lib/cut-guide-config.js.
           The one choice between a printed sheet (trim it yourself, with an
-          optional printed guide) and cutting to shape ourselves (+$5.00/sheet,
-          no guide — nothing to trim). Right here, below the image controls
+          optional printed guide) and cutting to shape ourselves (+cutSurchargeFor()
+          per sheet, no guide — nothing to trim). Right here, below the image controls
           and before the print preview, so the choice and its effect on the
           preview are seen together. Renders nothing for a shape with no cut
           option (fullsheet/bwsheet/waferletter) — see shapeSupportsCut(). */}
@@ -2817,7 +2817,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeId, sizeObj, onCrop, o
                 style={{ accentColor: C.brand, marginRight: 6 }} />
               <span style={{ fontWeight: 700, fontSize: 12.5, color: C.text }}>Cut to shape</span>
               <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>We cut it for you, ready to peel</div>
-              <div style={{ fontSize: 11, color: C.brand, fontWeight: 700, marginTop: 2 }}>+$5.00 per sheet</div>
+              <div style={{ fontSize: 11, color: C.brand, fontWeight: 700, marginTop: 2 }}>+${cutSurchargeFor(shape, sizeId).toFixed(2)} per sheet</div>
             </label>
           </div>
         </div>
@@ -3944,6 +3944,24 @@ export default function EdiblePrintApp() {
             ))}
           </div>
         </section>
+        {/* ── FREE LOCAL PICKUP ── */}
+        <section style={{ padding: '0 24px', maxWidth: 860, margin: '0 auto' }}>
+          <div style={{
+            background: C.brandLight, border: '1px solid #C6E6D6', borderRadius: 16,
+            padding: '28px 32px', display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap',
+          }}>
+            <span style={{ fontSize: 36 }}>📍</span>
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 700, margin: '0 0 6px', color: C.brandDark }}>
+                Local to London? Pick up for free
+              </h2>
+              <p style={{ margin: 0, fontSize: 14.5, color: C.text, lineHeight: 1.5 }}>
+                Order online and pick up your prints in East London, ON, with no shipping cost. We confirm the exact address and pickup time by email.
+              </p>
+            </div>
+          </div>
+        </section>
+
         <section id="pricing" style={{ padding: '52px 24px', maxWidth: 760, margin: '0 auto', textAlign: 'center' }}>
           <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, marginBottom: 8, fontWeight: 700 }}>Simple, Transparent Pricing</h2>
           <p style={{ color: C.muted, marginBottom: 8, fontSize: 15 }}>B&amp;W Sheet from $9.99 · Cake Toppers from $14.99 · Food-safe inks &amp; premium paper included</p>
@@ -4026,8 +4044,8 @@ export default function EdiblePrintApp() {
               );
             })}
           </div>
-          <p style={{ fontSize: 13, color: '#bbb', marginTop: 20 }}>Custom sizes available · Free local pickup · Canada-wide shipping from {'$' + LOWEST_SHIPPING_PRICE.toFixed(2)} · No tax charged</p>
-          <p style={{ fontSize: 13, color: '#bbb', marginTop: 6 }}>Choose &quot;Cut to shape&quot; on Round, Heart, Square, Custom or Cookie Sheets: +$5.00 per sheet, we cut it for you</p>
+          <p style={{ fontSize: 13, color: C.muted, marginTop: 20 }}>Custom sizes available · Free pickup in London, ON · Canada-wide shipping from {'$' + LOWEST_SHIPPING_PRICE.toFixed(2)} · No tax charged</p>
+          <p style={{ fontSize: 13, color: '#bbb', marginTop: 6 }}>Choose &quot;Cut to shape&quot; on Round, Heart, Square, Custom or Cookie Sheets: +${cutSurchargeFor('circular').toFixed(2)} per sheet, we cut it for you</p>
         </section>
 
         {/* ── PDF DOWNLOAD SECTION ── */}
@@ -4290,7 +4308,7 @@ export default function EdiblePrintApp() {
             ['How long do edible prints last?', 'Stored in the original sealed packaging in a cool, dry place, edible prints last up to 12 months. Once applied to a frosted cake, they are best consumed within 3–5 days.'],
             ['Are your products allergen-free?', 'Our edible inks and sheets are free from the most common allergens. However, they are produced in a facility that may handle nuts and dairy. Please review our full allergen statement for details.'],
             ['What if my order arrives damaged or the print quality is poor?', 'We stand behind every order. If your print arrives damaged or doesn\'t meet the quality you expected, contact us within 48 hours and we\'ll reprint it or issue a full refund — no questions asked.'],
-            ['Can you cut my print to shape?', 'Yes. When you customize a Round, Heart, Square, Custom or Cookie Sheet print, choose "Cut to shape" under "How would you like it?" — we cut every sheet on our plotter for $5.00 per sheet, and no cut guide is printed. Choose "Printed sheet" instead and your print comes on the full A4 sheet, with an optional printed guide for trimming yourself.'],
+            ['Can you cut my print to shape?', `Yes. When you customize a Round, Heart, Square, Custom or Cookie Sheet print, choose "Cut to shape" under "How would you like it?" — we cut every sheet on our plotter for $${cutSurchargeFor('circular').toFixed(2)} per sheet, and no cut guide is printed. Choose "Printed sheet" instead and your print comes on the full A4 sheet, with an optional printed guide for trimming yourself.`],
           ].map(([q, a], i) => (
             <details key={i} style={{ borderBottom: '1px solid ' + C.border, paddingBottom: 16, marginBottom: 16 }}>
               <summary style={{ fontWeight: 600, fontSize: 15, cursor: 'pointer', listStyle: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
@@ -5287,13 +5305,23 @@ export default function EdiblePrintApp() {
                 const dPrice = d.shape === 'custom'
                   ? (parseFloat(d.customW || 0) * parseFloat(d.customH || 0) <= 36 ? 14.99 : 19.99)
                   : dSel?.price || 0;
+                const dCutActive = !!d.cutToShape && shapeSupportsCut(d.shape, d.sizeId);
+                const dCutSurcharge = dCutActive ? cutSurchargeFor(d.shape, d.sizeId) : 0;
                 return (
-                  <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: d.id === activeDesignId ? 700 : 500,
+                  <div key={d.id} style={{
                     marginBottom: i < designs.length - 1 ? 8 : 0, paddingBottom: i < designs.length - 1 ? 8 : 0,
-                    borderBottom: i < designs.length - 1 ? '1px solid ' + C.border : 'none',
-                    color: d.id === activeDesignId ? C.text : C.muted }}>
-                    <span>Design {i + 1}: {d.qty}x {d.shape === 'custom' ? (d.customW + '"x' + d.customH + '"') : (dSel?.label || d.shape)}{shapeSupportsMaterial(d.shape) && d.material === 'wafer' ? ' · Wafer Paper' : ''}</span>
-                    <span style={{ color: C.brand }}>{'$' + (dPrice * d.qty).toFixed(2)}</span>
+                    borderBottom: i < designs.length - 1 ? '1px solid ' + C.border : 'none' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: d.id === activeDesignId ? 700 : 500,
+                      color: d.id === activeDesignId ? C.text : C.muted }}>
+                      <span>Design {i + 1}: {d.qty}x {d.shape === 'custom' ? (d.customW + '"x' + d.customH + '"') : (dSel?.label || d.shape)}{shapeSupportsMaterial(d.shape) && d.material === 'wafer' ? ' · Wafer Paper' : ''}</span>
+                      <span style={{ color: C.brand }}>{'$' + (dPrice * d.qty).toFixed(2)}</span>
+                    </div>
+                    {dCutActive && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, color: C.muted, marginTop: 2 }}>
+                        <span>Cut to shape (plotter) — {d.qty} × ${dCutSurcharge.toFixed(2)}</span>
+                        <span>{'$' + (dCutSurcharge * d.qty).toFixed(2)}</span>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -5344,37 +5372,14 @@ export default function EdiblePrintApp() {
                   <input type="tel" value={form.phone} onChange={(e) => updateForm('phone', e.target.value)} style={inputStyle} placeholder="(519) 555-1234" />
                 </div>
               </div>
-              {shipping !== 'pickup' && (<>
-              <div>
-                <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Street Address *</label>
-                <input value={form.address} onChange={(e) => handleAddressChange(e.target.value)} style={inputStyle} placeholder="e.g. 123 Main Street" autoComplete="off" />
-              </div>
-              <div style={{ maxWidth: 220 }}>
-                <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Unit / Suite (optional)</label>
-                <input value={form.unit} onChange={(e) => updateForm('unit', e.target.value)} style={inputStyle} placeholder="e.g. 503, Apt 2B" />
-              </div>
-              <div style={{ display: 'flex', gap: 12 }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>City *</label>
-                  <input value={form.city} onChange={(e) => updateForm('city', e.target.value)} style={inputStyle} placeholder="Toronto" />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Province *</label>
-                  <select value={form.province} onChange={(e) => updateForm('province', e.target.value)} style={inputStyle}>
-                    {PROVINCES.map((prov) => <option key={prov} value={prov}>{prov}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div style={{ maxWidth: 200 }}>
-                <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Postal Code *</label>
-                <input value={form.postal} onChange={(e) => updateForm('postal', e.target.value.toUpperCase())} style={inputStyle} placeholder="N6A 1B2" maxLength={7} />
-              </div>
-              <div style={{ background: C.brandLight, border: '1px solid #C6E6D6', borderRadius: 10,
-                padding: '10px 16px', fontSize: 13.5, color: C.brandDark, fontWeight: 600 }}>
-                📦 {getAddressReminder()}
-              </div>
-              </>)}
             </div>
+            {/* Shipping Method — moved above the address fields (and address
+                only shown once "Ship to my address" is picked): most orders
+                default to shipping, but leading with the choice itself lets
+                a pickup customer skip the address entirely instead of
+                filling it in and then having it hidden. Mirrors the order
+                app/designs/_components/CustomerCheckoutForm.js already
+                uses. Default method/validation unchanged. */}
             <div style={{ marginTop: 26 }}>
               <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 10 }}>Shipping Method</label>
               {[
@@ -5404,6 +5409,38 @@ export default function EdiblePrintApp() {
                 />
               )}
             </div>
+            {shipping !== 'pickup' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
+                <div>
+                  <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Street Address *</label>
+                  <input value={form.address} onChange={(e) => handleAddressChange(e.target.value)} style={inputStyle} placeholder="e.g. 123 Main Street" autoComplete="off" />
+                </div>
+                <div style={{ maxWidth: 220 }}>
+                  <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Unit / Suite (optional)</label>
+                  <input value={form.unit} onChange={(e) => updateForm('unit', e.target.value)} style={inputStyle} placeholder="e.g. 503, Apt 2B" />
+                </div>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>City *</label>
+                    <input value={form.city} onChange={(e) => updateForm('city', e.target.value)} style={inputStyle} placeholder="Toronto" />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Province *</label>
+                    <select value={form.province} onChange={(e) => updateForm('province', e.target.value)} style={inputStyle}>
+                      {PROVINCES.map((prov) => <option key={prov} value={prov}>{prov}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div style={{ maxWidth: 200 }}>
+                  <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Postal Code *</label>
+                  <input value={form.postal} onChange={(e) => updateForm('postal', e.target.value.toUpperCase())} style={inputStyle} placeholder="N6A 1B2" maxLength={7} />
+                </div>
+                <div style={{ background: C.brandLight, border: '1px solid #C6E6D6', borderRadius: 10,
+                  padding: '10px 16px', fontSize: 13.5, color: C.brandDark, fontWeight: 600 }}>
+                  📦 {getAddressReminder()}
+                </div>
+              </div>
+            )}
             <div style={{ ...card, marginTop: 26 }}>
               <h3 style={{ margin: '0 0 14px', fontSize: 16, fontWeight: 700 }}>Order Summary</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 14 }}>
@@ -5413,16 +5450,26 @@ export default function EdiblePrintApp() {
                   const dPrice = d.shape === 'custom'
                     ? (parseFloat(d.customW || 0) * parseFloat(d.customH || 0) <= 36 ? 14.99 : 19.99)
                     : dSel?.price || 0;
+                  const dCutActive = !!d.cutToShape && shapeSupportsCut(d.shape, d.sizeId);
+                  const dCutSurcharge = dCutActive ? cutSurchargeFor(d.shape, d.sizeId) : 0;
                   return (
-                    <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div>Design {i + 1}: {d.qty}x {d.shape === 'custom' ? (d.customW + '"x' + d.customH + '"') : (dSel?.label || d.shape)}{shapeSupportsMaterial(d.shape) && d.material === 'wafer' ? ' · Wafer Paper' : ''}</div>
-                        <div style={{ display: 'flex', gap: 12, marginTop: 3 }}>
-                          <button onClick={() => { setActiveDesignId(d.id); setStep(2); }} className="ep-summary-link">Edit</button>
-                          <button onClick={() => handleDeleteDesign(d.id)} className="ep-summary-link">Remove</button>
+                    <div key={d.id}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div>Design {i + 1}: {d.qty}x {d.shape === 'custom' ? (d.customW + '"x' + d.customH + '"') : (dSel?.label || d.shape)}{shapeSupportsMaterial(d.shape) && d.material === 'wafer' ? ' · Wafer Paper' : ''}</div>
+                          <div style={{ display: 'flex', gap: 12, marginTop: 3 }}>
+                            <button onClick={() => { setActiveDesignId(d.id); setStep(2); }} className="ep-summary-link">Edit</button>
+                            <button onClick={() => handleDeleteDesign(d.id)} className="ep-summary-link">Remove</button>
+                          </div>
                         </div>
+                        <span style={{ fontWeight: 600, flexShrink: 0 }}>{'$' + (dPrice * d.qty).toFixed(2)}</span>
                       </div>
-                      <span style={{ fontWeight: 600, flexShrink: 0 }}>{'$' + (dPrice * d.qty).toFixed(2)}</span>
+                      {dCutActive && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, color: C.muted, marginTop: 2 }}>
+                          <span>Cut to shape (plotter) — {d.qty} × ${dCutSurcharge.toFixed(2)}</span>
+                          <span>{'$' + (dCutSurcharge * d.qty).toFixed(2)}</span>
+                        </div>
+                      )}
                     </div>
                   );
                 })}

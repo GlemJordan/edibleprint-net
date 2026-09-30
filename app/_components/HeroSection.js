@@ -90,6 +90,11 @@ export default function HeroSection({ onOrderClick, onUploadFileClick, cutoffMsg
           outline: 3px solid #1f5236;
           outline-offset: 3px;
         }
+        @media (max-width: 480px) {
+          .ep-trust-canada {
+            display: none;
+          }
+        }
       `}</style>
 
       <section style={{
@@ -113,7 +118,7 @@ export default function HeroSection({ onOrderClick, onUploadFileClick, cutoffMsg
                 padding: '3px 8px', fontSize: 11, fontWeight: 800, letterSpacing: 0.5,
               }}>CA</span>
               <span style={{ color: '#1f5236' }}>
-                Free Local Pickup · Canada-Wide Shipping
+                Free pickup in London, ON · Shipping across Canada
               </span>
             </div>
 
@@ -223,14 +228,19 @@ export default function HeroSection({ onOrderClick, onUploadFileClick, cutoffMsg
               </Link>
             </div>
 
-            {/* Trust line */}
+            {/* Trust line — "Ships Canada-wide" (and its dot) is dropped
+                below 480px rather than left to wrap: the badge above already
+                covers Canada-wide shipping, so on a narrow phone the line
+                stays on one row instead of spilling onto a second. */}
             <div style={{
               display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
               fontSize: 14, color: '#5c6b62', marginBottom: 16,
             }}>
-              <span>From $9.99</span>
+              <span>Free pickup in London, ON</span>
               <span style={{ color: '#d9e2d6', userSelect: 'none' }}>·</span>
-              <span>Ships Canada-wide</span>
+              <span>From $9.99</span>
+              <span className="ep-trust-canada" style={{ color: '#d9e2d6', userSelect: 'none' }}>·</span>
+              <span className="ep-trust-canada">Ships Canada-wide</span>
               <span style={{ color: '#d9e2d6', userSelect: 'none' }}>·</span>
               <span>Ready in under 2 min</span>
             </div>

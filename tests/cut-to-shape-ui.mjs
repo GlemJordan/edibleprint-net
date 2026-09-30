@@ -80,9 +80,9 @@ const guideBox = (page) => page.getByLabel(/Print a cut guide/);
       await heading(page).waitFor();
       check(`${name}: the choice is offered, "Printed sheet" is selected by default`,
         await printedRadio(page).isChecked() && !(await cutRadio(page).isChecked()));
-      check(`${name}: "Cut to shape" states +$5.00 per sheet`, await page.getByText('+$5.00 per sheet', { exact: true }).isVisible());
+      check(`${name}: "Cut to shape" states +$4.99 per sheet`, await page.getByText('+$4.99 per sheet', { exact: true }).isVisible());
     }
-    // Cookie sheets: offered at BOTH sizes (2" of 15 and 3" of 6), +$5.00 each, still defaulting to Printed sheet.
+    // Cookie sheets: offered at BOTH sizes (2" of 15 and 3" of 6), +$4.99 each, still defaulting to Printed sheet.
     await shapeBtn(page, /Cookie Sheet/).click();
     const mcSizes = page.getByRole('button', { name: /Circles on A4/ });
     await mcSizes.first().waitFor();
@@ -139,7 +139,12 @@ const guideBox = (page) => page.getByLabel(/Print a cut guide/);
     await page.locator('input[placeholder="jane@email.com"]').fill('cut-test@example.com');
     const summary = () => page.locator('h3', { hasText: 'Order Summary' }).locator('..').innerText().then((t) => t.replace(/\s+/g, ' '));
     const s = await summary();
-    check('summary: $19.99 = $14.99 + $5.00 cut, total $19.99', /\$19\.99/.test(s) && /Total \$19\.99/.test(s), s);
+    // The design's own line shows the base $14.99 (not the cut price folded
+    // in) with its own "Cut to shape (plotter) — 1 × $4.99" line underneath
+    // showing the surcharge separately — the bug this test used to miss:
+    // the two visible lines must add up to what "Total" says ($19.98).
+    check('summary: design line $14.99 + its own cut line $4.99, total $19.98',
+      /\$14\.99/.test(s) && /Cut to shape \(plotter\) — 1 × \$4\.99 \$4\.99/.test(s) && /Total \$19\.98/.test(s), s);
     await page.getByLabel(/I have reviewed my design/).check();
     await page.getByRole('button', { name: 'Place Order →' }).click();
     const deadline = Date.now() + WAIT;
@@ -150,7 +155,7 @@ const guideBox = (page) => page.getByLabel(/Print a cut guide/);
     await ctx.close();
   }
 
-  // ── 3 cookie sheets cut: $15.00 of surcharge in the cart and in what the browser sends ──
+  // ── 3 cookie sheets cut: $14.97 of surcharge in the cart and in what the browser sends ──
   {
     const { page, sent, ctx } = await openEditor(browser);
     await shapeBtn(page, /Cookie Sheet/).click();
@@ -165,13 +170,61 @@ const guideBox = (page) => page.getByLabel(/Print a cut guide/);
     await page.locator('input[placeholder="Jane Smith"]').fill('Cut Tester');
     await page.locator('input[placeholder="jane@email.com"]').fill('cut-test@example.com');
     const s = (await page.locator('h3', { hasText: 'Order Summary' }).locator('..').innerText()).replace(/\s+/g, ' ');
-    check('cookie sheet cut, 3 sheets: cart total is $74.97 = 3 × ($19.99 + $5.00)', /3x/.test(s) && /Total \$74\.97/.test(s), s);
+    check('cookie sheet cut, 3 sheets: design line $59.97 + cut line 3 × $4.99 ($14.97), total $74.94',
+      /3x/.test(s) && /\$59\.97/.test(s) && /Cut to shape \(plotter\) — 3 × \$4\.99 \$14\.97/.test(s) && /Total \$74\.94/.test(s), s);
     await page.getByLabel(/I have reviewed my design/).check();
     await page.getByRole('button', { name: 'Place Order →' }).click();
     const deadline = Date.now() + WAIT;
     while (sent.length === 0 && Date.now() < deadline) await page.waitForTimeout(100);
     const d = sent[0]?.designs?.[0];
     check('cookie sheet cut: payload is 3 sheets, cutToShape true, cutGuide false', d?.quantity === 3 && d?.cutToShape === true && d?.cutGuide === false, d);
+    await ctx.close();
+  }
+
+  // ── Order summary lines always add up to Total: with a cut design, without
+  // one, and with several designs at once (the exact bug just fixed — the
+  // cut surcharge was charged but had no visible line, so the design lines
+  // shown didn't sum to what "Total" said). Round 8" cut + Heart 6" not
+  // cut, pickup (no shipping line) so every visible dollar amount is a
+  // design/cut line, and their sum must equal Total exactly. ──
+  {
+    const { page, ctx } = await openEditor(browser);
+    // Design 1: Round 8", cut to shape.
+    await shapeBtn(page, /Round/).click();
+    await page.getByRole('button', { name: /8" Round Topper/ }).click();
+    await cutRadio(page).check();
+    await page.waitForTimeout(300);
+
+    // Design 2: "+ Add Design" lives on the same step-2 screen as design 1's
+    // customize/cut choice (above it, in the design-tab row) — it goes back
+    // to step 1 (design 1 is already saved), a second upload, Heart
+    // 6", left on the default "Printed sheet" (not cut).
+    await page.getByRole('button', { name: '+ Add Design' }).click();
+    await page.getByText('Upload another image').click();
+    await page.locator('input[type="file"][accept="image/*,.pdf"]').setInputFiles(await makeDesign(page));
+    await page.waitForTimeout(500);
+    await shapeBtn(page, /Heart/).click();
+    await page.getByRole('button', { name: /6" Heart Topper/ }).click();
+    await page.waitForTimeout(300);
+    check('design 2: "Printed sheet" stays the default (not cut) next to a cut design 1',
+      await printedRadio(page).isChecked() && !(await cutRadio(page).isChecked()));
+    await page.getByRole('button', { name: 'Continue →' }).click();
+
+    await page.getByRole('heading', { name: 'Shipping & Payment' }).waitFor();
+    await page.getByText('Free Pickup — London, ON').click();
+    await page.locator('input[placeholder="Jane Smith"]').fill('Sum Tester');
+    await page.locator('input[placeholder="jane@email.com"]').fill('sum-test@example.com');
+    const s = (await page.locator('h3', { hasText: 'Order Summary' }).locator('..').innerText()).replace(/\s+/g, ' ');
+    // Every visible line: design 1's $19.99, its own cut line ($4.99), design
+    // 2's $14.99 (no cut line for it), and pickup means no shipping line —
+    // so those three amounts alone must equal Subtotal and Total, both $39.97.
+    const cutLines = (s.match(/Cut to shape \(plotter\)/g) || []).length;
+    const sumsCorrectly = 19.99 + 4.99 + 14.99 === 39.97;
+    check('2 designs (1 cut, 1 not): exactly one "Cut to shape (plotter)" line, for design 1 only',
+      cutLines === 1, s);
+    check('2 designs (1 cut, 1 not): design lines $19.99 + $4.99 cut + $14.99 = Subtotal & Total, both $39.97',
+      sumsCorrectly && /\$19\.99/.test(s) && /Cut to shape \(plotter\) — 1 × \$4\.99 \$4\.99/.test(s)
+      && /\$14\.99/.test(s) && /Subtotal \$39\.97/.test(s) && /Total \$39\.97/.test(s), s);
     await ctx.close();
   }
 
