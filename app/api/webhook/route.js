@@ -481,7 +481,7 @@ async function processOrder(session, orderId) {
     const lineTotal  = (parseFloat(d.price) * parseInt(d.qty, 10)).toFixed(2);
     return '<tr' + (i % 2 === 0 ? ' style="background:#f3f4f6;"' : '') + '>'
       + '<td style="padding:10px 14px;font-weight:600;color:#374151;">' + (designs.length > 1 ? 'Design ' + (i + 1) : 'Your Print') + '</td>'
-      + '<td style="padding:10px 14px;">' + d.qty + 'x ' + d.size + ' (' + shapeLabel + ' — ' + materialLabel + ')</td>'
+      + '<td style="padding:10px 14px;">' + d.qty + 'x ' + d.size + ' (' + shapeLabel + ' — ' + materialLabel + ')' + (d.cutToShape ? ' — Cut to shape (plotter)' : '') + '</td>'
       + '<td style="padding:10px 14px;text-align:right;">$' + lineTotal + '</td>'
       + '</tr>';
   };
@@ -548,7 +548,7 @@ async function processOrder(session, orderId) {
 
   const customerText = 'Thank you for your order!\n'
     + 'Order #' + orderId + '\n\n'
-    + designs.map((d, i) => (designs.length > 1 ? 'Design ' + (i + 1) : 'Your Print') + ': ' + d.qty + 'x ' + d.size + ' (' + (SHAPE_LABELS[d.shape] || d.shape) + ' — ' + materialDisplayLabel(resolveMaterial(d)) + ') — $' + (parseFloat(d.price) * parseInt(d.qty, 10)).toFixed(2)).join('\n')
+    + designs.map((d, i) => (designs.length > 1 ? 'Design ' + (i + 1) : 'Your Print') + ': ' + d.qty + 'x ' + d.size + ' (' + (SHAPE_LABELS[d.shape] || d.shape) + ' — ' + materialDisplayLabel(resolveMaterial(d)) + (d.cutToShape ? ' — Cut to shape (plotter)' : '') + ') — $' + (parseFloat(d.price) * parseInt(d.qty, 10)).toFixed(2)).join('\n')
     + '\n\n' + (designs.length > 1 ? 'Subtotal: $' + subtotalAmt.toFixed(2) + '\n' : '')
     + 'Shipping (' + shippingLabel + '): ' + (shippingAmt === 0 ? 'Free' : '$' + shippingAmt.toFixed(2)) + '\n'
     + 'Total: $' + totalAmt.toFixed(2) + ' CAD (final price — no tax charged)\n\n'

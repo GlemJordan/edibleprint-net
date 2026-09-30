@@ -19,7 +19,7 @@ import {
   computeMultiCircleLayout, getCircleGrid, MC_GAP,
 } from '../lib/paper-config.js';
 import { shapeSupportsMaterial, materialDisplayLabel } from '../lib/material-config.js';
-import { shapeSupportsCut, cutSurchargeFor } from '../lib/cutting-config.js';
+import { shapeSupportsCut, cutSurchargeFor, cutIsActive } from '../lib/cutting-config.js';
 import { shapeSupportsCutGuide, cutGuideShapeKind, CUT_GUIDE_COLOR, CUT_GUIDE_CANVAS_STYLE } from '../lib/cut-guide-config.js';
 import { shapeOutlinePath } from '../lib/shape-paths.js';
 import { buildPdfFilename } from '../lib/pdf-filename.js';
@@ -1022,16 +1022,151 @@ function renderPreviewCore(ctx, cw, ch, {
   if (showWatermark) drawWatermark(ctx, cw, ch);
 }
 
+/* ── "Cut to shape" preview ──────────────────────────────────────────────
+   Purely cosmetic: shows what the customer actually receives once we cut a
+   design to shape ourselves — each piece on its clear plastic backing, no
+   leftover sheet around it, no dashed guide (nothing to trim). Never reads
+   from or writes to hiResCrop, the image uploaded to Cloudinary, the
+   production PDF, or the cut SVG — those come from entirely separate code
+   paths (the hi-res canvas effect below, and lib/generate-pdf.js /
+   lib/cut-svg.js server-side) that never call anything here.
+
+   Every "source" composited below is an already-rendered, normal (uncut)
+   design — the real canvas in the inline editor (see cutPreviewCanvasRef's
+   own doc comment for why reading it is safe, and why that's what keeps a
+   drag smooth), or the modal's own `sub`/offscreen render — never re-derived
+   here, so this can never drift from what actually prints; it only composes
+   that render AT THE SAME SIZE AND POSITION, on backing, with a shadow —
+   never shrunk to make room for the backing, or a Round 8" would look
+   smaller with "Cut to shape" than with "Printed sheet". Cookie Sheets are
+   the one exception (buildCutCircleCell() below renders its own single
+   circle) since there's no single already-rendered source to crop a clean
+   piece from — see its own doc comment; every circle still lands at its
+   real tiled position, same as the non-cut render. */
+
+const CUT_PREVIEW_SHADOW = { color: 'rgba(0,0,0,0.28)', blur: 6, offsetY: 2 };
+const CUT_PREVIEW_BORDER = 'rgba(0,0,0,0.22)';
+
+/* A light neutral grey (not white) with a soft diagonal sheen, standing in
+   for the clear plastic backing sheet a cut piece ships on. */
+function fillCutBacking(ctx, x, y, w, h) {
+  ctx.save();
+  ctx.fillStyle = '#D6D6D3';
+  ctx.fillRect(x, y, w, h);
+  const sheen = ctx.createLinearGradient(x, y, x + w, y + h);
+  sheen.addColorStop(0,    'rgba(255,255,255,0.30)');
+  sheen.addColorStop(0.35, 'rgba(255,255,255,0.04)');
+  sheen.addColorStop(0.6,  'rgba(255,255,255,0.16)');
+  sheen.addColorStop(1,    'rgba(255,255,255,0.02)');
+  ctx.fillStyle = sheen;
+  ctx.fillRect(x, y, w, h);
+  ctx.restore();
+}
+
+/* Draws `source` (an already-rendered, un-inset, normal design — see this
+   file's own callers) at (x,y,w,h) — the EXACT same size and position the
+   non-cut render already uses there, never shrunk: the piece has to look
+   identically sized/placed whichever option the customer picks, or a Round
+   8" would look like it shrank to the eye. The backing shows through only
+   where `source` is naturally transparent outside the shape at this same
+   size (round/heart/custom's own corners) — never an inset margin added
+   here. The drop shadow (skipped while `noShadow`, for a smooth drag) is
+   cast by drawImage() itself following `source`'s own alpha — unclipped, so
+   it can spill past the piece into the backing where there's room for it
+   (a square/rectangle piece that already fills its own box has none, and
+   that's fine — see this feature's own commit message). The border is
+   traced explicitly with `kind` (lib/shape-paths.js — the SAME geometry the
+   cut guide and the admin cut SVG use) since a shadow alone doesn't read as
+   a hard edge. */
+function drawCutPiece(ctx, source, x, y, w, h, kind, noShadow) {
+  ctx.save();
+  if (!noShadow) {
+    ctx.shadowColor = CUT_PREVIEW_SHADOW.color;
+    ctx.shadowBlur = CUT_PREVIEW_SHADOW.blur;
+    ctx.shadowOffsetY = CUT_PREVIEW_SHADOW.offsetY;
+  }
+  ctx.drawImage(source, x, y, w, h);
+  ctx.restore();
+  ctx.save();
+  ctx.strokeStyle = CUT_PREVIEW_BORDER;
+  ctx.lineWidth = 1;
+  ctx.stroke(new Path2D(shapeOutlinePath(kind, x, y, w, h)));
+  ctx.restore();
+}
+
+/* One clean, alpha-correct circle bitmap for a Cookie Sheet's cut preview —
+   rendered as if it were its own tiny 'circular' design (renderPreviewCore
+   again, offscreen) rather than cropped out of the full tiled sheet, so it
+   carries none of the bgColor-filled square corners a crop would, and the
+   shadow drawn from it (drawCutMulticircle below) can spill into the gap
+   around each piece instead of being cut off by a clip. Every tile shows
+   the SAME design (renderPreviewCore's own isMultiCircle branch tiles one
+   source-crop everywhere), so one bitmap reused at every grid position is
+   byte-identical to what the real sheet would show there. */
+function buildCutCircleCell(circlePx, renderScale, layers, getImg, getNativeSize, bgColor, textOverlay, layerScale, downscale) {
+  const cell = document.createElement('canvas');
+  const cellPx = Math.max(1, Math.round(circlePx * renderScale));
+  cell.width = cellPx; cell.height = cellPx;
+  const cctx = cell.getContext('2d');
+  cctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
+  cctx.imageSmoothingEnabled = true;
+  cctx.imageSmoothingQuality = 'high';
+  renderPreviewCore(cctx, circlePx, circlePx, {
+    shape: 'circular', isBWSheet: false, isMultiCircle: false,
+    layers, getImg, getNativeSize, bgColor, textOverlay,
+    circlePx, mcCols: 1, mcRows: 1, mcOffsetX: 0, mcOffsetY: 0, mcStepPx: circlePx,
+    layerScale, downscale, renderScale, isMobile: false,
+    showSelection: false, selectedLayer: null, selectedLayerImg: null,
+    showWatermark: false, cutGuide: false,
+  });
+  return cell;
+}
+
+/* Cookie Sheet cut preview: backing across the whole sheet, then every
+   circle placed at its REAL grid position (unchanged from the normal tiled
+   render — these are the same positions the cut SVG and the PDF guide use,
+   see lib/generate-pdf.js's cutGuidePaths()), each with its own shadow and
+   border instead of the dashed guide. */
+function drawCutMulticircle(ctx, cell, cw, ch, circlePx, mcCols, mcRows, mcOffsetX, mcOffsetY, mcStepPx, noShadow) {
+  fillCutBacking(ctx, 0, 0, cw, ch);
+  for (let row = 0; row < mcRows; row++) {
+    for (let col = 0; col < mcCols; col++) {
+      const ox = mcOffsetX + col * mcStepPx, oy = mcOffsetY + row * mcStepPx;
+      ctx.save();
+      if (!noShadow) {
+        ctx.shadowColor = CUT_PREVIEW_SHADOW.color;
+        ctx.shadowBlur = CUT_PREVIEW_SHADOW.blur;
+        ctx.shadowOffsetY = CUT_PREVIEW_SHADOW.offsetY;
+      }
+      ctx.drawImage(cell, ox, oy, circlePx, circlePx);
+      ctx.restore();
+      ctx.save();
+      ctx.strokeStyle = CUT_PREVIEW_BORDER;
+      ctx.lineWidth = 1;
+      ctx.stroke(new Path2D(shapeOutlinePath('circle', ox, oy, circlePx, circlePx)));
+      ctx.restore();
+    }
+  }
+}
+
+
 /* White-background removal now runs off the main thread — see
    public/bg-remove-worker.js (same flood-fill + feather algorithm, moved
    verbatim) and removeWhiteBackgroundViaWorker() inside ImageEditor below. */
 
-function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF', textOverlay = null, onTextPositionChange, removeWhiteBg = false, bgRemoveTolerance = 30, onBgProcessingChange, onWhiteBgSuggestion, sizeLabel = '', isMobile = false, designs = [], activeDesignId = null, customShapeKind = undefined, cutGuide = false }) {
+function ImageEditor({ layers, onLayersChange, shape, sizeId, sizeObj, onCrop, onHiResCrop, bgColor = '#FFFFFF', textOverlay = null, onTextPositionChange, removeWhiteBg = false, bgRemoveTolerance = 30, onBgProcessingChange, onWhiteBgSuggestion, sizeLabel = '', isMobile = false, designs = [], activeDesignId = null, customShapeKind = undefined, cutGuide = false, cutActive = false, setCutToShape, setCutGuide }) {
   /* Declared early: several hooks below depend on these */
   const isMultiCircle = shape === 'multicircle';
   const isBWSheet = shape === 'bwsheet';
 
   const canvasRef = useRef(null);
+  /* "Cut to shape" preview — a SEPARATE canvas stacked on top of the real
+     one, never the real one itself: canvasRef's own pixels feed onCrop()
+     (cropPreview, used as a fallback real-upload source — see its call
+     below), so they must stay the plain, un-cut, un-shrunk render always,
+     whatever cutActive is. This overlay is purely a second coat of paint;
+     hiding/showing it never touches what's actually uploaded or printed. */
+  const cutPreviewCanvasRef = useRef(null);
   const hiResCanvasRef = useRef(null);
   const containerRef = useRef(null);
   const imgRefs = useRef({});
@@ -1138,6 +1273,12 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     if (bgProcessingCountRef.current === 0) setBgProcessing(false);
   };
   const [dragging, setDragging] = useState(false);
+  /* Mirrors pinchStateRef.current as real state, for the one thing a ref
+     can't do: trigger the cut-preview overlay effect to redraw (with its
+     shadow back) once a PURE pinch (no drag) ends — pinchStateRef alone
+     changing doesn't re-render, and a pinch-only gesture's last move may
+     already have happened by the time the fingers lift. */
+  const [pinching, setPinching] = useState(false);
   const [dragLayerId, setDragLayerId] = useState(null);
   const [dragStart, setDragStart] = useState({ clientX: 0, clientY: 0, layerX: 0, layerY: 0 });
   const [textDragging, setTextDragging] = useState(false);
@@ -1417,21 +1558,32 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     const downscale = (key, img, w, h) => getDownscaledSource('modalPreview:' + key, img, w, h);
     const { refW, refCirclePx } = referenceSizeFor(previewDesign);
 
-    const pCutGuide = shapeSupportsCutGuide(pShape, previewDesign.customShapeKind) && !!previewDesign.cutGuide;
+    const pCutActive = cutIsActive(previewDesign);
+    const pCutGuide = shapeSupportsCutGuide(pShape, previewDesign.customShapeKind) && !!previewDesign.cutGuide && !pCutActive;
 
     if (isWholeSheetShape(pShape) && !hasSheetMargin(pShape)) {
       const layout = computeMultiCircleLayout(cw, ch, pIsMultiCircle, pSizeObj);
       const layerScale = computeLayerScale(pIsMultiCircle, cw, layout.circlePx, refW, refCirclePx);
-      renderPreviewCore(ctx, cw, ch, {
-        shape: pShape, isBWSheet: pIsBWSheet, isMultiCircle: pIsMultiCircle,
-        layers: pLayers, getImg: pGetImg, getNativeSize: pGetNativeSize,
-        bgColor: pBgColor, textOverlay: pTextOverlay,
-        circlePx: layout.circlePx, mcCols: layout.mcCols, mcRows: layout.mcRows,
-        mcOffsetX: layout.mcOffsetX, mcOffsetY: layout.mcOffsetY, mcStepPx: layout.mcStepPx,
-        layerScale, downscale, renderScale, isMobile: false,
-        showSelection: false, selectedLayer: null, selectedLayerImg: null,
-        showWatermark: true, cutGuide: pCutGuide,
-      });
+      if (pIsMultiCircle && pCutActive) {
+        // modalCanvasRef is only ever read for display (never toDataURL()'d),
+        // so drawing the cut composite straight onto it carries no risk to
+        // any real upload or print file (see the "Cut to shape" preview
+        // section's own doc comment for the fuller reasoning).
+        const cell = buildCutCircleCell(layout.circlePx, renderScale, pLayers, pGetImg, pGetNativeSize, pBgColor, pTextOverlay, layerScale, downscale);
+        drawCutMulticircle(ctx, cell, cw, ch, layout.circlePx, layout.mcCols, layout.mcRows, layout.mcOffsetX, layout.mcOffsetY, layout.mcStepPx, false);
+        drawWatermark(ctx, cw, ch);
+      } else {
+        renderPreviewCore(ctx, cw, ch, {
+          shape: pShape, isBWSheet: pIsBWSheet, isMultiCircle: pIsMultiCircle,
+          layers: pLayers, getImg: pGetImg, getNativeSize: pGetNativeSize,
+          bgColor: pBgColor, textOverlay: pTextOverlay,
+          circlePx: layout.circlePx, mcCols: layout.mcCols, mcRows: layout.mcRows,
+          mcOffsetX: layout.mcOffsetX, mcOffsetY: layout.mcOffsetY, mcStepPx: layout.mcStepPx,
+          layerScale, downscale, renderScale, isMobile: false,
+          showSelection: false, selectedLayer: null, selectedLayerImg: null,
+          showWatermark: true, cutGuide: pCutGuide,
+        });
+      }
     } else {
       const placement = computeSheetPlacement(pShape, pSizeObj, previewDesign.customW, previewDesign.customH);
       const pxPerInX = cw / placement.sheetW, pxPerInY = ch / placement.sheetH;
@@ -1456,7 +1608,20 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
         showSelection: false, selectedLayer: null, selectedLayerImg: null,
         showWatermark: true, customShapeKind: previewDesign.customShapeKind, cutGuide: pCutGuide,
       });
-      ctx.drawImage(sub, offPxX, offPxY, designPxW, designPxH);
+      if (pCutActive) {
+        // The backing is the WHOLE A4 sheet, not just the design's own box —
+        // once cut, none of the surrounding sheet reaches the customer
+        // either, so painting over just the paper background drawn above
+        // (line ~1394) would leave a paper-coloured margin nobody actually
+        // gets. The piece itself is drawn unchanged at the SAME offPxX/
+        // offPxY/designPxW/designPxH computeSheetPlacement() already gives
+        // the normal (non-cut) render below — same position and size the
+        // production PDF places it at, not shrunk for the backing.
+        fillCutBacking(ctx, 0, 0, cw, ch);
+        drawCutPiece(ctx, sub, offPxX, offPxY, designPxW, designPxH, cutGuideShapeKind(pShape, previewDesign.customShapeKind), false);
+      } else {
+        ctx.drawImage(sub, offPxX, offPxY, designPxW, designPxH);
+      }
     }
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, [showPrintPreview, modalBaseSize, previewDesign, previewImagesTick, redrawTick, layers, canvasW, circlePx, removeWhiteBg]);
@@ -1830,6 +1995,56 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     }
   }, [layers, redrawTick, effectiveSelectedId, shape, bgColor, textOverlay, isMultiCircle, isBWSheet, circlePx, mcCols, mcRows, mcOffsetX, mcOffsetY, mcStepPx, circleSize, canvasW, canvasH, customShapeKind, cutGuide]);
 
+  /* "Cut to shape" preview overlay — see cutPreviewCanvasRef's own comment
+     for why this is a separate canvas, never canvasRef itself. Off (cleared,
+     hidden via the element's own `hidden` attribute in the JSX below) unless
+     cutActive. Redraws on the same content changes as the real canvas above
+     (not on redrawTick/effectiveSelectedId, which only matter for THAT
+     canvas's own selection-highlight bookkeeping) plus `dragging`/`pinching`
+     itself, so a drag's live position is reflected here too, at full frame
+     rate, with the shadow simply skipped for that one frame — see
+     drawCutPiece()/drawCutMulticircle()'s own `noShadow` doc comment for why
+     that's the one part worth dropping for a smooth drag.
+
+     For a single-item shape (round/heart/square/custom), the source composed
+     onto the backing is canvasRef.current ITSELF — the real canvas the main
+     effect above just finished drawing (effects run in declaration order
+     within one commit, so its pixels are already current) — never a second
+     renderPreviewCore() pass here. That reuse is only safe because it's a
+     read (drawImage as a source), which can't change what canvasRef.current
+     itself holds or what its own onCrop()/toDataURL() captures from it —
+     see cutPreviewCanvasRef's doc comment again for why THAT must stay
+     untouched. A second full render was tried first and measured >10s/frame
+     at EP_CPU_THROTTLE=6 while dragging — reusing the real canvas is what
+     actually keeps the drag smooth. Cookie Sheets can't reuse it the same
+     way (the real canvas has its gaps already filled with bgColor, not
+     transparent — see buildCutCircleCell()'s own doc comment) but stay cheap
+     regardless: one render at a single circle's small size, not the sheet's. */
+  useEffect(() => {
+    const canvas = cutPreviewCanvasRef.current;
+    if (!canvas || !cutActive) return;
+    const renderScale = getPreviewRenderScale();
+    canvas.width = Math.max(1, Math.round(canvasW * renderScale));
+    canvas.height = Math.max(1, Math.round(canvasH * renderScale));
+    canvas.style.width = canvasW + 'px';
+    canvas.style.height = canvasH + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.clearRect(0, 0, canvasW, canvasH);
+    const noShadow = dragging || pinching;
+    if (isMultiCircle) {
+      const cell = buildCutCircleCell(circlePx, renderScale, layers, getImg, getNativeSize, bgColor, textOverlay,
+        computeLayerScale(isMultiCircle, canvasW, circlePx, canvasW, circlePx), getDownscaledSource);
+      drawCutMulticircle(ctx, cell, canvasW, canvasH, circlePx, mcCols, mcRows, mcOffsetX, mcOffsetY, mcStepPx, noShadow);
+    } else {
+      fillCutBacking(ctx, 0, 0, canvasW, canvasH);
+      drawCutPiece(ctx, canvasRef.current, 0, 0, canvasW, canvasH, cutGuideShapeKind(shape, customShapeKind), noShadow);
+    }
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [layers, shape, bgColor, textOverlay, isMultiCircle, circlePx, mcCols, mcRows, mcOffsetX, mcOffsetY, mcStepPx, canvasW, canvasH, customShapeKind, cutActive, dragging, pinching]);
+
   /* Hi-res canvas (print output) — this is the ONE the "size" slider bug
      traced back to: full-bleed shapes (Full Sheet's A4 at 300 DPI is the
      biggest, ~8.7 megapixels) made this expensive enough that redrawing +
@@ -2012,6 +2227,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
         initialRotation: selLayer?.rotation ?? 0,
         layerId: effectiveSelectedId,
       };
+      setPinching(true);
       setDragging(false);
       setDragLayerId(null);
       setTextDragging(false);
@@ -2133,6 +2349,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
     }
     if (activePointers.current.size < 2) {
       pinchStateRef.current = null;
+      setPinching(false);
     }
     /* Disarm right after a completed drag — otherwise the layer would stay
        draggable-by-touch indefinitely, and a later swipe that merely
@@ -2365,6 +2582,22 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
             width: canvasW, height: canvasH, maxWidth: '100%', display: 'block',
             filter: 'drop-shadow(0 6px 16px rgba(0,0,0,0.12))' }}
         />
+        {/* "Cut to shape" preview — a second canvas laid exactly over the
+            real one above (see cutPreviewCanvasRef's own comment: the real
+            canvas's pixels feed a fallback upload source and must never
+            show this). Centered the same way flex already centers the real
+            canvas, so it lines up without needing its own wrapper.
+            pointerEvents:none lets every drag/pinch keep reaching the real
+            canvas underneath. */}
+        {cutActive && (
+          <canvas ref={cutPreviewCanvasRef}
+            style={{
+              position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)',
+              width: canvasW, height: canvasH, maxWidth: '100%', display: 'block',
+              pointerEvents: 'none', filter: 'drop-shadow(0 6px 16px rgba(0,0,0,0.12))',
+            }}
+          />
+        )}
         {sizeLabel && (
           <div style={{
             position: 'absolute', bottom: 10, right: 10,
@@ -2552,6 +2785,57 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
         </details>
       )}
 
+      {/* How would you like it? — lib/cutting-config.js / lib/cut-guide-config.js.
+          The one choice between a printed sheet (trim it yourself, with an
+          optional printed guide) and cutting to shape ourselves (+cutSurchargeFor()
+          per sheet, no guide — nothing to trim). Right here, below the image controls
+          and before the print preview, so the choice and its effect on the
+          preview are seen together. Renders nothing for a shape with no cut
+          option (fullsheet/bwsheet/waferletter) — see shapeSupportsCut(). */}
+      {shapeSupportsCut(shape, sizeId) && (
+        <div style={{ width: '100%' }}>
+          <div style={{ fontWeight: 600, fontSize: 13, color: C.text, marginBottom: 8 }}>How would you like it?</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <label style={{
+              flex: 1, minWidth: 0, display: 'block', cursor: 'pointer', boxSizing: 'border-box',
+              padding: '10px 10px', borderRadius: 12,
+              border: '2px solid ' + (!cutActive ? C.brand : C.border),
+              background: !cutActive ? C.brandLight : C.white,
+            }}>
+              <input type="radio" name="cutChoice" checked={!cutActive} onChange={() => setCutToShape(false)}
+                style={{ accentColor: C.brand, marginRight: 6 }} />
+              <span style={{ fontWeight: 700, fontSize: 12.5, color: C.text }}>Printed sheet</span>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>You trim it yourself</div>
+            </label>
+            <label style={{
+              flex: 1, minWidth: 0, display: 'block', cursor: 'pointer', boxSizing: 'border-box',
+              padding: '10px 10px', borderRadius: 12,
+              border: '2px solid ' + (cutActive ? C.brand : C.border),
+              background: cutActive ? C.brandLight : C.white,
+            }}>
+              <input type="radio" name="cutChoice" checked={cutActive} onChange={() => setCutToShape(true)}
+                style={{ accentColor: C.brand, marginRight: 6 }} />
+              <span style={{ fontWeight: 700, fontSize: 12.5, color: C.text }}>Cut to shape</span>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>We cut it for you, ready to peel</div>
+              <div style={{ fontSize: 11, color: C.brand, fontWeight: 700, marginTop: 2 }}>+${cutSurchargeFor(shape, sizeId).toFixed(2)} per sheet</div>
+            </label>
+          </div>
+        </div>
+      )}
+      {/* Cut guide — a discreet one-liner (not a card): only when a guide
+          would even mean something for this shape, and only under "Printed
+          sheet" — once cutting is chosen there is nothing left to trim, and
+          the server already forces the guide off regardless of this value
+          (see resolveCutGuide()/create-checkout), so hiding it here is purely
+          about not showing a choice that no longer does anything. */}
+      {shapeSupportsCutGuide(shape, customShapeKind) && !cutActive && (
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+          <input type="checkbox" checked={cutGuide} onChange={(e) => setCutGuide(e.target.checked)}
+            style={{ width: 13, height: 13, cursor: 'pointer', accentColor: C.brand, flexShrink: 0 }} />
+          <span style={{ fontSize: 11.5, color: C.muted }}>Print a cut guide (dashed line to trim along)</span>
+        </label>
+      )}
+
       <p style={{ fontSize: 11, color: '#bbb', margin: 0 }}>Print output: {hiResW}×{hiResH}px ({DPI} DPI)</p>
 
       <button onClick={() => setShowPrintPreview(true)}
@@ -2631,6 +2915,15 @@ function ImageEditor({ layers, onLayersChange, shape, sizeObj, onCrop, onHiResCr
               </>
             )}
           </div>
+
+          {previewDesign && cutIsActive(previewDesign) && (
+            <p onClick={e => e.stopPropagation()} style={{
+              fontSize: 12.5, color: C.muted, textAlign: 'center', flexShrink: 0,
+              margin: 0, padding: isMobile ? '0 14px' : '0 24px',
+            }}>
+              Preview of your cut toppers. They arrive on a clear backing, ready to peel off.
+            </p>
+          )}
 
           {/* Zoom toolbar */}
           <div onClick={e => e.stopPropagation()} style={{
@@ -2867,7 +3160,13 @@ export default function EdiblePrintApp() {
   const baseUnitPrice = shape === 'custom'
     ? (parseFloat(customW || 0) * parseFloat(customH || 0) <= 36 ? 14.99 : 19.99)
     : selectedSize?.price || 0;
-  const cutSurcharge = cutToShape && shapeSupportsCut(shape, sizeId) ? cutSurchargeFor(shape, sizeId) : 0;
+  // Cut to shape (plotter) is really on only if this shape/size still offers it.
+  // While it is, no cut guide is printed (we cut it ourselves), so the guide
+  // stops being drawn and the checkbox is disabled — the customer's own guide
+  // choice (`cutGuide`) is kept and comes back if they untick the cut.
+  const cutActive = cutToShape && shapeSupportsCut(shape, sizeId);
+  const guideOn = cutGuide && !cutActive;
+  const cutSurcharge = cutActive ? cutSurchargeFor(shape, sizeId) : 0;
   const unitPrice = baseUnitPrice + cutSurcharge;
   const subtotal = unitPrice * qty;
 
@@ -3358,7 +3657,7 @@ export default function EdiblePrintApp() {
       const resp = await fetch('/api/generate-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageDataUrl: hiResDataUrl, shape, material, sizeInches: sizeW, sizeId, customW, customH, customShapeKind, cutGuide, paymentVerified: false, pdfFilename }),
+        body: JSON.stringify({ imageDataUrl: hiResDataUrl, shape, material, sizeInches: sizeW, sizeId, customW, customH, customShapeKind, cutGuide: guideOn, paymentVerified: false, pdfFilename }),
       });
       if (!resp.ok) throw new Error('PDF generation failed');
       const blob = await resp.blob();
@@ -3386,7 +3685,7 @@ export default function EdiblePrintApp() {
       const resp = await fetch('/api/create-download-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageDataUrl: hiResDataUrl, shape, material, sizeInches: sizeW, sizeId, customW, customH, customShapeKind, cutGuide, email: customerEmail }),
+        body: JSON.stringify({ imageDataUrl: hiResDataUrl, shape, material, sizeInches: sizeW, sizeId, customW, customH, customShapeKind, cutGuide: guideOn, email: customerEmail }),
       });
       const { url } = await resp.json();
       window.location.href = url;
@@ -3506,7 +3805,7 @@ export default function EdiblePrintApp() {
               shape: d.shape,
               material: d.material || 'icing',
               cutToShape: dCutToShape,
-              cutGuide: !!d.cutGuide,
+              cutGuide: !!d.cutGuide && !dCutToShape,
               size: d.shape === 'custom' ? customShapePrefix + d.customW + '"x' + d.customH + '"' : (dSel?.label || ''),
               // sizeId/customW/customH/customShapeKind: additive, read by
               // create-checkout to recompute this design's price from the
@@ -3645,6 +3944,24 @@ export default function EdiblePrintApp() {
             ))}
           </div>
         </section>
+        {/* ── FREE LOCAL PICKUP ── */}
+        <section style={{ padding: '0 24px', maxWidth: 860, margin: '0 auto' }}>
+          <div style={{
+            background: C.brandLight, border: '1px solid #C6E6D6', borderRadius: 16,
+            padding: '28px 32px', display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap',
+          }}>
+            <span style={{ fontSize: 36 }}>📍</span>
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 700, margin: '0 0 6px', color: C.brandDark }}>
+                Local to London? Pick up for free
+              </h2>
+              <p style={{ margin: 0, fontSize: 14.5, color: C.text, lineHeight: 1.5 }}>
+                Order online and pick up your prints in East London, ON, with no shipping cost. We confirm the exact address and pickup time by email.
+              </p>
+            </div>
+          </div>
+        </section>
+
         <section id="pricing" style={{ padding: '52px 24px', maxWidth: 760, margin: '0 auto', textAlign: 'center' }}>
           <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, marginBottom: 8, fontWeight: 700 }}>Simple, Transparent Pricing</h2>
           <p style={{ color: C.muted, marginBottom: 8, fontSize: 15 }}>B&amp;W Sheet from $9.99 · Cake Toppers from $14.99 · Food-safe inks &amp; premium paper included</p>
@@ -3727,7 +4044,8 @@ export default function EdiblePrintApp() {
               );
             })}
           </div>
-          <p style={{ fontSize: 13, color: '#bbb', marginTop: 20 }}>Custom sizes available · Free local pickup · Canada-wide shipping from {'$' + LOWEST_SHIPPING_PRICE.toFixed(2)} · No tax charged</p>
+          <p style={{ fontSize: 13, color: C.muted, marginTop: 20 }}>Custom sizes available · Free pickup in London, ON · Canada-wide shipping from {'$' + LOWEST_SHIPPING_PRICE.toFixed(2)} · No tax charged</p>
+          <p style={{ fontSize: 13, color: '#bbb', marginTop: 6 }}>Choose &quot;Cut to shape&quot; on Round, Heart, Square, Custom or Cookie Sheets: +${cutSurchargeFor('circular').toFixed(2)} per sheet, we cut it for you</p>
         </section>
 
         {/* ── PDF DOWNLOAD SECTION ── */}
@@ -3990,6 +4308,7 @@ export default function EdiblePrintApp() {
             ['How long do edible prints last?', 'Stored in the original sealed packaging in a cool, dry place, edible prints last up to 12 months. Once applied to a frosted cake, they are best consumed within 3–5 days.'],
             ['Are your products allergen-free?', 'Our edible inks and sheets are free from the most common allergens. However, they are produced in a facility that may handle nuts and dairy. Please review our full allergen statement for details.'],
             ['What if my order arrives damaged or the print quality is poor?', 'We stand behind every order. If your print arrives damaged or doesn\'t meet the quality you expected, contact us within 48 hours and we\'ll reprint it or issue a full refund — no questions asked.'],
+            ['Can you cut my print to shape?', `Yes. When you customize a Round, Heart, Square, Custom or Cookie Sheet print, choose "Cut to shape" under "How would you like it?" — we cut every sheet on our plotter for $${cutSurchargeFor('circular').toFixed(2)} per sheet, and no cut guide is printed. Choose "Printed sheet" instead and your print comes on the full A4 sheet, with an optional printed guide for trimming yourself.`],
           ].map(([q, a], i) => (
             <details key={i} style={{ borderBottom: '1px solid ' + C.border, paddingBottom: 16, marginBottom: 16 }}>
               <summary style={{ fontWeight: 600, fontSize: 15, cursor: 'pointer', listStyle: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
@@ -4614,6 +4933,7 @@ export default function EdiblePrintApp() {
                 layers={layers}
                 onLayersChange={setLayers}
                 shape={shape}
+                sizeId={sizeId}
                 sizeObj={effectiveSize}
                 onCrop={setCropPreview}
                 onHiResCrop={setHiResCrop}
@@ -4629,36 +4949,15 @@ export default function EdiblePrintApp() {
                 designs={designs}
                 activeDesignId={activeDesignId}
                 customShapeKind={customShapeKind}
-                cutGuide={cutGuide}
+                cutGuide={guideOn}
+                cutActive={cutActive}
+                setCutToShape={setCutToShape}
+                setCutGuide={setCutGuide}
               />
-              {/* Cut guide — lib/cut-guide-config.js. Lives right under the
-                  editor (not down with Shape/Size/"Cut to shape") so on a
-                  phone the customer sees it while adjusting the image, with
-                  the line drawn on the canvas just above. ON by default: a
-                  design that doesn't fill its shape (e.g. an illustration on
-                  a white background) gives the customer no reference for
-                  where to cut without this line, so a clean sheet is the
-                  worse default — customers who don't want it can still
-                  switch it off here. Distinct from "Cut to shape (plotter)"
-                  below — this is a printed dashed line customers can trim to
-                  themselves, not us physically cutting it. Renders nothing
-                  for shapes with no outline to trace (fullsheet/
-                  waferletter) or a Custom design with no sub-shape chosen
-                  yet. */}
-              {shapeSupportsCutGuide(shape, customShapeKind) && (
-                <label style={{
-                  display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
-                  marginTop: 12, padding: '12px 14px', borderRadius: 12,
-                  border: '2px solid ' + (cutGuide ? C.brand : C.border),
-                  background: cutGuide ? C.brandLight : C.white,
-                }}>
-                  <input type="checkbox" checked={cutGuide} onChange={(e) => setCutGuide(e.target.checked)}
-                    style={{ width: 18, height: 18, cursor: 'pointer', accentColor: C.brand, flexShrink: 0 }} />
-                  <span style={{ flex: 1 }}>
-                    <span style={{ fontWeight: 700, fontSize: 14, color: C.text, display: 'block' }}>Add a cut guide</span>
-                    <span style={{ fontSize: 12.5, color: C.muted }}>A thin dashed line marking the design edge, so you can trim it yourself — it will be printed on the sheet.</span>
-                  </span>
-                </label>
+              {cutActive && (
+                <p style={{ fontSize: 12, color: C.muted, textAlign: 'center', margin: '8px 0 0' }}>
+                  Preview of your cut toppers. They arrive on a clear backing, ready to peel off.
+                </p>
               )}
               {whiteBgSuggestion && !removeWhiteBg && (
                 <div style={{
@@ -4808,33 +5107,6 @@ export default function EdiblePrintApp() {
                   )}
                 </div>
                 <p style={{ fontSize: 12, color: C.muted, margin: '0 0 0', textAlign: 'center' }}>Max size: 8″ × 11″ (A4 sheet)</p>
-              </div>
-            )}
-
-            {/* Cut to shape (plotter) — lib/cutting-config.js. Renders
-                nothing at all (not a disabled/"coming soon" state) whenever
-                shapeSupportsCut() is false: while CUTTING_ENABLED is off,
-                for fullsheet/bwsheet (no outline to cut), or for a
-                multicircle size still awaiting its timed surcharge.
-                Advertising something that can't be fulfilled yet invites
-                questions and expectations for nothing — better to simply
-                not offer it until it's real. */}
-            {shapeSupportsCut(shape, sizeId) && (
-              <div style={{ marginBottom: 22 }}>
-                <label style={{
-                  display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
-                  padding: '12px 14px', borderRadius: 12,
-                  border: '2px solid ' + (cutToShape ? C.brand : C.border),
-                  background: cutToShape ? C.brandLight : C.white,
-                }}>
-                  <input type="checkbox" checked={cutToShape} onChange={(e) => setCutToShape(e.target.checked)}
-                    style={{ width: 18, height: 18, cursor: 'pointer', accentColor: C.brand, flexShrink: 0 }} />
-                  <span style={{ flex: 1 }}>
-                    <span style={{ fontWeight: 700, fontSize: 14, color: C.text, display: 'block' }}>Cut to shape (plotter)</span>
-                    <span style={{ fontSize: 12.5, color: C.muted }}>We will precision-cut this on our plotter instead of leaving it as a full sheet.</span>
-                  </span>
-                  <span style={{ fontWeight: 700, fontSize: 14, color: C.brand, flexShrink: 0 }}>+${cutSurchargeFor(shape, sizeId).toFixed(2)}</span>
-                </label>
               </div>
             )}
 
@@ -5033,13 +5305,23 @@ export default function EdiblePrintApp() {
                 const dPrice = d.shape === 'custom'
                   ? (parseFloat(d.customW || 0) * parseFloat(d.customH || 0) <= 36 ? 14.99 : 19.99)
                   : dSel?.price || 0;
+                const dCutActive = !!d.cutToShape && shapeSupportsCut(d.shape, d.sizeId);
+                const dCutSurcharge = dCutActive ? cutSurchargeFor(d.shape, d.sizeId) : 0;
                 return (
-                  <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: d.id === activeDesignId ? 700 : 500,
+                  <div key={d.id} style={{
                     marginBottom: i < designs.length - 1 ? 8 : 0, paddingBottom: i < designs.length - 1 ? 8 : 0,
-                    borderBottom: i < designs.length - 1 ? '1px solid ' + C.border : 'none',
-                    color: d.id === activeDesignId ? C.text : C.muted }}>
-                    <span>Design {i + 1}: {d.qty}x {d.shape === 'custom' ? (d.customW + '"x' + d.customH + '"') : (dSel?.label || d.shape)}{shapeSupportsMaterial(d.shape) && d.material === 'wafer' ? ' · Wafer Paper' : ''}</span>
-                    <span style={{ color: C.brand }}>{'$' + (dPrice * d.qty).toFixed(2)}</span>
+                    borderBottom: i < designs.length - 1 ? '1px solid ' + C.border : 'none' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: d.id === activeDesignId ? 700 : 500,
+                      color: d.id === activeDesignId ? C.text : C.muted }}>
+                      <span>Design {i + 1}: {d.qty}x {d.shape === 'custom' ? (d.customW + '"x' + d.customH + '"') : (dSel?.label || d.shape)}{shapeSupportsMaterial(d.shape) && d.material === 'wafer' ? ' · Wafer Paper' : ''}</span>
+                      <span style={{ color: C.brand }}>{'$' + (dPrice * d.qty).toFixed(2)}</span>
+                    </div>
+                    {dCutActive && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, color: C.muted, marginTop: 2 }}>
+                        <span>Cut to shape (plotter) — {d.qty} × ${dCutSurcharge.toFixed(2)}</span>
+                        <span>{'$' + (dCutSurcharge * d.qty).toFixed(2)}</span>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -5090,37 +5372,14 @@ export default function EdiblePrintApp() {
                   <input type="tel" value={form.phone} onChange={(e) => updateForm('phone', e.target.value)} style={inputStyle} placeholder="(519) 555-1234" />
                 </div>
               </div>
-              {shipping !== 'pickup' && (<>
-              <div>
-                <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Street Address *</label>
-                <input value={form.address} onChange={(e) => handleAddressChange(e.target.value)} style={inputStyle} placeholder="e.g. 123 Main Street" autoComplete="off" />
-              </div>
-              <div style={{ maxWidth: 220 }}>
-                <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Unit / Suite (optional)</label>
-                <input value={form.unit} onChange={(e) => updateForm('unit', e.target.value)} style={inputStyle} placeholder="e.g. 503, Apt 2B" />
-              </div>
-              <div style={{ display: 'flex', gap: 12 }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>City *</label>
-                  <input value={form.city} onChange={(e) => updateForm('city', e.target.value)} style={inputStyle} placeholder="Toronto" />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Province *</label>
-                  <select value={form.province} onChange={(e) => updateForm('province', e.target.value)} style={inputStyle}>
-                    {PROVINCES.map((prov) => <option key={prov} value={prov}>{prov}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div style={{ maxWidth: 200 }}>
-                <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Postal Code *</label>
-                <input value={form.postal} onChange={(e) => updateForm('postal', e.target.value.toUpperCase())} style={inputStyle} placeholder="N6A 1B2" maxLength={7} />
-              </div>
-              <div style={{ background: C.brandLight, border: '1px solid #C6E6D6', borderRadius: 10,
-                padding: '10px 16px', fontSize: 13.5, color: C.brandDark, fontWeight: 600 }}>
-                📦 {getAddressReminder()}
-              </div>
-              </>)}
             </div>
+            {/* Shipping Method — moved above the address fields (and address
+                only shown once "Ship to my address" is picked): most orders
+                default to shipping, but leading with the choice itself lets
+                a pickup customer skip the address entirely instead of
+                filling it in and then having it hidden. Mirrors the order
+                app/designs/_components/CustomerCheckoutForm.js already
+                uses. Default method/validation unchanged. */}
             <div style={{ marginTop: 26 }}>
               <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 10 }}>Shipping Method</label>
               {[
@@ -5150,6 +5409,38 @@ export default function EdiblePrintApp() {
                 />
               )}
             </div>
+            {shipping !== 'pickup' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
+                <div>
+                  <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Street Address *</label>
+                  <input value={form.address} onChange={(e) => handleAddressChange(e.target.value)} style={inputStyle} placeholder="e.g. 123 Main Street" autoComplete="off" />
+                </div>
+                <div style={{ maxWidth: 220 }}>
+                  <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Unit / Suite (optional)</label>
+                  <input value={form.unit} onChange={(e) => updateForm('unit', e.target.value)} style={inputStyle} placeholder="e.g. 503, Apt 2B" />
+                </div>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>City *</label>
+                    <input value={form.city} onChange={(e) => updateForm('city', e.target.value)} style={inputStyle} placeholder="Toronto" />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Province *</label>
+                    <select value={form.province} onChange={(e) => updateForm('province', e.target.value)} style={inputStyle}>
+                      {PROVINCES.map((prov) => <option key={prov} value={prov}>{prov}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div style={{ maxWidth: 200 }}>
+                  <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, display: 'block' }}>Postal Code *</label>
+                  <input value={form.postal} onChange={(e) => updateForm('postal', e.target.value.toUpperCase())} style={inputStyle} placeholder="N6A 1B2" maxLength={7} />
+                </div>
+                <div style={{ background: C.brandLight, border: '1px solid #C6E6D6', borderRadius: 10,
+                  padding: '10px 16px', fontSize: 13.5, color: C.brandDark, fontWeight: 600 }}>
+                  📦 {getAddressReminder()}
+                </div>
+              </div>
+            )}
             <div style={{ ...card, marginTop: 26 }}>
               <h3 style={{ margin: '0 0 14px', fontSize: 16, fontWeight: 700 }}>Order Summary</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 14 }}>
@@ -5159,16 +5450,26 @@ export default function EdiblePrintApp() {
                   const dPrice = d.shape === 'custom'
                     ? (parseFloat(d.customW || 0) * parseFloat(d.customH || 0) <= 36 ? 14.99 : 19.99)
                     : dSel?.price || 0;
+                  const dCutActive = !!d.cutToShape && shapeSupportsCut(d.shape, d.sizeId);
+                  const dCutSurcharge = dCutActive ? cutSurchargeFor(d.shape, d.sizeId) : 0;
                   return (
-                    <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div>Design {i + 1}: {d.qty}x {d.shape === 'custom' ? (d.customW + '"x' + d.customH + '"') : (dSel?.label || d.shape)}{shapeSupportsMaterial(d.shape) && d.material === 'wafer' ? ' · Wafer Paper' : ''}</div>
-                        <div style={{ display: 'flex', gap: 12, marginTop: 3 }}>
-                          <button onClick={() => { setActiveDesignId(d.id); setStep(2); }} className="ep-summary-link">Edit</button>
-                          <button onClick={() => handleDeleteDesign(d.id)} className="ep-summary-link">Remove</button>
+                    <div key={d.id}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div>Design {i + 1}: {d.qty}x {d.shape === 'custom' ? (d.customW + '"x' + d.customH + '"') : (dSel?.label || d.shape)}{shapeSupportsMaterial(d.shape) && d.material === 'wafer' ? ' · Wafer Paper' : ''}</div>
+                          <div style={{ display: 'flex', gap: 12, marginTop: 3 }}>
+                            <button onClick={() => { setActiveDesignId(d.id); setStep(2); }} className="ep-summary-link">Edit</button>
+                            <button onClick={() => handleDeleteDesign(d.id)} className="ep-summary-link">Remove</button>
+                          </div>
                         </div>
+                        <span style={{ fontWeight: 600, flexShrink: 0 }}>{'$' + (dPrice * d.qty).toFixed(2)}</span>
                       </div>
-                      <span style={{ fontWeight: 600, flexShrink: 0 }}>{'$' + (dPrice * d.qty).toFixed(2)}</span>
+                      {dCutActive && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, color: C.muted, marginTop: 2 }}>
+                          <span>Cut to shape (plotter) — {d.qty} × ${dCutSurcharge.toFixed(2)}</span>
+                          <span>{'$' + (dCutSurcharge * d.qty).toFixed(2)}</span>
+                        </div>
+                      )}
                     </div>
                   );
                 })}

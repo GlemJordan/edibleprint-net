@@ -125,9 +125,10 @@ export async function POST(request) {
       // Cut-to-shape surcharge (lib/cutting-config.js): same fail-closed
       // treatment as material below — forced to false/no-charge for a
       // shape+size that doesn't currently offer it (including while the
-      // CUTTING_ENABLED flag is off, or for a multicircle size still
-      // awaiting its timed price — shapeSupportsCut() already covers both),
-      // regardless of what the client sent. There's no UI to send anything
+      // CUTTING_ENABLED flag is off, or for a size withdrawn with a null
+      // surcharge — shapeSupportsCut() already covers both), regardless of
+      // what the client sent. The surcharge is per sheet: it is part of the
+      // unit price that quantity multiplies below. There's no UI to send anything
       // else from legitimately.
       const cutToShape = shapeSupportsCut(d.shape, d.sizeId) && d.cutToShape === true;
       const cutSurcharge = cutToShape ? cutSurchargeFor(d.shape, d.sizeId) : 0;
@@ -136,7 +137,10 @@ export async function POST(request) {
       // above whenever the shape+sub-shape combo doesn't actually support one
       // (including a Custom design with no customShapeKind sent), regardless
       // of what the client sent.
-      const cutGuide = shapeSupportsCutGuide(d.shape, d.customShapeKind) && d.cutGuide === true;
+      // Also forced off whenever the design is cut to shape (cutToShape above,
+      // already validated): we cut it ourselves, so no guide is printed — same
+      // rule as resolveCutGuide(), enforced here whatever the browser sent.
+      const cutGuide = shapeSupportsCutGuide(d.shape, d.customShapeKind) && d.cutGuide === true && !cutToShape;
       if (shapeSupportsMaterial(d.shape)) {
         if (d.material !== 'icing' && d.material !== 'wafer') {
           priceError = `Unrecognized material "${d.material}" for shape "${d.shape}"`;
@@ -156,11 +160,12 @@ export async function POST(request) {
         currency: 'cad',
         product_data: {
           name: (designs.length > 1 ? 'Design ' + (i + 1) + ': ' : 'Edible Print: ') + d.quantity + 'x ' + d.size + ' (' + d.shape + ')',
-          description: d.sourceType === 'upload'
+          description: (d.sourceType === 'upload'
             ? 'Customer-supplied print-ready file, printed as-is on ' + (resolveMaterial(d) === 'wafer' ? 'wafer paper' : 'premium icing sheet')
             : resolveMaterial(d) === 'wafer'
               ? 'Custom edible image print on wafer paper'
-              : 'Custom edible image print on premium icing sheet',
+              : 'Custom edible image print on premium icing sheet')
+            + (d.cutToShape ? `, cut to shape (+$${cutSurchargeFor(d.shape, d.sizeId).toFixed(2)} per sheet)` : ''),
         },
         unit_amount: Math.round(d.unitPrice * d.quantity * 100),
       },
