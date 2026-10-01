@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { Resend } from 'resend';
-import { pageSizePtForShape, computeSheetPlacement, isWholeSheetShape, sheetFormatLabel, shapeDisplayLabel, customShapeLabel } from '../../../lib/paper-config.js';
+import { pageSizePtForShape, computeSheetPlacement, isWholeSheetShape, sheetFormatLabel, shapeDisplayLabel, customShapeLabel, fitRasterInPlacement } from '../../../lib/paper-config.js';
 import { resolveMaterial, materialDisplayLabel } from '../../../lib/material-config.js';
 import { shapeSupportsCutGuide } from '../../../lib/cut-guide-config.js';
 import { drawCutGuideOnPage } from '../../../lib/generate-pdf.js';
@@ -59,11 +59,14 @@ export async function POST(request) {
   // this can't diverge from what the customer was shown before checkout.
   const PT_PER_IN = 72;
   const placement = computeSheetPlacement(shape, { w: sizeInches }, customW, customH);
-  const imgWidthPt  = placement.designW * PT_PER_IN;
-  const imgHeightPt = placement.designH * PT_PER_IN;
-  const x = placement.offsetX * PT_PER_IN;
-  // PDF origin is bottom-left; placement.offsetY is measured from the top.
-  const y = (placement.sheetH - placement.offsetY - placement.designH) * PT_PER_IN;
+  // Same guard as lib/generate-pdf.js: never stretch a raster whose
+  // proportions don't match the current box (see fitRasterInPlacement()).
+  const fit = fitRasterInPlacement(shape, placement, embeddedImage.width, embeddedImage.height);
+  const imgWidthPt  = fit.designW * PT_PER_IN;
+  const imgHeightPt = fit.designH * PT_PER_IN;
+  const x = fit.offsetX * PT_PER_IN;
+  // PDF origin is bottom-left; offsetY is measured from the top.
+  const y = (placement.sheetH - fit.offsetY - fit.designH) * PT_PER_IN;
 
   page.drawImage(embeddedImage, { x, y, width: imgWidthPt, height: imgHeightPt });
 
