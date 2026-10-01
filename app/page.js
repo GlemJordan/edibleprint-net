@@ -16,7 +16,7 @@ import { CATALOG_PRICES } from '../lib/catalog-prices.js';
 import {
   computeSheetPlacement, isWholeSheetShape, hasSheetMargin, BWSHEET_DESIGN_IN,
   customShapeLabel, sheetFormatLabel, sheetSizeInForShape, designAreaInForShape,
-  computeMultiCircleLayout, getCircleGrid, MC_GAP,
+  computeMultiCircleLayout, getCircleGrid, MC_GAP, CUSTOM_MAX_IN,
 } from '../lib/paper-config.js';
 import { shapeSupportsMaterial, materialDisplayLabel } from '../lib/material-config.js';
 import { shapeSupportsCut, cutSurchargeFor, cutIsActive } from '../lib/cutting-config.js';
@@ -5094,7 +5094,7 @@ export default function EdiblePrintApp() {
                     <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>{customShapeKind === 'circle' ? 'Diameter (inches)' : 'Width (inches)'}</label>
                     <input type="number" value={customW} onChange={(e) => {
                       const v = parseFloat(e.target.value);
-                      const clamped = isNaN(v) ? '' : String(Math.min(8, v));
+                      const clamped = isNaN(v) ? '' : String(Math.min(CUSTOM_MAX_IN.w, v));
                       setCustomW(clamped);
                       if (customShapeKind === 'circle') setCustomH(clamped);
                     }} placeholder="e.g. 5" style={inputStyle} />
@@ -5102,11 +5102,11 @@ export default function EdiblePrintApp() {
                   {customShapeKind !== 'circle' && (
                     <div style={{ flex: 1 }}>
                       <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>Height (inches)</label>
-                      <input type="number" value={customH} onChange={(e) => { const v = parseFloat(e.target.value); setCustomH(isNaN(v) ? '' : String(Math.min(11, v))); }} placeholder="e.g. 7" style={inputStyle} />
+                      <input type="number" value={customH} onChange={(e) => { const v = parseFloat(e.target.value); setCustomH(isNaN(v) ? '' : String(Math.min(CUSTOM_MAX_IN.h, v))); }} placeholder="e.g. 7" style={inputStyle} />
                     </div>
                   )}
                 </div>
-                <p style={{ fontSize: 12, color: C.muted, margin: '0 0 0', textAlign: 'center' }}>Max size: 8″ × 11″ (A4 sheet)</p>
+                <p style={{ fontSize: 12, color: C.muted, margin: '0 0 0', textAlign: 'center' }}>Max size: {CUSTOM_MAX_IN.w}″ × {CUSTOM_MAX_IN.h}″ (A4 sheet)</p>
               </div>
             )}
 
