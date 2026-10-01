@@ -6,6 +6,7 @@ import {
 } from '../../../lib/shipping-config.js';
 import { CATALOG_PRICES, customShapePrice } from '../../../lib/catalog-prices.js';
 import { isValidEmail } from '../../../lib/validate-email.js';
+import { UPLOAD_FIT_SHAPES } from '../../../lib/paper-config.js';
 import { shapeSupportsMaterial, resolveMaterial } from '../../../lib/material-config.js';
 import { shapeSupportsCut, cutSurchargeFor } from '../../../lib/cutting-config.js';
 import { shapeSupportsCutGuide, encodeCustomShapeKind } from '../../../lib/cut-guide-config.js';
@@ -161,7 +162,9 @@ export async function POST(request) {
         product_data: {
           name: (designs.length > 1 ? 'Design ' + (i + 1) + ': ' : 'Edible Print: ') + d.quantity + 'x ' + d.size + ' (' + d.shape + ')',
           description: (d.sourceType === 'upload'
-            ? 'Customer-supplied print-ready file, printed as-is on ' + (resolveMaterial(d) === 'wafer' ? 'wafer paper' : 'premium icing sheet')
+            ? (UPLOAD_FIT_SHAPES.includes(d.shape)
+              ? 'Customer-supplied print-ready file, scaled to fit the printable area of ' + (resolveMaterial(d) === 'wafer' ? 'a wafer paper sheet' : 'a premium icing sheet')
+              : 'Customer-supplied print-ready file, printed as-is on ' + (resolveMaterial(d) === 'wafer' ? 'wafer paper' : 'premium icing sheet'))
             : resolveMaterial(d) === 'wafer'
               ? 'Custom edible image print on wafer paper'
               : 'Custom edible image print on premium icing sheet')
