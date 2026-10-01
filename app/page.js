@@ -17,6 +17,7 @@ import {
   computeSheetPlacement, isWholeSheetShape, hasSheetMargin, BWSHEET_DESIGN_IN,
   customShapeLabel, sheetFormatLabel, sheetSizeInForShape, designAreaInForShape,
   computeMultiCircleLayout, getCircleGrid, MC_GAP, CUSTOM_MAX_IN,
+  UPLOAD_FIT_SHAPES, uploadPlacement,
 } from '../lib/paper-config.js';
 import { shapeSupportsMaterial, materialDisplayLabel } from '../lib/material-config.js';
 import { shapeSupportsCut, cutSurchargeFor, cutIsActive } from '../lib/cutting-config.js';
@@ -616,6 +617,9 @@ async function validateUploadDesignFile(design) {
     await page.render({ canvasContext: ctx, viewport }).promise;
 
     const fit = computeContainFit(fileWidthIn, fileHeightIn, target.w, target.h);
+    // Full sheet: printed scaled into the printable area (same function the
+    // production PDF uses), not edge-to-edge — see UPLOAD_FIT_SHAPES.
+    const printed = UPLOAD_FIT_SHAPES.includes(design.shape) ? uploadPlacement(design.shape, fileWidthIn, fileHeightIn) : null;
     const bandPx = (UPLOAD_MARGIN_MM / 25.4) * RENDER_DPI;
     const marginWarning = hasContentNearEdge(renderCanvas, bandPx);
 
@@ -626,7 +630,8 @@ async function validateUploadDesignFile(design) {
       fileWidthIn, fileHeightIn,
       targetWidthIn: target.w, targetHeightIn: target.h,
       sizeExact: fit.exact,
-      printedWidthIn: fit.printedW, printedHeightIn: fit.printedH,
+      fittedToPrintArea: !!printed,
+      printedWidthIn: printed ? printed.designW : fit.printedW, printedHeightIn: printed ? printed.designH : fit.printedH,
       dpiKnown: false, dpi: null, dpiOk: null,
       marginWarning,
     };
@@ -634,7 +639,8 @@ async function validateUploadDesignFile(design) {
 
   const img = await loadImageFromFile(design.file);
   const fit = computeContainFit(img.naturalWidth, img.naturalHeight, target.w, target.h);
-  const effectiveDpi = img.naturalWidth / fit.printedW;
+  const printed = UPLOAD_FIT_SHAPES.includes(design.shape) ? uploadPlacement(design.shape, img.naturalWidth, img.naturalHeight) : null;
+  const effectiveDpi = img.naturalWidth / (printed ? printed.designW : fit.printedW);
   const canvas = document.createElement('canvas');
   canvas.width = img.naturalWidth;
   canvas.height = img.naturalHeight;
@@ -650,7 +656,8 @@ async function validateUploadDesignFile(design) {
     pixelWidth: img.naturalWidth, pixelHeight: img.naturalHeight,
     targetWidthIn: target.w, targetHeightIn: target.h,
     sizeExact: fit.exact,
-    printedWidthIn: fit.printedW, printedHeightIn: fit.printedH,
+    fittedToPrintArea: !!printed,
+    printedWidthIn: printed ? printed.designW : fit.printedW, printedHeightIn: printed ? printed.designH : fit.printedH,
     dpiKnown: true, dpi: effectiveDpi, dpiOk: effectiveDpi >= UPLOAD_MIN_DPI,
     marginWarning,
   };
@@ -658,10 +665,13 @@ async function validateUploadDesignFile(design) {
 
 /* Renders a customer-supplied file exactly as it will print: the file
    composited (contain-fit, same policy as validation) onto a white canvas
-   sized to the target sheet's physical dimensions. This is preview-only —
-   the bitmap it produces is never uploaded or stored; production always
-   reads the original file (or, for a multi-page PDF, a page extracted from
-   it — see Stage 4), never this rendering. */
+   sized to the target sheet's physical dimensions — for a full sheet, inside
+   the sheet's printable area (uploadPlacement(), the same placement the
+   production PDF uses). This is preview-only — the bitmap it produces is
+   never uploaded or stored; production always works from the original file
+   (placed into the printable area for a full sheet, see generateUploadFitPdf;
+   the file itself, or one page extracted from it, otherwise), never from
+   this rendering. */
 async function renderUploadPreviewCanvas(design, previewDpi = 150) {
   const target = getUploadTargetSizeIn(design.shape);
   const canvas = document.createElement('canvas');
@@ -681,22 +691,25 @@ async function renderUploadPreviewCanvas(design, previewDpi = 150) {
     const fileWidthIn = viewport1.width / 72;
     const fileHeightIn = viewport1.height / 72;
     const fit = computeContainFit(fileWidthIn, fileHeightIn, target.w, target.h);
-    const renderScale = (fit.printedW * previewDpi) / viewport1.width;
+    const printed = UPLOAD_FIT_SHAPES.includes(design.shape) ? uploadPlacement(design.shape, fileWidthIn, fileHeightIn) : null;
+    const printedW = printed ? printed.designW : fit.printedW;
+    const renderScale = (printedW * previewDpi) / viewport1.width;
     const viewport = page.getViewport({ scale: renderScale });
     const pageCanvas = document.createElement('canvas');
     pageCanvas.width = Math.max(1, Math.ceil(viewport.width));
     pageCanvas.height = Math.max(1, Math.ceil(viewport.height));
     await page.render({ canvasContext: pageCanvas.getContext('2d'), viewport }).promise;
-    const offX = Math.round(((target.w - fit.printedW) / 2) * previewDpi);
-    const offY = Math.round(((target.h - fit.printedH) / 2) * previewDpi);
+    const offX = Math.round((printed ? printed.offsetX : (target.w - fit.printedW) / 2) * previewDpi);
+    const offY = Math.round((printed ? printed.offsetY : (target.h - fit.printedH) / 2) * previewDpi);
     ctx.drawImage(pageCanvas, offX, offY);
   } else {
     const img = await loadImageFromFile(design.file);
     const fit = computeContainFit(img.naturalWidth, img.naturalHeight, target.w, target.h);
-    const drawW = fit.printedW * previewDpi;
-    const drawH = fit.printedH * previewDpi;
-    const offX = Math.round((canvas.width - drawW) / 2);
-    const offY = Math.round((canvas.height - drawH) / 2);
+    const printed = UPLOAD_FIT_SHAPES.includes(design.shape) ? uploadPlacement(design.shape, img.naturalWidth, img.naturalHeight) : null;
+    const drawW = (printed ? printed.designW : fit.printedW) * previewDpi;
+    const drawH = (printed ? printed.designH : fit.printedH) * previewDpi;
+    const offX = Math.round(printed ? printed.offsetX * previewDpi : (canvas.width - drawW) / 2);
+    const offY = Math.round(printed ? printed.offsetY * previewDpi : (canvas.height - drawH) / 2);
     ctx.drawImage(img, offX, offY, drawW, drawH);
   }
   return canvas.toDataURL('image/png');
@@ -4474,7 +4487,7 @@ export default function EdiblePrintApp() {
               </h2>
               <p style={{ color: C.muted, marginBottom: pendingShape ? 12 : 24 }}>
                 {orderMode === 'upload'
-                  ? "We print it exactly as provided — no editing or adjustments on our end."
+                  ? "We print your file as provided, with no editing. On a full sheet it's scaled to fit the printable area, so nothing gets cut off."
                   : 'JPG, PNG or PDF · High resolution for best results'}
               </p>
             </div>
@@ -4710,7 +4723,11 @@ export default function EdiblePrintApp() {
                     }}>
                       <span>{v.sizeExact ? '✅' : 'ℹ️'}</span>
                       <span>
-                        {v.sizeExact
+                        {v.fittedToPrintArea
+                          ? (v.sizeExact
+                            ? `Your file's proportions match this sheet (A4). We print it inside the sheet's printable area, clear of the edges our printer can't reach, so it'll print at ${v.printedWidthIn.toFixed(2)}" × ${v.printedHeightIn.toFixed(2)}" with a white border.`
+                            : `Nothing will be cropped — your whole file will show on the sheet. Its proportions are a little different from A4 (${v.targetWidthIn.toFixed(2)}" × ${v.targetHeightIn.toFixed(2)}"), so we scale it to fit the sheet's printable area, clear of the edges our printer can't reach: it'll print at ${v.printedWidthIn.toFixed(2)}" × ${v.printedHeightIn.toFixed(2)}" with a white border.`)
+                          : v.sizeExact
                           ? `Your file's proportions match this sheet — it'll print at ${v.printedWidthIn.toFixed(2)}" × ${v.printedHeightIn.toFixed(2)}".`
                           : `Nothing will be cropped — your whole file will show on the sheet. Its proportions are a little different from ${activeDesign.shape === 'fullsheet' ? `A4 (${v.targetWidthIn.toFixed(2)}" × ${v.targetHeightIn.toFixed(2)}")` : `${v.targetWidthIn.toFixed(2)}" × ${v.targetHeightIn.toFixed(2)}"`}, so we'll scale it down slightly to fit: it'll print at ${v.printedWidthIn.toFixed(2)}" × ${v.printedHeightIn.toFixed(2)}", with a thin white margin along one edge.`}
                       </span>

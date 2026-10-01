@@ -32,6 +32,7 @@ const DEFAULT_TESTS = [
   'cut-to-shape.mjs',
   'cut-preview.mjs',
   'print-margins.mjs',
+  'upload-fit.mjs',
 ];
 
 // Hits real Cloudinary + creates a real (unpaid, self-expiring) Stripe

@@ -8,6 +8,7 @@ import { resolveMaterial, materialDisplayLabel } from '../../../lib/material-con
 import { decodeCustomShapeKind } from '../../../lib/cut-guide-config.js';
 import { getShippingMethod, normalizeShippingMethod, getShippingPackages, countSheets } from '../../../lib/shipping-config.js';
 import { confirmationShippingBlock } from '../../../lib/shipping-email.js';
+import { UPLOAD_FIT_SHAPES } from '../../../lib/paper-config.js';
 
 // CASL sender-identification footer for the 4 customer/admin-facing
 // templates (owner order email, customer confirmation, magic link,
@@ -396,7 +397,7 @@ async function processOrder(session, orderId) {
       + (d.notes && d.notes !== 'None' ? '<p style="margin:8px 0 0;font-size:13px;color:#6b7280;"><em>Note: ' + d.notes + '</em></p>' : '')
       + (d.shape === 'bwsheet' ? '<p style="margin:8px 0 0;font-size:13px;font-weight:bold;color:#B45309;background:#FEF3C7;padding:6px 10px;border-radius:4px;">⚠️ Product: B&W Half Sheet (GRAYSCALE — print in black and white)</p>' : '')
       + (resolveMaterial(d) === 'wafer' ? '<p style="margin:8px 0 0;font-size:13px;font-weight:bold;color:#B45309;background:#FEF3C7;padding:6px 10px;border-radius:4px;">⚠️ Material: WAFER PAPER (NOT icing sheet — do not substitute)</p>' : '')
-      + (d.sourceType === 'upload' ? '<p style="margin:8px 0 0;font-size:13px;font-weight:bold;color:#B45309;background:#FEF3C7;padding:6px 10px;border-radius:4px;">⚠️ CUSTOMER-SUPPLIED FILE — print exactly as provided, no adjustments' + (d.pageCount > 1 ? ' (page ' + d.selectedPage + ' of ' + d.pageCount + ')' : '') + '.</p>' : '')
+      + (d.sourceType === 'upload' ? '<p style="margin:8px 0 0;font-size:13px;font-weight:bold;color:#B45309;background:#FEF3C7;padding:6px 10px;border-radius:4px;">⚠️ CUSTOMER-SUPPLIED FILE — ' + (UPLOAD_FIT_SHAPES.includes(d.shape) ? 'no edits, scaled to the printable area: print the print-ready PDF at 100%' : 'print exactly as provided, no adjustments') + (d.pageCount > 1 ? ' (page ' + d.selectedPage + ' of ' + d.pageCount + ')' : '') + '.</p>' : '')
       + '</div>';
   };
 
