@@ -1726,10 +1726,28 @@ function ImageEditor({ layers, onLayersChange, shape, sizeId, sizeObj, onCrop, o
     return () => el.removeEventListener('wheel', onWheel);
   }, [showPrintPreview]);
 
+  /* viewportHeight caps the canvas height (computeCanvasSize), so it must
+     only follow REAL viewport changes. On touch devices, scrolling collapses
+     and re-expands the browser's address bar (and the on-screen keyboard
+     opens/closes), each firing a height-only `resize` — following those
+     resized the canvas on every scroll, and a layer the customer had framed
+     (drag/zoom) slid out of the dashed frame until they scrolled back up
+     (reported Oct 2026, Android Chrome, Custom 5.7"×8.6"). So on touch
+     devices only a width change (rotation) re-reads the height; desktop
+     keeps following every resize, since there a height change is a
+     deliberate window resize. Either way, the canvas-resize effect below
+     rescales framed layers, so even a real resize can't misplace them. */
   useEffect(() => {
-    const onResize = () => setViewportHeight(window.innerHeight);
+    const isTouch = window.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches ?? false;
+    let lastWidth = window.innerWidth;
+    const onResize = () => {
+      const w = window.innerWidth;
+      if (isTouch && w === lastWidth) return;
+      lastWidth = w;
+      setViewportHeight(window.innerHeight);
+    };
     window.addEventListener('resize', onResize);
-    onResize();
+    setViewportHeight(window.innerHeight);
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
@@ -1804,11 +1822,18 @@ function ImageEditor({ layers, onLayersChange, shape, sizeId, sizeObj, onCrop, o
     const { isMultiCircle: mc, circlePx: cp, canvasW: cw, canvasH: ch } = layoutRef.current;
     const effW = mc ? cp : cw;
     const effH = mc ? cp : ch;
+    /* _userAdjusted is cleared because this IS a fresh auto-fit. It also
+       matters for correctness: this effect runs in the same commit that
+       queues the new canvasW/canvasH (the size effect above), so the fit
+       here is still against the OLD canvas size. Clearing the flag lets the
+       canvas-resize effect below re-fit against the new size on the next
+       render — left set, that effect would just rescale this stale fit and
+       the image would land off-center for the new shape/size. */
     onLayersChangeRef.current(prev => prev.map(l => {
       const img = imgRefs.current[l.id];
       if (!img) return l;
       const sc = fitMode(effW / img.width, effH / img.height);
-      return { ...l, x: (effW - img.width * sc) / 2, y: (effH - img.height * sc) / 2, scale: sc };
+      return { ...l, x: (effW - img.width * sc) / 2, y: (effH - img.height * sc) / 2, scale: sc, _userAdjusted: false };
     }));
   }, [shape, sizeObj.id, sizeObj.w, sizeObj.h, sizeObj.circleSize]);
 
@@ -1822,13 +1847,31 @@ function ImageEditor({ layers, onLayersChange, shape, sizeId, sizeObj, onCrop, o
      (drag, pinch, the zoom slider/buttons — see their setters) and is the
      only thing a passive resize (mobile address bar show/hide, rotation,
      window resize) must respect. Recenter clears it, which is the only way
-     back to auto-fit. */
+     back to auto-fit.
+     Respecting it does NOT mean leaving the numbers alone, though: x/y/scale
+     are canvas pixels, so a framed layer must be rescaled by the same factor
+     the canvas changed by, or it keeps its old pixel position on a bigger/
+     smaller canvas — it visibly drifts out of the frame, and the hi-res
+     print raster (scaleFactor = hiResW / canvasW) comes out misaligned too.
+     prevEffSizeRef is the canvas size the layers' numbers are currently
+     expressed in. */
+  const prevEffSizeRef = useRef(null);
   useEffect(() => {
     const { isMultiCircle: mc, circlePx: cp, canvasW: cw, canvasH: ch } = layoutRef.current;
     const effW = mc ? cp : cw;
     const effH = mc ? cp : ch;
+    const prevEff = prevEffSizeRef.current;
+    prevEffSizeRef.current = { w: effW, h: effH };
+    const kx = prevEff && prevEff.w > 0 ? effW / prevEff.w : 1;
+    const ky = prevEff && prevEff.h > 0 ? effH / prevEff.h : 1;
     onLayersChangeRef.current(prev => prev.map(l => {
-      if (l._userAdjusted) return l;
+      if (l._userAdjusted) {
+        if (kx === 1 && ky === 1) return l;
+        /* Shape/size are unchanged here (a change of those clears
+           _userAdjusted), so the canvas kept its aspect ratio up to 1px of
+           rounding: one uniform factor for scale, per-axis for position. */
+        return { ...l, x: l.x * kx, y: l.y * ky, scale: l.scale * kx };
+      }
       const img = imgRefs.current[l.id];
       if (!img) return l;
       const sc = fitMode(effW / img.width, effH / img.height);
