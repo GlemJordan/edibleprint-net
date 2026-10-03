@@ -149,6 +149,12 @@ export default function AdminOrdersPage() {
             }}>
               + Add manual order
             </Link>
+            <Link href="/admin/orders/labels" style={{
+              fontSize: 13, fontWeight: 600, color: C.brand, border: '1.5px solid ' + C.brand,
+              borderRadius: 8, padding: '7px 14px', textDecoration: 'none',
+            }}>
+              Shipping labels
+            </Link>
             <Link href="/api/admin/orders/export?format=csv" style={{
               fontSize: 13, fontWeight: 600, color: C.brand, border: '1.5px solid ' + C.brand,
               borderRadius: 8, padding: '7px 14px', textDecoration: 'none',

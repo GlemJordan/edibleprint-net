@@ -20,6 +20,7 @@ const DEFAULT_TESTS = [
   'shipping-selector.mjs',
   'shipping-packages-ui.mjs',
   'admin-dispatch-ui.mjs',
+  'shipping-labels-ui.mjs',
   'shipping-copy.mjs',
   // The two below need no dev server (pure functions / the route handler run
   // in-process with Stripe's transport stubbed).
@@ -27,6 +28,7 @@ const DEFAULT_TESTS = [
   'order-packages.mjs',
   'dispatch-info.mjs',
   'dispatch-email.mjs',
+  'shipping-labels.mjs',
   'cut-svg.mjs',
   'cut-to-shape-ui.mjs',
   'cut-to-shape.mjs',
