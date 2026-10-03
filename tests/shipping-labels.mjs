@@ -147,6 +147,26 @@ async function readPdf(bytes) {
   check('PDF: a name with letters Helvetica lacks still prints (Ł → L, unknown dropped) instead of failing', ok && text.includes('ZOË LUKASZ'), text.slice(0, 200));
 }
 check('PDF: refuses to make an empty file', await generateShippingLabelsPdf([]).then(() => false, () => true));
+{
+  // The emblem: one per label when the logo is given; a broken or missing
+  // logo prints the labels without it instead of failing the download.
+  const { readFileSync } = await import('fs');
+  const imagesPerPage = async (bytes) => {
+    const doc = await pdfjs.getDocument({ data: new Uint8Array(bytes), useSystemFonts: true }).promise;
+    const counts = [];
+    for (let p = 1; p <= doc.numPages; p++) {
+      const ops = await (await doc.getPage(p)).getOperatorList();
+      counts.push(ops.fnArray.filter((f) => f === pdfjs.OPS.paintImageXObject).length);
+    }
+    return counts;
+  };
+  const logoPng = readFileSync(new URL('../public/logo-assets/logo-full.png', import.meta.url));
+  check('PDF: with the logo, every label carries the emblem (3 + 4 labels)', (await imagesPerPage(await generateShippingLabelsPdf(labels, { firstSheetFree: 3, logoPng }))).join() === '3,4');
+  check('PDF: without a logo, labels print with no image', (await imagesPerPage(await generateShippingLabelsPdf(labels))).join() === '0,0');
+  let ok = true; let counts = [];
+  try { counts = await imagesPerPage(await generateShippingLabelsPdf(labels, { logoPng: new Uint8Array([1, 2, 3]) })); } catch { ok = false; }
+  check('PDF: an unreadable logo is skipped, the labels still print', ok && counts.join() === '0,0', counts);
+}
 
 // ── Loading orders (Cloudinary answered here) ───────────────────────────────
 {

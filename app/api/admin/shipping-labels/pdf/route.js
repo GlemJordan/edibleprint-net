@@ -4,6 +4,7 @@ import { loadLabelOrders, ORDER_ID_RE } from '../../../../../lib/shipping-labels
 import { expandLabels, normalizeFreeSpaces, MAX_ORDERS_PER_PDF } from '../../../../../lib/shipping-labels.js';
 import { generateShippingLabelsPdf } from '../../../../../lib/shipping-labels-pdf.js';
 import { formatPurchaseDateDDMMYY } from '../../../../../lib/pdf-filename.js';
+import { getLogoBytes } from '../../../../../lib/generate-pdf.js';
 
 // GET /api/admin/shipping-labels/pdf?ids=EP-AAAA,EP-BBBB&free=4
 //   ids   the orders to print, in print order, at most MAX_ORDERS_PER_PDF
@@ -39,7 +40,8 @@ export async function GET(request) {
     if (labels.length === 0) {
       return NextResponse.json({ error: 'None of these orders needs a shipping label any more' }, { status: 404 });
     }
-    const bytes = await generateShippingLabelsPdf(labels, { firstSheetFree });
+    // Same emblem file the production slip uses; null (no logo) if it can't be fetched.
+    const bytes = await generateShippingLabelsPdf(labels, { firstSheetFree, logoPng: await getLogoBytes() });
     const filename = `${formatPurchaseDateDDMMYY(Date.now())}-shipping-labels.pdf`;
     return new NextResponse(bytes, {
       headers: {
