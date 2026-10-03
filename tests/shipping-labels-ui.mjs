@@ -8,7 +8,7 @@
 // answered here with fabricated data built by the real lib functions, so no
 // production data is read and no admin login is needed.
 import { chromium } from 'playwright';
-import { describeLabelOrders, returnAddressLines, LABEL_NOTE } from '../lib/shipping-labels.js';
+import { describeLabelOrders, returnAddressLines, LABEL_NOTE, MAX_ORDERS_PER_PDF } from '../lib/shipping-labels.js';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 const WAIT = 90000;
@@ -74,6 +74,30 @@ try {
 
   await page.getByRole('checkbox', { name: 'Include EP-BBBB' }).uncheck();
   check('nothing ticked: no download', (await download.getAttribute('href')) === null && (await download.getAttribute('aria-disabled')) === 'true');
+
+  // A backlog bigger than one PDF takes: the soonest MAX_ORDERS_PER_PDF start
+  // ticked and download; ticking past the cap disables the download and says
+  // to do it in batches, instead of a link that only returns an error.
+  {
+    const many = describeLabelOrders(Array.from({ length: MAX_ORDERS_PER_PDF + 1 }, (_, i) =>
+      order('EP-M' + String(i).padStart(3, '0'), { createdAt: `2026-09-01T00:${String(i % 60).padStart(2, '0')}:${String(Math.floor(i / 60)).padStart(2, '0')}Z` })));
+    const big = await browser.newPage();
+    await big.route('**/api/admin/check', (r) => r.fulfill({ json: { isAdmin: true } }));
+    await big.route('**/api/admin/shipping-labels', (r) => r.fulfill({ json: { orders: many, scannedAll: true, returnAddress: returnAddressLines(), note: LABEL_NOTE } }));
+    await big.goto(BASE_URL + '/admin/orders/labels', { timeout: WAIT });
+    await big.getByTestId('label-order').first().waitFor({ timeout: WAIT });
+    const dl = big.getByTestId('download-labels');
+    const lastId = many[many.length - 1].orderId;
+    const href = await dl.getAttribute('href');
+    check(`over ${MAX_ORDERS_PER_PDF} ready orders: the soonest ${MAX_ORDERS_PER_PDF} start ticked and the link carries exactly those`,
+      !(await big.getByRole('checkbox', { name: 'Include ' + lastId }).isChecked())
+      && href !== null && decodeURIComponent(href).split('ids=')[1].split('&')[0].split(',').length === MAX_ORDERS_PER_PDF, href);
+    await big.getByRole('checkbox', { name: 'Include ' + lastId }).check();
+    check('ticking past the cap disables the download and asks for a second batch',
+      (await dl.getAttribute('href')) === null && (await dl.getAttribute('aria-disabled')) === 'true'
+      && /untick 1 and download the rest in a second batch/.test(await big.getByTestId('too-many').textContent()));
+    await big.close();
+  }
 
   if (process.env.EP_SCREENSHOT_DIR) {
     await page.getByRole('checkbox', { name: 'Include EP-AAAA' }).check();

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { planLabelSheets, FEEDABLE_FREE_SPACES, LABELS_PER_SHEET } from '../../../../lib/shipping-labels.js';
+import { planLabelSheets, FEEDABLE_FREE_SPACES, LABELS_PER_SHEET, MAX_ORDERS_PER_PDF } from '../../../../lib/shipping-labels.js';
 
 const C = {
   brand: '#1B6B4A', brandLight: '#E8F5EE', text: '#1a1a1a',
@@ -43,9 +43,11 @@ export default function ShippingLabelsPage() {
       .then((r) => { if (!r.ok) throw new Error('Failed to load orders to ship'); return r.json(); })
       .then((d) => {
         setData(d);
-        // Ready-looking orders start ticked; ones with an address problem or
-        // marked as test wait for the owner to decide.
-        setSelected(new Set((d.orders || []).filter((o) => o.problems.length === 0 && !o.isTest).map((o) => o.orderId)));
+        // Ready-looking orders start ticked — the soonest ones, up to what one
+        // PDF takes; ones with an address problem or marked as test wait for
+        // the owner to decide.
+        const ready = (d.orders || []).filter((o) => o.problems.length === 0 && !o.isTest);
+        setSelected(new Set(ready.slice(0, MAX_ORDERS_PER_PDF).map((o) => o.orderId)));
       })
       .catch((e) => setError(e.message));
   }, [authChecked, isAdmin]);
@@ -53,6 +55,8 @@ export default function ShippingLabelsPage() {
   const orders = useMemo(() => data?.orders || [], [data]);
   const chosen = orders.filter((o) => selected.has(o.orderId));
   const labelCount = chosen.reduce((sum, o) => sum + o.packages, 0);
+  const tooMany = chosen.length > MAX_ORDERS_PER_PDF;
+  const canDownload = labelCount > 0 && !tooMany;
   const plan = planLabelSheets(labelCount, freeSpaces);
   const downloadHref = '/api/admin/shipping-labels/pdf?ids=' + encodeURIComponent(chosen.map((o) => o.orderId).join(',')) + '&free=' + freeSpaces;
 
@@ -144,17 +148,22 @@ export default function ShippingLabelsPage() {
                   {plural(orders.length, 'order')} to ship · {chosen.length} selected
                 </label>
                 <a
-                  href={labelCount > 0 ? downloadHref : undefined}
-                  aria-disabled={labelCount === 0}
+                  href={canDownload ? downloadHref : undefined}
+                  aria-disabled={!canDownload}
                   data-testid="download-labels"
                   style={{
                     fontSize: 14, fontWeight: 700, color: '#fff', textDecoration: 'none', borderRadius: 8, padding: '10px 18px',
-                    background: labelCount > 0 ? C.brand : '#9CA3AF', pointerEvents: labelCount > 0 ? 'auto' : 'none',
+                    background: canDownload ? C.brand : '#9CA3AF', pointerEvents: canDownload ? 'auto' : 'none',
                   }}
                 >
                   Download labels PDF{labelCount > 0 ? ` (${labelCount})` : ''}
                 </a>
               </div>
+              {tooMany && (
+                <p data-testid="too-many" style={{ margin: '0 0 12px', fontSize: 13, color: '#B45309', textAlign: 'right' }}>
+                  One PDF takes up to {MAX_ORDERS_PER_PDF} orders — untick {chosen.length - MAX_ORDERS_PER_PDF} and download the rest in a second batch.
+                </p>
+              )}
 
               {orders.length === 0 && (
                 <div style={{ background: C.white, border: '1px solid ' + C.border, borderRadius: 12, padding: '28px 18px', textAlign: 'center', color: C.muted }}>
