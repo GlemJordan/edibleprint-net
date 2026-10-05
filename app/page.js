@@ -3092,9 +3092,10 @@ export default function EdiblePrintApp() {
   const [hoveredCardId, setHoveredCardId] = useState(null);
   const [pendingShape, setPendingShape] = useState(null);
   const [pendingSizeId, setPendingSizeId] = useState(null);
-  // Custom size: the width (inches) the customer just typed when it was wider
-  // than the sheet allows but would fit as the height — it got clamped, and
-  // this drives the "use it as the height" hint. null otherwise.
+  // Custom size: { designId, kind, value } — the width (inches) the customer
+  // just typed when it was wider than the sheet allows but would fit as the
+  // height (it got clamped). Drives the "use it as the height" hint, which
+  // only shows for that same design and sub-shape. null otherwise.
   const [customWidthTooWide, setCustomWidthTooWide] = useState(null);
   const [loading, setLoading] = useState(false);
   const [acceptedDesign, setAcceptedDesign] = useState(false);
@@ -5137,6 +5138,13 @@ export default function EdiblePrintApp() {
                      fits turned on its side — customers don't think of that
                      on their own, hence the swap button and the hint below. */
                   const isCircle = customShapeKind === 'circle';
+                  const kind = customShapeKind || 'rectangle';
+                  // Keyed to the design + sub-shape it was typed in, so it never
+                  // carries over to another design (or rewrites its dimensions).
+                  const tooWide = customWidthTooWide
+                    && customWidthTooWide.designId === activeDesignId
+                    && customWidthTooWide.kind === kind
+                    ? customWidthTooWide.value : null;
                   const hNum = parseFloat(customH);
                   const swapFits = !(hNum > CUSTOM_MAX_IN.w);
                   const canSwap = !isCircle && (customW !== '' || customH !== '') && swapFits;
@@ -5146,7 +5154,7 @@ export default function EdiblePrintApp() {
                     setCustomWidthTooWide(null);
                   };
                   const useTooWideAsHeight = () => {
-                    const v = customWidthTooWide;
+                    const v = tooWide;
                     if (!v) return;
                     updateActive({ customW: swapFits ? customH : '', customH: String(v) });
                     setCustomWidthTooWide(null);
@@ -5166,7 +5174,8 @@ export default function EdiblePrintApp() {
                           const clamped = isNaN(v) ? '' : String(Math.min(CUSTOM_MAX_IN.w, v));
                           setCustomW(clamped);
                           if (isCircle) setCustomH(clamped);
-                          setCustomWidthTooWide(!isCircle && v > CUSTOM_MAX_IN.w && v <= CUSTOM_MAX_IN.h ? v : null);
+                          setCustomWidthTooWide(!isCircle && v > CUSTOM_MAX_IN.w && v <= CUSTOM_MAX_IN.h
+                            ? { designId: activeDesignId, kind, value: v } : null);
                         }} placeholder="e.g. 5" style={inputStyle} />
                         {!isCircle && (
                           <button type="button" onClick={swapDims} disabled={!canSwap}
@@ -5183,16 +5192,16 @@ export default function EdiblePrintApp() {
                           <input id="custom-height-in" type="number" value={customH} onChange={(e) => { const v = parseFloat(e.target.value); setCustomH(isNaN(v) ? '' : String(Math.min(CUSTOM_MAX_IN.h, v))); }} placeholder="e.g. 7" style={inputStyle} />
                         )}
                       </div>
-                      {!isCircle && customWidthTooWide && (
+                      {!isCircle && tooWide && (
                         <div role="status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap',
                           background: C.brandLight, border: '1px solid ' + C.brand, borderRadius: 8, padding: '8px 10px', marginBottom: 8,
                           fontSize: 12.5, color: C.text, lineHeight: 1.4 }}>
-                          <span>The sheet fits up to {CUSTOM_MAX_IN.w}″ across, so {customWidthTooWide}″ wide only fits turned on its side.</span>
+                          <span>The sheet fits up to {CUSTOM_MAX_IN.w}″ across, so {tooWide}″ wide only fits turned on its side.</span>
                           <button type="button" onClick={useTooWideAsHeight}
                             style={{ flex: 'none', fontSize: 12, fontWeight: 600, padding: '6px 10px', borderRadius: 6,
                               border: '1px solid ' + C.brand, background: C.white, color: C.brand, cursor: 'pointer',
                               fontFamily: "'Outfit', sans-serif" }}>
-                            Use {customWidthTooWide}″ as height
+                            Use {tooWide}″ as height
                           </button>
                         </div>
                       )}
