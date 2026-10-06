@@ -443,6 +443,24 @@ function getPreviewRenderScale() {
   return Math.min((window.devicePixelRatio || 1) * 2, 3);
 }
 
+/* On-screen (CSS) size for an editor preview canvas: the largest whole-pixel
+   size ≤ cssPx that also covers a WHOLE number of device pixels at the
+   current devicePixelRatio. Display-only — canvasW/canvasH (and every layer
+   coordinate, the backing store and the hi-res/print path) keep the
+   unsnapped value; pointer math already rescales by getBoundingClientRect().
+   Why: at Windows 150% scaling a 373px canvas is 559.5 device px, and Chrome
+   paints that half-covered last column/row of the drop-shadow-filtered
+   canvas as a 1px grey line along its right and bottom edges. Even widths
+   (150%) or multiples of 4 (125%/175%) never leave half a pixel. */
+function snapToDevicePixels(cssPx) {
+  if (typeof window === 'undefined' || !(cssPx > 0)) return cssPx;
+  const dpr = window.devicePixelRatio || 1;
+  for (let v = Math.floor(cssPx); v > 0 && v > cssPx - 8; v--) {
+    if (Math.abs(v * dpr - Math.round(v * dpr)) < 1e-6) return v;
+  }
+  return cssPx;
+}
+
 /* Shrinks `img` down to ~targetW×targetH by repeatedly halving instead of
    one steep single-step canvas resize, which avoids the aliasing/blur a
    single big-ratio drawImage() produces (e.g. a 3000px source collapsed
@@ -1777,6 +1795,9 @@ function ImageEditor({ layers, onLayersChange, shape, sizeId, sizeObj, onCrop, o
   const hiResW = printW * DPI;
   const hiResH = printH * DPI;
   const scaleFactor = hiResW / canvasW;
+  /* Canvas size as shown on screen — see snapToDevicePixels(). */
+  const displayW = snapToDevicePixels(canvasW);
+  const displayH = snapToDevicePixels(canvasH);
 
   /* Effective selected layer (handles stale selectedLayerId on design switch) */
   const effectiveSelectedId = layers.find(l => l.id === selectedLayerId)?.id
@@ -1975,8 +1996,8 @@ function ImageEditor({ layers, onLayersChange, shape, sizeId, sizeObj, onCrop, o
     const renderScale = getPreviewRenderScale();
     canvas.width = Math.max(1, Math.round(canvasW * renderScale));
     canvas.height = Math.max(1, Math.round(canvasH * renderScale));
-    canvas.style.width = canvasW + 'px';
-    canvas.style.height = canvasH + 'px';
+    canvas.style.width = displayW + 'px';
+    canvas.style.height = displayH + 'px';
     const ctx = canvas.getContext('2d');
     ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
     ctx.imageSmoothingEnabled = true;
@@ -2039,8 +2060,8 @@ function ImageEditor({ layers, onLayersChange, shape, sizeId, sizeObj, onCrop, o
     const renderScale = getPreviewRenderScale();
     canvas.width = Math.max(1, Math.round(canvasW * renderScale));
     canvas.height = Math.max(1, Math.round(canvasH * renderScale));
-    canvas.style.width = canvasW + 'px';
-    canvas.style.height = canvasH + 'px';
+    canvas.style.width = displayW + 'px';
+    canvas.style.height = displayH + 'px';
     const ctx = canvas.getContext('2d');
     ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
     ctx.imageSmoothingEnabled = true;
@@ -2592,7 +2613,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeId, sizeObj, onCrop, o
                armed (see handlePointerDown), so a drag on that layer isn't
                fought over by the browser's own native scroll. */
             touchAction: (armedLayerId && armedLayerId === effectiveSelectedId) ? 'none' : 'pan-y',
-            width: canvasW, height: canvasH, maxWidth: '100%', display: 'block',
+            width: displayW, height: displayH, maxWidth: '100%', display: 'block',
             filter: 'drop-shadow(0 6px 16px rgba(0,0,0,0.12))' }}
         />
         {/* "Cut to shape" preview — a second canvas laid exactly over the
@@ -2606,7 +2627,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeId, sizeObj, onCrop, o
           <canvas ref={cutPreviewCanvasRef}
             style={{
               position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)',
-              width: canvasW, height: canvasH, maxWidth: '100%', display: 'block',
+              width: displayW, height: displayH, maxWidth: '100%', display: 'block',
               pointerEvents: 'none', filter: 'drop-shadow(0 6px 16px rgba(0,0,0,0.12))',
             }}
           />
@@ -3071,6 +3092,11 @@ export default function EdiblePrintApp() {
   const [hoveredCardId, setHoveredCardId] = useState(null);
   const [pendingShape, setPendingShape] = useState(null);
   const [pendingSizeId, setPendingSizeId] = useState(null);
+  // Custom size: { designId, kind, value } — the width (inches) the customer
+  // just typed when it was wider than the sheet allows but would fit as the
+  // height (it got clamped). Drives the "use it as the height" hint, which
+  // only shows for that same design and sub-shape. null otherwise.
+  const [customWidthTooWide, setCustomWidthTooWide] = useState(null);
   const [loading, setLoading] = useState(false);
   const [acceptedDesign, setAcceptedDesign] = useState(false);
   const [form, setForm] = useState({
@@ -5106,23 +5132,87 @@ export default function EdiblePrintApp() {
                     </button>
                   ))}
                 </div>
-                <div style={{ display: 'flex', gap: 12, marginBottom: 8 }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>{customShapeKind === 'circle' ? 'Diameter (inches)' : 'Width (inches)'}</label>
-                    <input type="number" value={customW} onChange={(e) => {
-                      const v = parseFloat(e.target.value);
-                      const clamped = isNaN(v) ? '' : String(Math.min(CUSTOM_MAX_IN.w, v));
-                      setCustomW(clamped);
-                      if (customShapeKind === 'circle') setCustomH(clamped);
-                    }} placeholder="e.g. 5" style={inputStyle} />
-                  </div>
-                  {customShapeKind !== 'circle' && (
-                    <div style={{ flex: 1 }}>
-                      <label style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, display: 'block' }}>Height (inches)</label>
-                      <input type="number" value={customH} onChange={(e) => { const v = parseFloat(e.target.value); setCustomH(isNaN(v) ? '' : String(Math.min(CUSTOM_MAX_IN.h, v))); }} placeholder="e.g. 7" style={inputStyle} />
-                    </div>
-                  )}
-                </div>
+                {(() => {
+                  /* Width ⇄ Height swap. The sheet allows more height (10.5″)
+                     than width (8″), so a landscape design wider than 8″ only
+                     fits turned on its side — customers don't think of that
+                     on their own, hence the swap button and the hint below. */
+                  const isCircle = customShapeKind === 'circle';
+                  const kind = customShapeKind || 'rectangle';
+                  // Keyed to the design + sub-shape it was typed in, so it never
+                  // carries over to another design (or rewrites its dimensions).
+                  const tooWide = customWidthTooWide
+                    && customWidthTooWide.designId === activeDesignId
+                    && customWidthTooWide.kind === kind
+                    ? customWidthTooWide.value : null;
+                  const hNum = parseFloat(customH);
+                  const swapFits = !(hNum > CUSTOM_MAX_IN.w);
+                  const canSwap = !isCircle && (customW !== '' || customH !== '') && swapFits;
+                  const swapDims = () => {
+                    if (!canSwap) return;
+                    updateActive({ customW: customH, customH: customW });
+                    setCustomWidthTooWide(null);
+                  };
+                  const useTooWideAsHeight = () => {
+                    const v = tooWide;
+                    if (!v) return;
+                    updateActive({ customW: swapFits ? customH : '', customH: String(v) });
+                    setCustomWidthTooWide(null);
+                  };
+                  return (
+                    <>
+                      {/* Grid, not flex: labels on row 1, inputs + swap button on
+                          row 2, so the button always stretches to exactly the
+                          inputs' height whatever font metrics the device has. */}
+                      <div style={{ display: 'grid', gridTemplateColumns: isCircle ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) auto minmax(0, 1fr)',
+                        columnGap: 8, rowGap: 6, alignItems: 'end', marginBottom: 8 }}>
+                        <label htmlFor="custom-width-in" style={{ fontSize: 13, fontWeight: 600, display: 'block' }}>{isCircle ? 'Diameter (inches)' : 'Width (inches)'}</label>
+                        {!isCircle && <span aria-hidden="true" />}
+                        {!isCircle && <label htmlFor="custom-height-in" style={{ fontSize: 13, fontWeight: 600, display: 'block' }}>Height (inches)</label>}
+                        <input id="custom-width-in" type="number" value={customW} onChange={(e) => {
+                          const v = parseFloat(e.target.value);
+                          const clamped = isNaN(v) ? '' : String(Math.min(CUSTOM_MAX_IN.w, v));
+                          setCustomW(clamped);
+                          if (isCircle) setCustomH(clamped);
+                          setCustomWidthTooWide(!isCircle && v > CUSTOM_MAX_IN.w && v <= CUSTOM_MAX_IN.h
+                            ? { designId: activeDesignId, kind, value: v } : null);
+                        }} placeholder="e.g. 5" style={inputStyle} />
+                        {!isCircle && (
+                          <button type="button" onClick={swapDims} disabled={!canSwap}
+                            aria-label="Swap width and height"
+                            title={swapFits ? 'Swap width and height' : `Can't swap: ${customH}″ is wider than the ${CUSTOM_MAX_IN.w}″ sheet`}
+                            style={{ alignSelf: 'stretch', width: 40, boxSizing: 'border-box',
+                              borderRadius: 10, border: '1.5px solid ' + C.border, background: C.white, color: C.brand,
+                              fontSize: 18, fontWeight: 700, lineHeight: 1, padding: 0,
+                              cursor: canSwap ? 'pointer' : 'not-allowed', opacity: canSwap ? 1 : 0.4 }}>
+                            ⇄
+                          </button>
+                        )}
+                        {!isCircle && (
+                          <input id="custom-height-in" type="number" value={customH} onChange={(e) => { const v = parseFloat(e.target.value); setCustomH(isNaN(v) ? '' : String(Math.min(CUSTOM_MAX_IN.h, v))); }} placeholder="e.g. 7" style={inputStyle} />
+                        )}
+                      </div>
+                      {!isCircle && tooWide && (
+                        <div role="status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap',
+                          background: C.brandLight, border: '1px solid ' + C.brand, borderRadius: 8, padding: '8px 10px', marginBottom: 8,
+                          fontSize: 12.5, color: C.text, lineHeight: 1.4 }}>
+                          <span>The sheet fits up to {CUSTOM_MAX_IN.w}″ across, so {tooWide}″ wide only fits turned on its side.</span>
+                          <button type="button" onClick={useTooWideAsHeight}
+                            style={{ flex: 'none', fontSize: 12, fontWeight: 600, padding: '6px 10px', borderRadius: 6,
+                              border: '1px solid ' + C.brand, background: C.white, color: C.brand, cursor: 'pointer',
+                              fontFamily: "'Outfit', sans-serif" }}>
+                            Use {tooWide}″ as height
+                          </button>
+                        </div>
+                      )}
+                      {!isCircle && (
+                        <p style={{ fontSize: 12, color: C.muted, margin: '0 0 6px', textAlign: 'center' }}>
+                          Landscape design? Use ⇄ to swap width and height, then turn your image with the +90° button.
+                        </p>
+                      )}
+                    </>
+                  );
+                })()}
                 <p style={{ fontSize: 12, color: C.muted, margin: '0 0 0', textAlign: 'center' }}>Max size: {CUSTOM_MAX_IN.w}″ × {CUSTOM_MAX_IN.h}″ (A4 sheet)</p>
               </div>
             )}
