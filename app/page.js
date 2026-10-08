@@ -3074,6 +3074,8 @@ function ColorPickerDropdown({ value, onChange, colors, label, allowCustom }) {
 /* ═══════════════════════════════════ */
 export default function EdiblePrintApp() {
   const [step, setStep] = useState(0);
+  // Home gallery shows GALLERY_INITIAL_COUNT tiles until "See more" is pressed.
+  const [galleryExpanded, setGalleryExpanded] = useState(false);
   /* 'editor' = the existing upload-and-customize flow (default, most visible).
      'upload' = "I already have my design" — customer supplies a print-ready
      file for one of the flat-sheet formats and we print it as-is. Drives
@@ -3886,23 +3888,52 @@ export default function EdiblePrintApp() {
   };
 
   /* HOME PAGE */
+  /* Order matters: only the first GALLERY_INITIAL_COUNT tiles show before
+     "See more", so the opening rows alternate the on-cake photos with the
+     newer printed-sheet photos (public/gallery/, 800×800 WebP, EXIF/GPS
+     stripped). Titles deliberately avoid sizes/counts unless the photo
+     matches a size we actually sell. */
+  const GALLERY_INITIAL_COUNT = 12;
   const galleryItems = [
     { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180323/649680716_1500541474823954_8161943662036624436_n_supe0j.jpg', title: '2" Cookie Circles', category: 'Cookie Sheet' },
+    { url: '/gallery/round-gamer-birthday.webp', title: 'Gamer Birthday Round', category: 'Round' },
     { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180334/WhatsApp_Image_2026-02-18_at_5.02.46_PM_4_bdffmh.jpg', title: 'Edible Print on Cookie', category: 'Cookie Topper' },
+    { url: '/gallery/custom-gingerbread-50.webp', title: 'Gingerbread 50th Birthday', category: 'Custom' },
     { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180316/631155092_927287009710918_2725418458120497650_n_alqxgi.jpg', title: '8" Round Cake Topper', category: 'Round' },
+    { url: '/gallery/fullsheet-superhero-birthday.webp', title: 'Superhero Birthday Sheet', category: 'Full Sheet' },
     { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180315/564037940_606689965772579_7150919334617048888_n_vtkhf1.jpg', title: 'Full Sheet on Cake', category: 'Full Sheet' },
-    { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180321/643374882_1221779420149107_4563453986619431265_n_x0ry5y.jpg', title: 'Full Sheet Print', category: 'Full Sheet' },
+    { url: '/gallery/cookie-circles-gaming.webp', title: 'Gamer Cookie Circles', category: 'Cookie Sheet' },
     { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180326/661142328_1334185021979269_4781349991339791662_n_kjtbdp.jpg', title: '6" Round Cake Topper', category: 'Round' },
+    { url: '/gallery/round-princess-birthday.webp', title: 'Ice Princess Birthday Round', category: 'Round' },
+    { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180321/643374882_1221779420149107_4563453986619431265_n_x0ry5y.jpg', title: 'Full Sheet Print', category: 'Full Sheet' },
+    { url: '/gallery/heart-eighteen.webp', title: '18th Birthday Heart', category: 'Heart' },
+    // ── Below the fold until "See more" ──
     { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180330/674461215_2470531503382051_8704629536921250123_n_iztbl6.jpg', title: '6" Round Celebration', category: 'Round' },
+    { url: '/gallery/custom-soccer-jerseys.webp', title: 'Soccer Jersey Cut-Outs', category: 'Custom' },
+    { url: '/gallery/custom-bride-to-be-floral.webp', title: 'Bride-to-Be Floral', category: 'Custom' },
+    { url: '/gallery/fullsheet-music-birthday.webp', title: 'Pop Idol Birthday Sheet', category: 'Full Sheet' },
     // Generic title, deliberately no count or inches: this photo doesn't
     // correspond exactly to either remaining multicircle size (6/sheet or
     // 15/sheet) — see lib/catalog-sizes.js — so it shouldn't promise a
     // specific one.
     { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180311/WhatsApp_Image_2026-02-18_at_5.14.09_PM_z4dkxf.jpg', title: 'Mini Cookie Toppers', category: 'Cookie Sheet' },
+    { url: '/gallery/custom-ocean-birthday.webp', title: 'Under the Sea Birthday', category: 'Custom' },
     { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180313/553460353_1257238136170817_2212358949708882210_n_syfirg.jpg', title: '8" Round on Cake', category: 'Round' },
+    { url: '/gallery/square-cartoon-topper.webp', title: 'Cartoon Hero Topper', category: 'Square' },
     { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180311/WhatsApp_Image_2026-02-18_at_5.02.46_PM_vuvwmr.jpg', title: 'Photo Round 8"', category: 'Round' },
+    { url: '/gallery/round-photo-birthday.webp', title: 'Photo Birthday Round', category: 'Round' },
     { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180337/WhatsApp_Image_2026-02-18_at_5.02.46_PM_7_d04sga.jpg', title: '2" Circles on Cupcakes', category: 'Cookie Sheet' },
+    { url: '/gallery/custom-trophy-cutout.webp', title: 'Trophy Cut-Out', category: 'Custom' },
+    { url: '/gallery/fullsheet-calendar-keepsake.webp', title: 'Calendar Keepsake Sheet', category: 'Full Sheet' },
+    { url: '/gallery/cookie-circles-happily-ever-after.webp', title: 'Happily Ever After Circles', category: 'Cookie Sheet' },
+    { url: '/gallery/round-caricature-birthday.webp', title: 'Caricature Birthday Round', category: 'Round' },
+    { url: '/gallery/custom-photo-portrait.webp', title: 'Photo Portrait Topper', category: 'Custom' },
+    { url: '/gallery/custom-pixel-cake-wraps.webp', title: 'Pixel Block Cake Strips', category: 'Custom' },
+    { url: '/gallery/cookie-circles-photo.webp', title: 'Photo Cookie Circles', category: 'Cookie Sheet' },
+    { url: '/gallery/round-anime-character.webp', title: 'Anime Character Round', category: 'Round' },
+    { url: '/gallery/fullsheet-event-logo.webp', title: 'Event Logo Sheet', category: 'Full Sheet' },
   ];
+  const visibleGalleryItems = galleryExpanded ? galleryItems : galleryItems.slice(0, GALLERY_INITIAL_COUNT);
 
   if (step === 0) {
     const stepColors = ['#E8F5EE', '#FFF4EB', '#EEF2FF', '#FFF9E6'];
@@ -4202,7 +4233,7 @@ export default function EdiblePrintApp() {
         </section>
 
         {/* ── CUSTOMER GALLERY ── */}
-        <section style={{ padding: '64px 24px', background: '#FAFBF9' }}>
+        <section id="customer-gallery" style={{ padding: '64px 24px', background: '#FAFBF9', scrollMarginTop: 72 }}>
           <div style={{ maxWidth: 1080, margin: '0 auto' }}>
             <div style={{ textAlign: 'center', marginBottom: 40 }}>
               <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 36, fontWeight: 700, marginBottom: 12 }}>
@@ -4213,9 +4244,9 @@ export default function EdiblePrintApp() {
               </p>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-              {galleryItems.map((item, i) => (
+              {visibleGalleryItems.map((item) => (
                 <div
-                  key={i}
+                  key={item.url}
                   style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', background: '#F0F0F0', aspectRatio: '1 / 1', cursor: 'pointer' }}
                   onMouseEnter={(e) => { e.currentTarget.querySelector('.overlay').style.opacity = '1'; }}
                   onMouseLeave={(e) => { e.currentTarget.querySelector('.overlay').style.opacity = '0'; }}
@@ -4245,6 +4276,31 @@ export default function EdiblePrintApp() {
                 </div>
               ))}
             </div>
+            {galleryItems.length > GALLERY_INITIAL_COUNT && (
+              <div style={{ textAlign: 'center', marginTop: 24 }}>
+                <button
+                  type="button"
+                  className="ep-gallery-toggle"
+                  aria-expanded={galleryExpanded}
+                  onClick={() => {
+                    if (galleryExpanded) {
+                      // Collapsing shortens the page under the reader — bring them back to the gallery top.
+                      document.getElementById('customer-gallery')?.scrollIntoView({ behavior: 'smooth' });
+                    }
+                    setGalleryExpanded((v) => !v);
+                  }}
+                  style={{
+                    background: 'transparent', color: C.brand, border: '1.5px solid ' + C.brand,
+                    borderRadius: 12, padding: '11px 26px', fontSize: 15, fontWeight: 600,
+                    cursor: 'pointer', fontFamily: "'Outfit', sans-serif",
+                  }}
+                >
+                  {galleryExpanded
+                    ? 'Show fewer'
+                    : `See ${galleryItems.length - GALLERY_INITIAL_COUNT} more prints`}
+                </button>
+              </div>
+            )}
             <div style={{ textAlign: 'center', marginTop: 36 }}>
               <button
                 onClick={() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }}
