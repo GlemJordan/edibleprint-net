@@ -209,6 +209,47 @@ function Logo({ footer = false }) {
   );
 }
 
+/* ═══ CUT-TO-SHAPE ILLUSTRATION ═══
+   Home page "Pre-Cut & Ready to Apply" section: a cookie sheet whose toppers
+   are cut along their outline, with one already peeled off its backing.
+   Pure SVG, no photo needed. */
+function CutToShapeIllustration() {
+  const toppers = [
+    { cx: 62,  cy: 58,  outer: '#FCD9BD', inner: '#E8873C' },
+    { cx: 62,  cy: 130, outer: '#CFE8DC', inner: '#1B6B4A' },
+    { cx: 146, cy: 130, outer: '#E3DDF7', inner: '#7C6BC4' },
+    { cx: 62,  cy: 202, outer: '#FDE7A9', inner: '#D99A00' },
+    { cx: 146, cy: 202, outer: '#F9D3DC', inner: '#D9577A' },
+  ];
+  return (
+    <svg viewBox="0 0 220 262" role="img"
+      aria-label="A sheet of round toppers cut to shape, with one topper peeled off its backing"
+      style={{ flex: '0 1 220px', width: '100%', maxWidth: 220, height: 'auto', margin: '0 auto', display: 'block' }}>
+      <defs>
+        <filter id="ep-cut-shadow" x="-30%" y="-30%" width="160%" height="160%">
+          <feDropShadow dx="0" dy="3" stdDeviation="4" floodColor="#000" floodOpacity="0.14" />
+        </filter>
+      </defs>
+      {/* Backing sheet */}
+      <rect x="20" y="14" width="168" height="232" rx="8" fill="#FFFFFF" stroke="#E5E7EB" filter="url(#ep-cut-shadow)" />
+      {/* Cut toppers still on the sheet */}
+      {toppers.map((t) => (
+        <g key={`${t.cx}-${t.cy}`}>
+          <circle cx={t.cx} cy={t.cy} r="34" fill={t.outer} stroke={C.brandDark} strokeWidth="1.6" />
+          <circle cx={t.cx} cy={t.cy} r="16" fill={t.inner} opacity="0.5" />
+        </g>
+      ))}
+      {/* Where the peeled topper was: just the cut line left on the backing */}
+      <circle cx="146" cy="58" r="34" fill="#F7F8FA" stroke="#C9CED6" strokeWidth="1.2" />
+      {/* The peeled topper, lifted off the sheet */}
+      <g filter="url(#ep-cut-shadow)">
+        <circle cx="172" cy="40" r="34" fill="#CFE5F7" stroke={C.brandDark} strokeWidth="1.6" />
+        <circle cx="172" cy="40" r="16" fill="#2F7BBF" opacity="0.5" />
+      </g>
+    </svg>
+  );
+}
+
 /* ═══ IMAGE EDITOR (with hi-res export) ═══ */
 const FONT_STYLE_MAP = {
   normal:       { style: 'normal',  weight: 'normal' },
@@ -4031,6 +4072,63 @@ export default function EdiblePrintApp() {
           </div>
         </section>
 
+        {/* ── CUT TO SHAPE (plotter) ──
+            Marketing copy for the optional "Cut to shape" add-on. Gated and
+            priced from lib/cutting-config.js, same as the editor's "How would
+            you like it?" choice, so turning CUTTING_ENABLED off or changing
+            CUT_SURCHARGE updates this section too. */}
+        {shapeSupportsCut('circular') && (
+          <section id="cut-to-shape" style={{ padding: '52px 24px 0', maxWidth: 860, margin: '0 auto', scrollMarginTop: 72 }}>
+            <div style={{
+              background: C.accentLight, border: '1px solid #F6DCC4', borderRadius: 16,
+              padding: '32px 28px', display: 'flex', alignItems: 'center', gap: 32, flexWrap: 'wrap',
+            }}>
+              <CutToShapeIllustration />
+              <div style={{ flex: '1 1 300px', minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase', color: C.accent, marginBottom: 6 }}>
+                  Optional add-on
+                </div>
+                <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 700, margin: '0 0 10px', lineHeight: 1.15 }}>
+                  Pre-Cut &amp; Ready to Apply
+                </h2>
+                <p style={{ margin: '0 0 18px', fontSize: 15, color: C.text, lineHeight: 1.6 }}>
+                  Skip the scissors. Choose &ldquo;Cut to shape&rdquo; and we cut every topper along its outline on our
+                  precision cutting machine. Your toppers arrive on their clear backing sheet — just peel and place.
+                </p>
+                <ul style={{ listStyle: 'none', margin: '0 0 20px', padding: 0, display: 'grid', gap: 10 }}>
+                  {[
+                    ['✂️', 'Clean, precise edges', 'Machine-cut along the exact shape, with no uneven scissor edges.'],
+                    ['🍪', 'Peel & place', 'Each topper lifts off the backing in one piece, ready for your cake or cookie.'],
+                    ['⏱️', 'Saves you time', 'Ideal for Cookie Sheets: all 6 or 15 toppers arrive cut and ready.'],
+                  ].map(([icon, title, desc]) => (
+                    <li key={title} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                      <span aria-hidden="true" style={{ fontSize: 22, lineHeight: 1.2 }}>{icon}</span>
+                      <span style={{ fontSize: 14.5, lineHeight: 1.5 }}>
+                        <strong>{title}</strong>
+                        <span style={{ color: C.muted }}> — {desc}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <p style={{ margin: '0 0 18px', fontSize: 14, color: C.text, lineHeight: 1.5 }}>
+                  <strong style={{ color: C.brand }}>+${cutSurchargeFor('circular').toFixed(2)} per sheet</strong>
+                  {' '}· Available on Round, Heart, Square, Custom &amp; Cookie Sheets.
+                  <br />
+                  <span style={{ color: C.muted }}>
+                    When you customize your print, pick &ldquo;Cut to shape&rdquo; under &ldquo;How would you like it?&rdquo;
+                  </span>
+                </p>
+                <button
+                  onClick={() => { setOrderMode('editor'); setStep(1); }}
+                  style={{ ...btnPrimary, padding: '13px 28px', fontSize: 15, borderRadius: 12 }}
+                >
+                  Order Pre-Cut Toppers →
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
+
         <section id="pricing" style={{ padding: '52px 24px', maxWidth: 760, margin: '0 auto', textAlign: 'center' }}>
           <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, marginBottom: 8, fontWeight: 700 }}>Simple, Transparent Pricing</h2>
           <p style={{ color: C.muted, marginBottom: 8, fontSize: 15 }}>B&amp;W Sheet from $9.99 · Cake Toppers from $14.99 · Food-safe inks &amp; premium paper included</p>
@@ -4114,7 +4212,12 @@ export default function EdiblePrintApp() {
             })}
           </div>
           <p style={{ fontSize: 13, color: C.muted, marginTop: 20 }}>Custom sizes available · Free pickup in London, ON · Canada-wide shipping from {'$' + LOWEST_SHIPPING_PRICE.toFixed(2)} · No tax charged</p>
-          <p style={{ fontSize: 13, color: '#bbb', marginTop: 6 }}>Choose &quot;Cut to shape&quot; on Round, Heart, Square, Custom or Cookie Sheets: +${cutSurchargeFor('circular').toFixed(2)} per sheet, we cut it for you</p>
+          {shapeSupportsCut('circular') && (
+            <p style={{ fontSize: 13, color: C.muted, marginTop: 6 }}>
+              Want it pre-cut? Choose &quot;Cut to shape&quot; on Round, Heart, Square, Custom or Cookie Sheets: +${cutSurchargeFor('circular').toFixed(2)} per sheet, we cut it for you.{' '}
+              <a href="#cut-to-shape" style={{ color: C.brand, fontWeight: 600 }}>How it works</a>
+            </p>
+          )}
         </section>
 
         {/* ── PDF DOWNLOAD SECTION ── */}
