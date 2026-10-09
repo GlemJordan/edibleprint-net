@@ -3927,7 +3927,6 @@ export default function EdiblePrintApp() {
     { url: '/gallery/fullsheet-calendar-keepsake.webp', title: 'Calendar Keepsake Sheet', category: 'Full Sheet' },
     { url: '/gallery/cookie-circles-happily-ever-after.webp', title: 'Happily Ever After Circles', category: 'Cookie Sheet' },
     { url: '/gallery/round-caricature-birthday.webp', title: 'Caricature Birthday Round', category: 'Round' },
-    { url: '/gallery/custom-photo-portrait.webp', title: 'Photo Portrait Topper', category: 'Custom' },
     { url: '/gallery/custom-pixel-cake-wraps.webp', title: 'Pixel Block Cake Strips', category: 'Custom' },
     { url: '/gallery/cookie-circles-photo.webp', title: 'Photo Cookie Circles', category: 'Cookie Sheet' },
     { url: '/gallery/round-anime-character.webp', title: 'Anime Character Round', category: 'Round' },
