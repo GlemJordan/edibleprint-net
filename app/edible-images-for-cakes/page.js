@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { getShippingMethod, formatBusinessDayRange } from '../../lib/shipping-config.js';
-import { shapeSupportsCut, cutSurchargeFor } from '../../lib/cutting-config.js';
+import { cutOffer, cutPriceLabel } from '../../lib/cutting-config.js';
 
 export const metadata = {
   title: 'Edible Images for Cakes in Canada | EdiblePrint.net',
@@ -66,8 +66,8 @@ export default function EdibleImagesForCakesPage() {
             <li><strong>300 DPI resolution</strong> — sharp, vibrant results on every edible image</li>
             <li><strong>Food-safe inks, icing sheets & wafer paper</strong> — FDA-approved, tasteless, safe for all ages</li>
             <li><strong>Multiple shapes & sizes</strong> — round, square, heart, full sheet, and more</li>
-            {shapeSupportsCut('circular') && (
-              <li><strong>Pre-cut & ready to apply</strong> — add &ldquo;Cut to shape&rdquo; (+${cutSurchargeFor('circular').toFixed(2)} per sheet) and we cut your toppers on our precision cutting machine, ready to peel and place</li>
+            {cutOffer().available && (
+              <li><strong>Pre-cut & ready to apply</strong> — add &ldquo;Cut to shape&rdquo; ({cutPriceLabel()}) and we cut your toppers on our precision cutting machine, ready to peel and place</li>
             )}
             <li><strong>Canada-wide shipping</strong> via Canada Post — standard ({formatBusinessDayRange(getShippingMethod('standard'))}, no tracking number) or tracked ({formatBusinessDayRange(getShippingMethod('tracked'))})</li>
             <li><strong>100% satisfaction guarantee</strong> — reprint or full refund, no questions asked</li>

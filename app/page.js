@@ -20,7 +20,7 @@ import {
   UPLOAD_FIT_SHAPES, uploadPlacement,
 } from '../lib/paper-config.js';
 import { shapeSupportsMaterial, materialDisplayLabel } from '../lib/material-config.js';
-import { shapeSupportsCut, cutSurchargeFor, cutIsActive } from '../lib/cutting-config.js';
+import { shapeSupportsCut, cutSurchargeFor, cutIsActive, cutOffer, cutPriceLabel, cutShapesList } from '../lib/cutting-config.js';
 import { shapeSupportsCutGuide, cutGuideShapeKind, CUT_GUIDE_COLOR, CUT_GUIDE_CANVAS_STYLE } from '../lib/cut-guide-config.js';
 import { shapeOutlinePath } from '../lib/shape-paths.js';
 import { buildPdfFilename } from '../lib/pdf-filename.js';
@@ -208,6 +208,10 @@ function Logo({ footer = false }) {
     </>
   );
 }
+
+/* What the home page can promise about "Cut to shape" (which shapes, what
+   price, which Cookie Sheet sizes) — derived from lib/cutting-config.js. */
+const CUT_OFFER = cutOffer();
 
 /* ═══ CUT-TO-SHAPE ILLUSTRATION ═══
    Home page "Pre-Cut & Ready to Apply" section: a cookie sheet whose toppers
@@ -4077,7 +4081,7 @@ export default function EdiblePrintApp() {
             priced from lib/cutting-config.js, same as the editor's "How would
             you like it?" choice, so turning CUTTING_ENABLED off or changing
             CUT_SURCHARGE updates this section too. */}
-        {shapeSupportsCut('circular') && (
+        {CUT_OFFER.available && (
           <section id="cut-to-shape" style={{ padding: '52px 24px 0', maxWidth: 860, margin: '0 auto', scrollMarginTop: 72 }}>
             <div style={{
               background: C.accentLight, border: '1px solid #F6DCC4', borderRadius: 16,
@@ -4099,7 +4103,9 @@ export default function EdiblePrintApp() {
                   {[
                     ['✂️', 'Clean, precise edges', 'Machine-cut along the exact shape, with no uneven scissor edges.'],
                     ['🍪', 'Peel & place', 'Each topper lifts off the backing in one piece, ready for your cake or cookie.'],
-                    ['⏱️', 'Saves you time', 'Ideal for Cookie Sheets: all 6 or 15 toppers arrive cut and ready.'],
+                    ['⏱️', 'Saves you time', CUT_OFFER.cookieSheetCounts.length
+                      ? `Ideal for Cookie Sheets: all ${CUT_OFFER.cookieSheetCounts.join(' or ')} toppers arrive cut and ready.`
+                      : 'Every topper arrives cut and ready, with nothing left to trim.'],
                   ].map(([icon, title, desc]) => (
                     <li key={title} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
                       <span aria-hidden="true" style={{ fontSize: 22, lineHeight: 1.2 }}>{icon}</span>
@@ -4111,8 +4117,8 @@ export default function EdiblePrintApp() {
                   ))}
                 </ul>
                 <p style={{ margin: '0 0 18px', fontSize: 14, color: C.text, lineHeight: 1.5 }}>
-                  <strong style={{ color: C.brand }}>+${cutSurchargeFor('circular').toFixed(2)} per sheet</strong>
-                  {' '}· Available on Round, Heart, Square, Custom &amp; Cookie Sheets.
+                  <strong style={{ color: C.brand }}>{cutPriceLabel(CUT_OFFER)}</strong>
+                  {' '}· Available on {cutShapesList(CUT_OFFER)}.
                   <br />
                   <span style={{ color: C.muted }}>
                     When you customize your print, pick &ldquo;Cut to shape&rdquo; under &ldquo;How would you like it?&rdquo;
@@ -4212,9 +4218,9 @@ export default function EdiblePrintApp() {
             })}
           </div>
           <p style={{ fontSize: 13, color: C.muted, marginTop: 20 }}>Custom sizes available · Free pickup in London, ON · Canada-wide shipping from {'$' + LOWEST_SHIPPING_PRICE.toFixed(2)} · No tax charged</p>
-          {shapeSupportsCut('circular') && (
+          {CUT_OFFER.available && (
             <p style={{ fontSize: 13, color: C.muted, marginTop: 6 }}>
-              Want it pre-cut? Choose &quot;Cut to shape&quot; on Round, Heart, Square, Custom or Cookie Sheets: +${cutSurchargeFor('circular').toFixed(2)} per sheet, we cut it for you.{' '}
+              Want it pre-cut? Choose &quot;Cut to shape&quot; on {cutShapesList(CUT_OFFER, 'or')}: {cutPriceLabel(CUT_OFFER)}, we cut it for you.{' '}
               <a href="#cut-to-shape" style={{ color: C.brand, fontWeight: 600 }}>How it works</a>
             </p>
           )}
