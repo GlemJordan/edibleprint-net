@@ -139,7 +139,9 @@ export default function CustomizeDesignPage() {
   const sizeObj = findSize(shape, sizeId) || sizes[0];
   const unitPrice = shape === 'custom' ? 0 : CATALOG_PRICES[shape]?.[sizeId] ?? 0;
   const font = CATALOG_FONTS.find((f) => f.id === fontId) || CATALOG_FONTS[0];
-  const combinedText = age.trim() ? `${name.trim()}, ${age.trim()}` : name.trim();
+  // With a photo the name is optional, so an age on its own prints without
+  // the ", " separator.
+  const combinedText = [name.trim(), age.trim()].filter(Boolean).join(', ');
   const photoAllowed = design ? supportsPhoto(design, shape) : false;
   const usePhoto = Boolean(photo && photoAllowed);
 
