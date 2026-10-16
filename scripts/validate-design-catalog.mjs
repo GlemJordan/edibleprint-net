@@ -17,6 +17,21 @@ const warnings = [];
 const categoryIds = new Set(catalog.categories.map((c) => c.id));
 const seenIds = new Set();
 
+function checkZone(tag, z) {
+  if (!z?.position || typeof z.position.x !== 'number' || typeof z.position.y !== 'number') {
+    errors.push(`${tag}: textZone.position debe ser {x,y} numérico`);
+  } else {
+    if (z.position.x < 0 || z.position.x > 100) errors.push(`${tag}: textZone.position.x fuera de 0-100`);
+    if (z.position.y < 0 || z.position.y > 100) errors.push(`${tag}: textZone.position.y fuera de 0-100`);
+  }
+  if (typeof z?.maxWidthPercent !== 'number' || z.maxWidthPercent <= 0 || z.maxWidthPercent > 100) {
+    errors.push(`${tag}: textZone.maxWidthPercent debe ser numérico entre 0 y 100`);
+  }
+  if (z?.align && !ALIGN_VALUES.includes(z.align)) {
+    errors.push(`${tag}: textZone.align "${z.align}" inválido (usar left/center/right)`);
+  }
+}
+
 for (const d of catalog.designs) {
   const tag = `design "${d.id || '(sin id)'}"`;
 
@@ -44,18 +59,17 @@ for (const d of catalog.designs) {
     }
   }
 
-  const z = d.textZone;
-  if (!z?.position || typeof z.position.x !== 'number' || typeof z.position.y !== 'number') {
-    errors.push(`${tag}: textZone.position debe ser {x,y} numérico`);
-  } else {
-    if (z.position.x < 0 || z.position.x > 100) errors.push(`${tag}: textZone.position.x fuera de 0-100`);
-    if (z.position.y < 0 || z.position.y > 100) errors.push(`${tag}: textZone.position.y fuera de 0-100`);
-  }
-  if (typeof z?.maxWidthPercent !== 'number' || z.maxWidthPercent <= 0 || z.maxWidthPercent > 100) {
-    errors.push(`${tag}: textZone.maxWidthPercent debe ser numérico entre 0 y 100`);
-  }
-  if (z?.align && !ALIGN_VALUES.includes(z.align)) {
-    errors.push(`${tag}: textZone.align "${z.align}" inválido (usar left/center/right)`);
+  checkZone(tag, d.textZone);
+
+  // Arte/zona de texto propios para una forma (p. ej. la versión vertical
+  // para "fullsheet"): la forma debe estar soportada y el archivo existir.
+  for (const [shape, o] of Object.entries(d.shapeOverrides || {})) {
+    const otag = `${tag} (override "${shape}")`;
+    if (!d.supportedShapes?.includes(shape)) errors.push(`${otag}: la forma no está en supportedShapes`);
+    if (o.sourceFile && !existsSync(path.join(PUBLIC_DIR, o.sourceFile.replace(/^\//, '')))) {
+      errors.push(`${otag}: sourceFile "${o.sourceFile}" no existe en public${o.sourceFile}`);
+    }
+    if (o.textZone) checkZone(otag, o.textZone);
   }
 
   if (d.active === false) warnings.push(`${tag}: inactive — no aparecerá en el catálogo`);

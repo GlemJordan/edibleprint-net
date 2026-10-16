@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { computeSheetPlacement, sheetSizeInForShape } from '../../../lib/paper-config.js';
 import { drawZoneText, drawCoverFit } from '../../../lib/catalog-text-render.js';
+import { designForShape } from '../../../lib/design-catalog.js';
 
 const PREVIEW_MAX_W = 420;
 
@@ -13,10 +14,15 @@ const PREVIEW_MAX_W = 420;
  * lib/generate-pdf.js's generatePrintPdf, which calls the SAME function) —
  * so this can't show a layout that diverges from what actually prints.
  */
-export default function SheetPreview({ design, shape, sizeObj, text, fontFamily, color }) {
+export default function SheetPreview({ design: baseDesign, shape, sizeObj, text, fontFamily, color }) {
+  // Some designs ship a separate artwork/text zone for a shape (e.g. a
+  // portrait full-sheet version) — always draw the one for this shape.
+  const design = useMemo(() => designForShape(baseDesign, shape), [baseDesign, shape]);
   const canvasRef = useRef(null);
   const imgCacheRef = useRef({});
-  const [, forceRedraw] = useState(0);
+  // Bumped when an artwork finishes loading so the draw effect below re-runs
+  // (otherwise a freshly selected artwork stays blank until the text changes).
+  const [loadTick, forceRedraw] = useState(0);
 
   useEffect(() => {
     const cached = imgCacheRef.current[design.sourceFile];
@@ -93,7 +99,7 @@ export default function SheetPreview({ design, shape, sizeObj, text, fontFamily,
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.restore();
-  }, [design, shape, sizeObj, text, fontFamily, color]);
+  }, [design, shape, sizeObj, text, fontFamily, color, loadTick]);
 
   return <canvas ref={canvasRef} style={{ display: 'block', borderRadius: 10, maxWidth: '100%' }} />;
 }

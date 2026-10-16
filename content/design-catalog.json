@@ -1,49 +1,496 @@
 {
   "categories": [
-    { "id": "birthday", "label": "Birthday" },
-    { "id": "kids", "label": "Kids" },
-    { "id": "elegant", "label": "Elegant" },
-    { "id": "baby-christening", "label": "Baby & Christening" },
-    { "id": "sports", "label": "Sports" },
-    { "id": "floral", "label": "Floral" }
+    {
+      "id": "birthday",
+      "label": "Birthday"
+    },
+    {
+      "id": "holidays",
+      "label": "Holidays & Seasonal"
+    },
+    {
+      "id": "kids",
+      "label": "Kids"
+    },
+    {
+      "id": "baby-christening",
+      "label": "Baby & Christening"
+    },
+    {
+      "id": "sports",
+      "label": "Sports"
+    },
+    {
+      "id": "elegant",
+      "label": "Elegant"
+    },
+    {
+      "id": "floral",
+      "label": "Floral"
+    },
+    {
+      "id": "graduation",
+      "label": "Graduation"
+    }
   ],
   "designs": [
     {
-      "id": "birthday-confetti-01",
-      "name": "Confetti Burst",
+      "id": "birthday-balloon-bouquet-01",
+      "name": "Balloon Bouquet",
       "category": "birthday",
-      "sourceFile": "/designs/birthday/birthday-confetti-01.png",
-      "supportedShapes": ["circular", "fullsheet"],
+      "sourceFile": "/designs/birthday/birthday-balloon-bouquet-01.jpg",
+      "supportedShapes": [
+        "circular",
+        "square",
+        "fullsheet"
+      ],
       "textZone": {
-        "position": { "x": 50, "y": 50 },
-        "maxWidthPercent": 55,
+        "position": {
+          "x": 50,
+          "y": 55
+        },
+        "maxWidthPercent": 46,
+        "align": "center"
+      },
+      "shapeOverrides": {
+        "fullsheet": {
+          "sourceFile": "/designs/birthday/birthday-balloon-bouquet-01-sheet.jpg",
+          "textZone": {
+            "position": {
+              "x": 50,
+              "y": 53
+            },
+            "maxWidthPercent": 60,
+            "align": "center"
+          }
+        }
+      },
+      "active": true
+    },
+    {
+      "id": "birthday-disco-party-01",
+      "name": "Disco Party",
+      "category": "birthday",
+      "sourceFile": "/designs/birthday/birthday-disco-party-01.jpg",
+      "supportedShapes": [
+        "circular",
+        "square"
+      ],
+      "textZone": {
+        "position": {
+          "x": 50,
+          "y": 61
+        },
+        "maxWidthPercent": 46,
         "align": "center"
       },
       "active": true
     },
     {
-      "id": "floral-wreath-01",
-      "name": "Garden Wreath",
-      "category": "floral",
-      "sourceFile": "/designs/floral/floral-wreath-01.png",
-      "supportedShapes": ["circular", "heart", "square"],
+      "id": "birthday-coquette-bows-01",
+      "name": "Coquette Bows",
+      "category": "birthday",
+      "sourceFile": "/designs/birthday/birthday-coquette-bows-01.jpg",
+      "supportedShapes": [
+        "circular",
+        "square"
+      ],
       "textZone": {
-        "position": { "x": 50, "y": 50 },
-        "maxWidthPercent": 50,
+        "position": {
+          "x": 50,
+          "y": 56
+        },
+        "maxWidthPercent": 44,
         "align": "center"
       },
       "active": true
     },
     {
-      "id": "elegant-frame-01",
-      "name": "Gilded Frame",
+      "id": "birthday-cherries-gingham-01",
+      "name": "Cherries & Gingham",
+      "category": "birthday",
+      "sourceFile": "/designs/birthday/birthday-cherries-gingham-01.jpg",
+      "supportedShapes": [
+        "circular",
+        "square"
+      ],
+      "textZone": {
+        "position": {
+          "x": 50,
+          "y": 56
+        },
+        "maxWidthPercent": 44,
+        "align": "center"
+      },
+      "active": true
+    },
+    {
+      "id": "birthday-vintage-heart-01",
+      "name": "Vintage Heart",
+      "category": "birthday",
+      "sourceFile": "/designs/birthday/birthday-vintage-heart-01.jpg",
+      "supportedShapes": [
+        "heart",
+        "circular",
+        "square"
+      ],
+      "textZone": {
+        "position": {
+          "x": 50,
+          "y": 52
+        },
+        "maxWidthPercent": 46,
+        "align": "center"
+      },
+      "active": true
+    },
+    {
+      "id": "holiday-spooky-night-01",
+      "name": "Spooky Halloween",
+      "category": "holidays",
+      "sourceFile": "/designs/holidays/holiday-spooky-night-01.jpg",
+      "supportedShapes": [
+        "circular",
+        "square",
+        "fullsheet"
+      ],
+      "textZone": {
+        "position": {
+          "x": 50,
+          "y": 50
+        },
+        "maxWidthPercent": 44,
+        "align": "center"
+      },
+      "shapeOverrides": {
+        "fullsheet": {
+          "sourceFile": "/designs/holidays/holiday-spooky-night-01-sheet.jpg",
+          "textZone": {
+            "position": {
+              "x": 50,
+              "y": 50
+            },
+            "maxWidthPercent": 52,
+            "align": "center"
+          }
+        }
+      },
+      "active": true
+    },
+    {
+      "id": "holiday-diwali-lights-01",
+      "name": "Diwali Rangoli",
+      "category": "holidays",
+      "sourceFile": "/designs/holidays/holiday-diwali-lights-01.jpg",
+      "supportedShapes": [
+        "circular",
+        "square"
+      ],
+      "textZone": {
+        "position": {
+          "x": 50,
+          "y": 55
+        },
+        "maxWidthPercent": 40,
+        "align": "center"
+      },
+      "active": true
+    },
+    {
+      "id": "holiday-merry-bright-01",
+      "name": "Christmas Wreath",
+      "category": "holidays",
+      "sourceFile": "/designs/holidays/holiday-merry-bright-01.jpg",
+      "supportedShapes": [
+        "circular",
+        "square",
+        "fullsheet"
+      ],
+      "textZone": {
+        "position": {
+          "x": 50,
+          "y": 55
+        },
+        "maxWidthPercent": 44,
+        "align": "center"
+      },
+      "shapeOverrides": {
+        "fullsheet": {
+          "sourceFile": "/designs/holidays/holiday-merry-bright-01-sheet.jpg",
+          "textZone": {
+            "position": {
+              "x": 50,
+              "y": 55
+            },
+            "maxWidthPercent": 54,
+            "align": "center"
+          }
+        }
+      },
+      "active": true
+    },
+    {
+      "id": "kids-space-adventure-01",
+      "name": "Space Adventure",
+      "category": "kids",
+      "sourceFile": "/designs/kids/kids-space-adventure-01.jpg",
+      "supportedShapes": [
+        "circular",
+        "square"
+      ],
+      "textZone": {
+        "position": {
+          "x": 50,
+          "y": 50
+        },
+        "maxWidthPercent": 44,
+        "align": "center"
+      },
+      "active": true
+    },
+    {
+      "id": "kids-under-the-sea-01",
+      "name": "Under the Sea",
+      "category": "kids",
+      "sourceFile": "/designs/kids/kids-under-the-sea-01.jpg",
+      "supportedShapes": [
+        "circular",
+        "square"
+      ],
+      "textZone": {
+        "position": {
+          "x": 50,
+          "y": 50
+        },
+        "maxWidthPercent": 44,
+        "align": "center"
+      },
+      "active": true
+    },
+    {
+      "id": "kids-fantasy-kingdom-01",
+      "name": "Fantasy Kingdom",
+      "category": "kids",
+      "sourceFile": "/designs/kids/kids-fantasy-kingdom-01.jpg",
+      "supportedShapes": [
+        "circular",
+        "square"
+      ],
+      "textZone": {
+        "position": {
+          "x": 50,
+          "y": 48
+        },
+        "maxWidthPercent": 40,
+        "align": "center"
+      },
+      "active": true
+    },
+    {
+      "id": "kids-comic-hero-01",
+      "name": "Comic Hero",
+      "category": "kids",
+      "sourceFile": "/designs/kids/kids-comic-hero-01.jpg",
+      "supportedShapes": [
+        "circular",
+        "square"
+      ],
+      "textZone": {
+        "position": {
+          "x": 50,
+          "y": 56
+        },
+        "maxWidthPercent": 44,
+        "align": "center"
+      },
+      "active": true
+    },
+    {
+      "id": "baby-oh-baby-01",
+      "name": "Oh Baby",
+      "category": "baby-christening",
+      "sourceFile": "/designs/baby-christening/baby-oh-baby-01.jpg",
+      "supportedShapes": [
+        "circular",
+        "square"
+      ],
+      "textZone": {
+        "position": {
+          "x": 50,
+          "y": 55
+        },
+        "maxWidthPercent": 44,
+        "align": "center"
+      },
+      "active": true
+    },
+    {
+      "id": "baby-god-bless-01",
+      "name": "God Bless (Baptism)",
+      "category": "baby-christening",
+      "sourceFile": "/designs/baby-christening/baby-god-bless-01.jpg",
+      "supportedShapes": [
+        "circular",
+        "square"
+      ],
+      "textZone": {
+        "position": {
+          "x": 50,
+          "y": 55
+        },
+        "maxWidthPercent": 44,
+        "align": "center"
+      },
+      "active": true
+    },
+    {
+      "id": "sports-hockey-rink-01",
+      "name": "Hockey Game Day",
+      "category": "sports",
+      "sourceFile": "/designs/sports/sports-hockey-rink-01.jpg",
+      "supportedShapes": [
+        "circular",
+        "square",
+        "fullsheet"
+      ],
+      "textZone": {
+        "position": {
+          "x": 50,
+          "y": 49
+        },
+        "maxWidthPercent": 42,
+        "align": "center"
+      },
+      "shapeOverrides": {
+        "fullsheet": {
+          "sourceFile": "/designs/sports/sports-hockey-rink-01-sheet.jpg",
+          "textZone": {
+            "position": {
+              "x": 50,
+              "y": 50
+            },
+            "maxWidthPercent": 52,
+            "align": "center"
+          }
+        }
+      },
+      "active": true
+    },
+    {
+      "id": "sports-soccer-pitch-01",
+      "name": "Soccer Game Day",
+      "category": "sports",
+      "sourceFile": "/designs/sports/sports-soccer-pitch-01.jpg",
+      "supportedShapes": [
+        "circular",
+        "square",
+        "fullsheet"
+      ],
+      "textZone": {
+        "position": {
+          "x": 50,
+          "y": 50
+        },
+        "maxWidthPercent": 44,
+        "align": "center"
+      },
+      "shapeOverrides": {
+        "fullsheet": {
+          "sourceFile": "/designs/sports/sports-soccer-pitch-01-sheet.jpg",
+          "textZone": {
+            "position": {
+              "x": 50,
+              "y": 50
+            },
+            "maxWidthPercent": 52,
+            "align": "center"
+          }
+        }
+      },
+      "active": true
+    },
+    {
+      "id": "elegant-marble-gold-01",
+      "name": "Marble & Gold",
       "category": "elegant",
-      "sourceFile": "/designs/elegant/elegant-frame-01.png",
-      "supportedShapes": ["square", "fullsheet"],
+      "sourceFile": "/designs/elegant/elegant-marble-gold-01.jpg",
+      "supportedShapes": [
+        "circular",
+        "square",
+        "fullsheet"
+      ],
       "textZone": {
-        "position": { "x": 50, "y": 50 },
-        "maxWidthPercent": 65,
+        "position": {
+          "x": 50,
+          "y": 55
+        },
+        "maxWidthPercent": 44,
         "align": "center"
+      },
+      "shapeOverrides": {
+        "fullsheet": {
+          "sourceFile": "/designs/elegant/elegant-marble-gold-01-sheet.jpg",
+          "textZone": {
+            "position": {
+              "x": 50,
+              "y": 54
+            },
+            "maxWidthPercent": 56,
+            "align": "center"
+          }
+        }
+      },
+      "active": true
+    },
+    {
+      "id": "floral-wildflowers-01",
+      "name": "Watercolor Wildflowers",
+      "category": "floral",
+      "sourceFile": "/designs/floral/floral-wildflowers-01.jpg",
+      "supportedShapes": [
+        "circular",
+        "square"
+      ],
+      "textZone": {
+        "position": {
+          "x": 50,
+          "y": 50
+        },
+        "maxWidthPercent": 48,
+        "align": "center"
+      },
+      "active": true
+    },
+    {
+      "id": "graduation-congrats-grad-01",
+      "name": "Congrats Grad",
+      "category": "graduation",
+      "sourceFile": "/designs/graduation/graduation-congrats-grad-01.jpg",
+      "supportedShapes": [
+        "circular",
+        "square",
+        "fullsheet"
+      ],
+      "textZone": {
+        "position": {
+          "x": 50,
+          "y": 56
+        },
+        "maxWidthPercent": 44,
+        "align": "center"
+      },
+      "shapeOverrides": {
+        "fullsheet": {
+          "sourceFile": "/designs/graduation/graduation-congrats-grad-01-sheet.jpg",
+          "textZone": {
+            "position": {
+              "x": 50,
+              "y": 54
+            },
+            "maxWidthPercent": 58,
+            "align": "center"
+          }
+        }
       },
       "active": true
     }

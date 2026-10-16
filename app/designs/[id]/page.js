@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { getDesignById, getCategories } from '../../../lib/design-catalog.js';
+import { getDesignById, getCategories, designForShape } from '../../../lib/design-catalog.js';
 import { sizesForShape, findSize } from '../../../lib/catalog-design-sizes.js';
 import { CATALOG_PRICES } from '../../../lib/catalog-prices.js';
 import { MAX_SHEETS_PER_ORDER, orderLimitMessage } from '../../../lib/shipping-config.js';
@@ -128,7 +128,7 @@ export default function CustomizeDesignPage() {
     if (!sizeObj) { setComposeError('Please choose a size.'); return; }
     setComposing(true);
     try {
-      const blob = await composeHiResPng({ design, sizeObj, text: combinedText, fontFamily: font.family, color });
+      const blob = await composeHiResPng({ design: designForShape(design, shape), sizeObj, text: combinedText, fontFamily: font.family, color });
       const imageUrl = await uploadComposedPng(blob, design.id);
       setDesignPayload({
         shape,
