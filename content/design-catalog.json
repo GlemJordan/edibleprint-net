@@ -62,10 +62,28 @@
             },
             "maxWidthPercent": 60,
             "align": "center"
+          },
+          "photoZone": {
+            "mask": "/designs/birthday/birthday-balloon-bouquet-01-sheet-photo-mask.png",
+            "box": {
+              "x": 15.0,
+              "y": 29.0,
+              "w": 70.0,
+              "h": 41.93
+            }
           }
         }
       },
-      "active": true
+      "active": true,
+      "photoZone": {
+        "mask": "/designs/birthday/birthday-balloon-bouquet-01-photo-mask.png",
+        "box": {
+          "x": 20.47,
+          "y": 20.4,
+          "w": 59.13,
+          "h": 59.13
+        }
+      }
     },
     {
       "id": "birthday-disco-party-01",
@@ -84,7 +102,16 @@
         "maxWidthPercent": 46,
         "align": "center"
       },
-      "active": true
+      "active": true,
+      "photoZone": {
+        "mask": "/designs/birthday/birthday-disco-party-01-photo-mask.png",
+        "box": {
+          "x": 21.07,
+          "y": 23.6,
+          "w": 57.87,
+          "h": 55.33
+        }
+      }
     },
     {
       "id": "birthday-coquette-bows-01",
@@ -103,7 +130,16 @@
         "maxWidthPercent": 44,
         "align": "center"
       },
-      "active": true
+      "active": true,
+      "photoZone": {
+        "mask": "/designs/birthday/birthday-coquette-bows-01-photo-mask.png",
+        "box": {
+          "x": 22.2,
+          "y": 22.4,
+          "w": 55.6,
+          "h": 55.33
+        }
+      }
     },
     {
       "id": "birthday-cherries-gingham-01",
@@ -122,7 +158,16 @@
         "maxWidthPercent": 44,
         "align": "center"
       },
-      "active": true
+      "active": true,
+      "photoZone": {
+        "mask": "/designs/birthday/birthday-cherries-gingham-01-photo-mask.png",
+        "box": {
+          "x": 16.93,
+          "y": 16.8,
+          "w": 66.13,
+          "h": 66.27
+        }
+      }
     },
     {
       "id": "birthday-vintage-heart-01",
@@ -142,7 +187,16 @@
         "maxWidthPercent": 46,
         "align": "center"
       },
-      "active": true
+      "active": true,
+      "photoZone": {
+        "mask": "/designs/birthday/birthday-vintage-heart-01-photo-mask.png",
+        "box": {
+          "x": 13.27,
+          "y": 20.53,
+          "w": 73.4,
+          "h": 66.07
+        }
+      }
     },
     {
       "id": "holiday-spooky-night-01",
@@ -172,10 +226,28 @@
             },
             "maxWidthPercent": 52,
             "align": "center"
+          },
+          "photoZone": {
+            "mask": "/designs/holidays/holiday-spooky-night-01-sheet-photo-mask.png",
+            "box": {
+              "x": 19.15,
+              "y": 28.2,
+              "w": 61.7,
+              "h": 43.6
+            }
           }
         }
       },
-      "active": true
+      "active": true,
+      "photoZone": {
+        "mask": "/designs/holidays/holiday-spooky-night-01-photo-mask.png",
+        "box": {
+          "x": 23.13,
+          "y": 23.13,
+          "w": 53.73,
+          "h": 53.73
+        }
+      }
     },
     {
       "id": "holiday-diwali-lights-01",
@@ -194,7 +266,16 @@
         "maxWidthPercent": 40,
         "align": "center"
       },
-      "active": true
+      "active": true,
+      "photoZone": {
+        "mask": "/designs/holidays/holiday-diwali-lights-01-photo-mask.png",
+        "box": {
+          "x": 24.27,
+          "y": 24.27,
+          "w": 51.47,
+          "h": 51.47
+        }
+      }
     },
     {
       "id": "holiday-merry-bright-01",
@@ -224,10 +305,28 @@
             },
             "maxWidthPercent": 54,
             "align": "center"
+          },
+          "photoZone": {
+            "mask": "/designs/holidays/holiday-merry-bright-01-sheet-photo-mask.png",
+            "box": {
+              "x": 17.64,
+              "y": 27.6,
+              "w": 65.09,
+              "h": 45.47
+            }
           }
         }
       },
-      "active": true
+      "active": true,
+      "photoZone": {
+        "mask": "/designs/holidays/holiday-merry-bright-01-photo-mask.png",
+        "box": {
+          "x": 21.07,
+          "y": 21.53,
+          "w": 58.07,
+          "h": 58.13
+        }
+      }
     },
     {
       "id": "kids-space-adventure-01",
@@ -246,7 +345,16 @@
         "maxWidthPercent": 44,
         "align": "center"
       },
-      "active": true
+      "active": true,
+      "photoZone": {
+        "mask": "/designs/kids/kids-space-adventure-01-photo-mask.png",
+        "box": {
+          "x": 23.13,
+          "y": 23.13,
+          "w": 53.73,
+          "h": 53.67
+        }
+      }
     },
     {
       "id": "kids-under-the-sea-01",
@@ -265,7 +373,16 @@
         "maxWidthPercent": 44,
         "align": "center"
       },
-      "active": true
+      "active": true,
+      "photoZone": {
+        "mask": "/designs/kids/kids-under-the-sea-01-photo-mask.png",
+        "box": {
+          "x": 23.13,
+          "y": 23.07,
+          "w": 53.8,
+          "h": 53.8
+        }
+      }
     },
     {
       "id": "kids-fantasy-kingdom-01",
@@ -284,7 +401,16 @@
         "maxWidthPercent": 40,
         "align": "center"
       },
-      "active": true
+      "active": true,
+      "photoZone": {
+        "mask": "/designs/kids/kids-fantasy-kingdom-01-photo-mask.png",
+        "box": {
+          "x": 25.07,
+          "y": 19.07,
+          "w": 49.87,
+          "h": 49.93
+        }
+      }
     },
     {
       "id": "kids-comic-hero-01",
@@ -303,7 +429,16 @@
         "maxWidthPercent": 44,
         "align": "center"
       },
-      "active": true
+      "active": true,
+      "photoZone": {
+        "mask": "/designs/kids/kids-comic-hero-01-photo-mask.png",
+        "box": {
+          "x": 18.27,
+          "y": 20.07,
+          "w": 65.2,
+          "h": 63.67
+        }
+      }
     },
     {
       "id": "baby-oh-baby-01",
@@ -322,7 +457,16 @@
         "maxWidthPercent": 44,
         "align": "center"
       },
-      "active": true
+      "active": true,
+      "photoZone": {
+        "mask": "/designs/baby-christening/baby-oh-baby-01-photo-mask.png",
+        "box": {
+          "x": 23.8,
+          "y": 23.87,
+          "w": 52.4,
+          "h": 52.13
+        }
+      }
     },
     {
       "id": "baby-god-bless-01",
@@ -341,7 +485,16 @@
         "maxWidthPercent": 44,
         "align": "center"
       },
-      "active": true
+      "active": true,
+      "photoZone": {
+        "mask": "/designs/baby-christening/baby-god-bless-01-photo-mask.png",
+        "box": {
+          "x": 21.07,
+          "y": 22.07,
+          "w": 57.93,
+          "h": 57.93
+        }
+      }
     },
     {
       "id": "sports-hockey-rink-01",
@@ -371,10 +524,28 @@
             },
             "maxWidthPercent": 52,
             "align": "center"
+          },
+          "photoZone": {
+            "mask": "/designs/sports/sports-hockey-rink-01-sheet-photo-mask.png",
+            "box": {
+              "x": 20.09,
+              "y": 28.93,
+              "w": 59.81,
+              "h": 41.53
+            }
           }
         }
       },
-      "active": true
+      "active": true,
+      "photoZone": {
+        "mask": "/designs/sports/sports-hockey-rink-01-photo-mask.png",
+        "box": {
+          "x": 24.2,
+          "y": 24.2,
+          "w": 51.67,
+          "h": 50.73
+        }
+      }
     },
     {
       "id": "sports-soccer-pitch-01",
@@ -404,10 +575,28 @@
             },
             "maxWidthPercent": 52,
             "align": "center"
+          },
+          "photoZone": {
+            "mask": "/designs/sports/sports-soccer-pitch-01-sheet-photo-mask.png",
+            "box": {
+              "x": 23.21,
+              "y": 31.07,
+              "w": 53.58,
+              "h": 37.8
+            }
           }
         }
       },
-      "active": true
+      "active": true,
+      "photoZone": {
+        "mask": "/designs/sports/sports-soccer-pitch-01-photo-mask.png",
+        "box": {
+          "x": 23.27,
+          "y": 23.2,
+          "w": 53.47,
+          "h": 53.53
+        }
+      }
     },
     {
       "id": "elegant-marble-gold-01",
@@ -437,10 +626,28 @@
             },
             "maxWidthPercent": 56,
             "align": "center"
+          },
+          "photoZone": {
+            "mask": "/designs/elegant/elegant-marble-gold-01-sheet-photo-mask.png",
+            "box": {
+              "x": 20.47,
+              "y": 33.8,
+              "w": 59.34,
+              "h": 32.67
+            }
           }
         }
       },
-      "active": true
+      "active": true,
+      "photoZone": {
+        "mask": "/designs/elegant/elegant-marble-gold-01-photo-mask.png",
+        "box": {
+          "x": 22.73,
+          "y": 22.27,
+          "w": 54.93,
+          "h": 55.4
+        }
+      }
     },
     {
       "id": "floral-wildflowers-01",
@@ -459,7 +666,16 @@
         "maxWidthPercent": 48,
         "align": "center"
       },
-      "active": true
+      "active": true,
+      "photoZone": {
+        "mask": "/designs/floral/floral-wildflowers-01-photo-mask.png",
+        "box": {
+          "x": 22.2,
+          "y": 22.2,
+          "w": 55.6,
+          "h": 55.6
+        }
+      }
     },
     {
       "id": "graduation-congrats-grad-01",
@@ -489,10 +705,28 @@
             },
             "maxWidthPercent": 58,
             "align": "center"
+          },
+          "photoZone": {
+            "mask": "/designs/graduation/graduation-congrats-grad-01-sheet-photo-mask.png",
+            "box": {
+              "x": 17.92,
+              "y": 32.13,
+              "w": 64.53,
+              "h": 36.13
+            }
           }
         }
       },
-      "active": true
+      "active": true,
+      "photoZone": {
+        "mask": "/designs/graduation/graduation-congrats-grad-01-photo-mask.png",
+        "box": {
+          "x": 22.07,
+          "y": 22.33,
+          "w": 55.87,
+          "h": 55.6
+        }
+      }
     }
   ]
 }

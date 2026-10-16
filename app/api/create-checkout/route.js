@@ -231,6 +231,10 @@ export async function POST(request) {
       if (d.catalogDesignId) {
         designMeta['d' + i + '_catalogId']   = String(d.catalogDesignId).slice(0, 200);
         designMeta['d' + i + '_customText']  = String(d.customText || '').slice(0, 200);
+        // Only when the customer added their own photo — a catalog order is
+        // always a single design, so this one extra key can't push a
+        // 5-design editor order toward Stripe's 50-key cap.
+        if (d.catalogPhoto === true) designMeta['d' + i + '_catalogPhoto'] = '1';
       }
     });
 
