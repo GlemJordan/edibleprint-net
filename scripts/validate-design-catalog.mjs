@@ -32,6 +32,18 @@ function checkZone(tag, z) {
   }
 }
 
+// Ventana para la foto del cliente (scripts/build-photo-masks.py): la
+// máscara debe existir y la caja estar en % del arte.
+function checkPhotoZone(tag, z) {
+  if (typeof z.mask !== 'string' || !existsSync(path.join(PUBLIC_DIR, z.mask.replace(/^\//, '')))) {
+    errors.push(`${tag}: photoZone.mask "${z.mask}" no existe en public`);
+  }
+  const b = z.box || {};
+  if (!['x', 'y', 'w', 'h'].every((k) => typeof b[k] === 'number' && b[k] >= 0 && b[k] <= 100) || !(b.w > 0 && b.h > 0)) {
+    errors.push(`${tag}: photoZone.box debe ser {x,y,w,h} en % (0-100)`);
+  }
+}
+
 for (const d of catalog.designs) {
   const tag = `design "${d.id || '(sin id)'}"`;
 
@@ -70,7 +82,9 @@ for (const d of catalog.designs) {
       errors.push(`${otag}: sourceFile "${o.sourceFile}" no existe en public${o.sourceFile}`);
     }
     if (o.textZone) checkZone(otag, o.textZone);
+    if (o.photoZone) checkPhotoZone(otag, o.photoZone);
   }
+  if (d.photoZone) checkPhotoZone(tag, d.photoZone);
 
   if (d.active === false) warnings.push(`${tag}: inactive — no aparecerá en el catálogo`);
 }

@@ -94,6 +94,7 @@ function parseDesigns(meta) {
       if (catalogId) {
         design.catalogDesignId = catalogId;
         design.customText      = meta['d' + i + '_customText'] || '';
+        if (meta['d' + i + '_catalogPhoto'] === '1') design.catalogPhoto = true;
       }
       designs.push(design);
     } else {
