@@ -4453,6 +4453,13 @@ export default function EdiblePrintApp() {
                   </button>
                 </div>
               ))}
+              <div style={{ marginBottom: 10 }}>
+                <a href="/cookie-tools" style={{ fontSize: 13.5, color: '#9CA3AF', textDecoration: 'none', transition: 'color 0.15s' }}
+                  onMouseEnter={e => e.currentTarget.style.color = '#6ee7b7'}
+                  onMouseLeave={e => e.currentTarget.style.color = '#9CA3AF'}>
+                  Cookie &amp; Cake Pop Tools
+                </a>
+              </div>
             </div>
             {/* Col 3: Company */}
             <div>

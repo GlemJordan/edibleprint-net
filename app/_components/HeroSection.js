@@ -226,6 +226,15 @@ export default function HeroSection({ onOrderClick, onUploadFileClick, cutoffMsg
               >
                 Or choose a ready-made design →
               </Link>
+              <Link
+                href="/cookie-tools"
+                style={{
+                  color: '#5c6b62', fontSize: 13.5, fontWeight: 500,
+                  fontFamily: 'inherit', textDecoration: 'underline', textUnderlineOffset: 3,
+                }}
+              >
+                New: logo cookie stamps &amp; cutters →
+              </Link>
             </div>
 
             {/* Trust line — "Ships Canada-wide" (and its dot) is dropped
