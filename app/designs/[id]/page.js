@@ -3,11 +3,11 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { getDesignById, getCategories } from '../../../lib/design-catalog.js';
+import { getDesignById, getCategories, designForShape } from '../../../lib/design-catalog.js';
 import { sizesForShape, findSize } from '../../../lib/catalog-design-sizes.js';
 import { CATALOG_PRICES } from '../../../lib/catalog-prices.js';
 import { MAX_SHEETS_PER_ORDER, orderLimitMessage } from '../../../lib/shipping-config.js';
-import { shapeDisplayLabel } from '../../../lib/paper-config.js';
+import { shapeDisplayLabel, designAreaInForShape } from '../../../lib/paper-config.js';
 import { CATALOG_FONTS, CATALOG_TEXT_COLORS, drawCoverFit, drawZoneText } from '../../../lib/catalog-text-render.js';
 import SheetPreview from '../_components/SheetPreview.js';
 import CustomerCheckoutForm from '../_components/CustomerCheckoutForm.js';
@@ -36,10 +36,17 @@ function loadImage(src) {
 // (see app/page.js's `const DPI = 300`), built fresh at full resolution
 // rather than scaled up from the on-screen preview canvas, so print quality
 // never depends on how big the preview happened to be rendered.
-async function composeHiResPng({ design, sizeObj, text, fontFamily, color }) {
+//
+// A 'box'-fitMode shape (fullsheet) prints into the margin box carved out of
+// the sheet, not the whole sheet, so the composite is built at that box's
+// exact proportions — the same box SheetPreview cover-fits into. Composed at
+// the full A4 size instead, the PDF would contain-fit it into the narrower
+// box (see fitRasterInPlacement()) and print blank strips down both sides.
+async function composeHiResPng({ design, shape, sizeObj, text, fontFamily, color }) {
   const DPI = 300;
-  const hiResW = Math.round((sizeObj.w || 6) * DPI);
-  const hiResH = Math.round((sizeObj.h || 6) * DPI);
+  const area = designAreaInForShape(shape);
+  const hiResW = Math.round((area ? area.w : sizeObj.w || 6) * DPI);
+  const hiResH = Math.round((area ? area.h : sizeObj.h || 6) * DPI);
   const img = await loadImage(design.sourceFile);
   const canvas = document.createElement('canvas');
   canvas.width = hiResW;
@@ -128,7 +135,7 @@ export default function CustomizeDesignPage() {
     if (!sizeObj) { setComposeError('Please choose a size.'); return; }
     setComposing(true);
     try {
-      const blob = await composeHiResPng({ design, sizeObj, text: combinedText, fontFamily: font.family, color });
+      const blob = await composeHiResPng({ design: designForShape(design, shape), shape, sizeObj, text: combinedText, fontFamily: font.family, color });
       const imageUrl = await uploadComposedPng(blob, design.id);
       setDesignPayload({
         shape,

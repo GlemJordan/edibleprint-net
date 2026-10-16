@@ -292,7 +292,7 @@ async function checkSelectorUi(page, prefix) {
   }
 
   // ── Design-catalog checkout ──
-  const DESIGN_URL = BASE_URL + '/designs/birthday-confetti-01';
+  const DESIGN_URL = BASE_URL + '/designs/birthday-balloon-bouquet-01';
   async function openDesignsCheckout(page) {
     await page.goto(DESIGN_URL, { waitUntil: 'networkidle' });
     const nameInput = page.getByPlaceholder('e.g. Emma');
