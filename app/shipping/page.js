@@ -15,6 +15,7 @@ import {
 export const metadata = {
   title: 'Shipping Policy — EdiblePrint.net',
   description: 'Shipping methods, transit times, and rates for EdiblePrint.net orders across Canada.',
+  alternates: { canonical: '/shipping' },
 };
 
 const EMAIL = 'edibleprintorders@gmail.com';

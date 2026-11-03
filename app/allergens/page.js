@@ -3,6 +3,7 @@ import LegalLayout from '../_components/LegalLayout';
 export const metadata = {
   title: 'Allergen Information — EdiblePrint.net',
   description: 'Ingredient and allergen details for EdiblePrint.net edible icing sheets, wafer paper, and food-safe inks.',
+  alternates: { canonical: '/allergens' },
 };
 
 const EMAIL = 'edibleprintorders@gmail.com';
