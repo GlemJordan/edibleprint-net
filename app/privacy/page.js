@@ -3,6 +3,7 @@ import LegalLayout from '../_components/LegalLayout';
 export const metadata = {
   title: 'Privacy Policy — EdiblePrint.net',
   description: 'How EdiblePrint.net collects, uses, and protects your personal information.',
+  alternates: { canonical: '/privacy' },
 };
 
 const EMAIL = 'edibleprintorders@gmail.com';

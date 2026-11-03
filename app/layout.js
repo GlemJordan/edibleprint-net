@@ -1,13 +1,12 @@
 import GoogleAnalytics from './_components/analytics/GoogleAnalytics';
 import MetaPixel from './_components/analytics/MetaPixel';
 import { BUSINESS_ADDRESS, BUSINESS_PHONE_E164 } from '../lib/business-info.js';
-
-const OG_IMAGE_URL = 'https://edibleprint.net/logo-assets/og-image.png';
+import { SITE_URL, OG_IMAGE_URL } from '../lib/site-config.js';
 
 export const metadata = {
+  metadataBase: new URL(SITE_URL),
   title: 'Edible Image Printing in London, ON | EdiblePrint.net',
   description: 'Order custom edible image prints for cakes, cookies and cupcakes. Upload your photo online — 1–2 day production, standard or tracked shipping across Canada, and free local pickup in London, Ontario.',
-  keywords: 'edible print, edible image, cake topper, custom edible printing, edible paper, Canada, icing sheet, wafer paper, London Ontario, edible cake topper, custom cookie printing, edible photo',
   icons: {
     icon: [
       { url: '/logo-assets/favicon.ico', sizes: 'any' },
@@ -24,7 +23,6 @@ export const metadata = {
   openGraph: {
     title: 'EdiblePrint.net — Custom Edible Image Prints',
     description: 'Custom edible image printing on premium icing sheets or wafer paper. From $9.99. Free local pickup in London, Ontario.',
-    url: 'https://edibleprint.net',
     siteName: 'EdiblePrint.net',
     locale: 'en_CA',
     type: 'website',
@@ -34,18 +32,19 @@ export const metadata = {
     card: 'summary_large_image',
     images: [{ url: OG_IMAGE_URL, width: 1200, height: 630, alt: 'EdiblePrint.net' }],
   },
-  alternates: {
-    canonical: 'https://edibleprint.net',
-  },
 };
 
 export default function RootLayout({ children }) {
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'LocalBusiness',
+    '@id': `${SITE_URL}/#business`,
     name: 'EdiblePrint.net',
     description: 'Custom edible image printing on premium icing sheets or wafer paper. Upload any photo, logo or design.',
-    url: 'https://edibleprint.net',
+    url: SITE_URL,
+    image: OG_IMAGE_URL,
+    logo: `${SITE_URL}/logo-assets/icon-512.png`,
+    sameAs: ['https://www.facebook.com/marketplace/profile/61556264345219/'],
     telephone: BUSINESS_PHONE_E164,
     address: {
       '@type': 'PostalAddress',
@@ -59,7 +58,7 @@ export default function RootLayout({ children }) {
       { '@type': 'City', name: 'London', containedInPlace: { '@type': 'AdministrativeArea', name: 'Ontario' } },
       { '@type': 'Country', name: 'Canada' },
     ],
-    priceRange: '$8.99 - $14.99',
+    priceRange: '$9.99 - $19.99',
     openingHours: 'Mo-Fr 09:00-17:00',
     paymentAccepted: 'Credit Card, Debit Card',
   };
@@ -67,6 +66,8 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
           href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Outfit:wght@300;400;500;600;700&family=Fraunces:ital,wght@0,400;0,500;0,600;1,400;1,500;1,600&family=Inter:wght@400;500;600;700&family=Lobster&family=Pacifico&family=Dancing+Script:wght@700&family=Great+Vibes&family=Bangers&family=Permanent+Marker&family=Fredoka+One&display=swap"
           rel="stylesheet"

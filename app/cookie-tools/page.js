@@ -6,7 +6,7 @@ import { BUSINESS_PHONE_E164 } from '../../lib/business-info.js';
 export const metadata = {
   title: 'Cookie Cutters, Logo Stamps & Cake Pop Rollers | EdiblePrint.net',
   description: 'Custom logo cookie stamps, cookie cutters and cake pop rollers by MAKE3D, made in London, Ontario. Pair them with a matching edible print.',
-  alternates: { canonical: 'https://edibleprint.net/cookie-tools' },
+  alternates: { canonical: '/cookie-tools' },
 };
 
 const C = {

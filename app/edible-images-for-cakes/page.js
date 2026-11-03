@@ -1,10 +1,27 @@
 import Link from 'next/link';
 import { getShippingMethod, formatBusinessDayRange } from '../../lib/shipping-config.js';
+import { CATALOG_PRICES } from '../../lib/catalog-prices.js';
+import { productJsonLd } from '../../lib/site-config.js';
+
+const DESCRIPTION = 'Order custom edible images for cakes in Canada. Upload your photo online for fast edible image printing and Canada-wide shipping.';
 
 export const metadata = {
   title: 'Edible Images for Cakes in Canada | EdiblePrint.net',
-  description: 'Order custom edible images for cakes in Canada. Upload your photo online for fast edible image printing and Canada-wide shipping.',
+  description: DESCRIPTION,
+  alternates: { canonical: '/edible-images-for-cakes' },
 };
+
+const PRODUCT_JSON_LD = productJsonLd({
+  name: 'Custom Edible Images for Cakes',
+  description: DESCRIPTION,
+  path: '/edible-images-for-cakes',
+  prices: [
+    ...Object.values(CATALOG_PRICES.circular),
+    ...Object.values(CATALOG_PRICES.heart),
+    ...Object.values(CATALOG_PRICES.square),
+    ...Object.values(CATALOG_PRICES.fullsheet),
+  ],
+});
 
 const C = {
   brand: '#1B6B4A', brandLight: '#E8F5EE', brandDark: '#14503A',
@@ -15,6 +32,7 @@ const C = {
 export default function EdibleImagesForCakesPage() {
   return (
     <div style={{ fontFamily: "'Outfit', sans-serif", background: C.bg, minHeight: '100vh', color: C.text }}>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(PRODUCT_JSON_LD) }} />
       <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         padding: '14px 24px', borderBottom: '1px solid ' + C.border,
         background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(12px)',
@@ -26,7 +44,7 @@ export default function EdibleImagesForCakesPage() {
             <span style={{ fontSize: 11, color: C.muted, fontWeight: 400, marginLeft: 4, fontFamily: "'Outfit', sans-serif" }}>.net</span>
           </span>
         </Link>
-        <Link href="/" style={{ background: C.brand, color: '#fff', borderRadius: 10,
+        <Link href="/?start=round" style={{ background: C.brand, color: '#fff', borderRadius: 10,
           padding: '10px 22px', fontSize: 14, fontWeight: 600,
           fontFamily: "'Outfit', sans-serif", textDecoration: 'none' }}>
           Order Now
@@ -74,7 +92,7 @@ export default function EdibleImagesForCakesPage() {
           <p style={{ fontSize: 15, color: C.muted, marginBottom: 20 }}>
             Ready to create your custom edible cake image?
           </p>
-          <Link href="/" style={{ background: C.brand, color: '#fff', borderRadius: 14,
+          <Link href="/?start=round" style={{ background: C.brand, color: '#fff', borderRadius: 14,
             padding: '16px 40px', fontSize: 16, fontWeight: 600, textDecoration: 'none',
             boxShadow: '0 4px 16px rgba(27,107,74,0.25)', display: 'inline-block' }}>
             Upload Your Photo Now →

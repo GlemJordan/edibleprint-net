@@ -4,6 +4,8 @@
 // it's defense in depth (well-behaved crawlers won't even fetch these) on
 // top of the per-page noindex meta tags (which stop indexing if a page
 // does get fetched some other way — e.g. a stray inbound link).
+import { SITE_URL } from '../lib/site-config.js';
+
 export default function robots() {
   return {
     rules: [
@@ -13,6 +15,6 @@ export default function robots() {
         disallow: ['/admin', '/admin-login', '/api'],
       },
     ],
-    sitemap: undefined,
+    sitemap: `${SITE_URL}/sitemap.xml`,
   };
 }

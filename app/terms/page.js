@@ -4,6 +4,7 @@ import { formatProductionWindow, shippingTimesSentence } from '../../lib/shippin
 export const metadata = {
   title: 'Terms of Service — EdiblePrint.net',
   description: 'Terms governing your use of EdiblePrint.net and purchase of custom edible prints.',
+  alternates: { canonical: '/terms' },
 };
 
 const EMAIL = 'edibleprintorders@gmail.com';

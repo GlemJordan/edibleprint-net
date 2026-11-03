@@ -4,6 +4,7 @@ import { getShippingMethod, formatBusinessDayRange } from '../../lib/shipping-co
 export const metadata = {
   title: 'About Us — EdiblePrint.net',
   description: 'Learn about EdiblePrint.net — custom edible image printing made with care in London, Ontario, Canada.',
+  alternates: { canonical: '/about' },
 };
 
 const C = {

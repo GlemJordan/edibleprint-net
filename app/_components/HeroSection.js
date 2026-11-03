@@ -141,8 +141,8 @@ export default function HeroSection({ onOrderClick, onUploadFileClick, cutoffMsg
               fontSize: 17, color: '#5c6b62', lineHeight: 1.65,
               maxWidth: 460, margin: '0 0 24px',
             }}>
-              Your photo, professionally printed on premium edible sheets and ready to
-              decorate. No design skills, no account needed.
+              Custom edible images for cakes, cookies and cupcakes: your photo, professionally
+              printed and ready to decorate. No design skills, no account needed.
             </p>
 
             {/* Reviews pill */}
@@ -300,6 +300,7 @@ export default function HeroSection({ onOrderClick, onUploadFileClick, cutoffMsg
                 <Image
                   src={slide.after}
                   fill
+                  preload={current === 0}
                   sizes="(max-width: 900px) 100vw, 50vw"
                   style={{ objectFit: 'cover' }}
                   alt={`${slide.tag} — finished edible print`}
