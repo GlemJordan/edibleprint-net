@@ -25,7 +25,7 @@ import { shapeSupportsCutGuide, cutGuideShapeKind, CUT_GUIDE_COLOR, CUT_GUIDE_CA
 import { shapeOutlinePath } from '../lib/shape-paths.js';
 import { buildPdfFilename } from '../lib/pdf-filename.js';
 import MaterialPicker from './_components/MaterialPicker.js';
-import { BUSINESS_PHONE_DISPLAY, BUSINESS_PHONE_E164 } from '../lib/business-info.js';
+import { BUSINESS_PHONE_DISPLAY, BUSINESS_PHONE_E164, BUSINESS_WHATSAPP_URL } from '../lib/business-info.js';
 
 /* ═══ PRICING CONFIG ═══
    id/label/w/h (+ per-shape extras) come from lib/catalog-sizes.js — the
@@ -4459,7 +4459,10 @@ export default function EdiblePrintApp() {
                 <a href="mailto:edibleprintorders@gmail.com" style={{ color: '#6ee7b7', textDecoration: 'none' }}>edibleprintorders@gmail.com</a>
               </p>
               <p style={{ fontSize: 13, marginTop: 4, color: '#9CA3AF' }}>
-                <a href={'tel:' + BUSINESS_PHONE_E164} style={{ color: '#6ee7b7', textDecoration: 'none' }}>{BUSINESS_PHONE_DISPLAY}</a>
+                <a href={'sms:' + BUSINESS_PHONE_E164} style={{ color: '#6ee7b7', textDecoration: 'none' }}>Text</a>
+                {' or '}
+                <a href={BUSINESS_WHATSAPP_URL} target="_blank" rel="noopener noreferrer" style={{ color: '#6ee7b7', textDecoration: 'none' }}>WhatsApp</a>
+                {' ' + BUSINESS_PHONE_DISPLAY}
               </p>
               <p style={{ fontSize: 13, marginTop: 4, color: '#9CA3AF' }}>London, Ontario, Canada 🇨🇦</p>
             </div>
