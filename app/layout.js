@@ -1,6 +1,6 @@
 import GoogleAnalytics from './_components/analytics/GoogleAnalytics';
 import MetaPixel from './_components/analytics/MetaPixel';
-import { BUSINESS_ADDRESS, BUSINESS_PHONE_E164 } from '../lib/business-info.js';
+import { BUSINESS_ADDRESS, BUSINESS_PUBLIC_STREET } from '../lib/business-info.js';
 import { SITE_URL, OG_IMAGE_URL } from '../lib/site-config.js';
 
 export const metadata = {
@@ -45,10 +45,9 @@ export default function RootLayout({ children }) {
     image: OG_IMAGE_URL,
     logo: `${SITE_URL}/logo-assets/icon-512.png`,
     sameAs: ['https://www.facebook.com/marketplace/profile/61556264345219/'],
-    telephone: BUSINESS_PHONE_E164,
     address: {
       '@type': 'PostalAddress',
-      streetAddress: BUSINESS_ADDRESS.line1,
+      streetAddress: BUSINESS_PUBLIC_STREET,
       addressLocality: BUSINESS_ADDRESS.city,
       addressRegion: BUSINESS_ADDRESS.province,
       postalCode: BUSINESS_ADDRESS.postalCode,
@@ -59,7 +58,7 @@ export default function RootLayout({ children }) {
       { '@type': 'Country', name: 'Canada' },
     ],
     priceRange: '$9.99 - $19.99',
-    openingHours: 'Mo-Fr 09:00-17:00',
+    openingHours: 'Mo-Su 08:00-20:00',
     paymentAccepted: 'Credit Card, Debit Card',
   };
 

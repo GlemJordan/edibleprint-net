@@ -46,7 +46,7 @@ export default function EdibleImagesLondonOntarioPage() {
         },
       ]}
       faqs={[
-        ['Do I have to order online?', 'Yes. Ordering online lets you upload your image, see a preview and pay securely. If you need help, email or call us.'],
+        ['Do I have to order online?', 'Yes. Ordering online lets you upload your image, see a preview and pay securely. If you need help, email, text or WhatsApp us.'],
         ['Do you bake the cake?', 'No. We print the edible image and you, or your baker, place it on your cake or treats.'],
         ['How do I apply the print?', 'Peel the backing gently and lay the print on a freshly frosted or fondant-covered surface, then press lightly from the centre outward to remove air bubbles.'],
         ['Not in London?', 'We also ship anywhere in Canada via Canada Post.'],

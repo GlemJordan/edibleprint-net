@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { CATALOG_SIZES } from '../../lib/catalog-sizes.js';
 import { CATALOG_PRICES } from '../../lib/catalog-prices.js';
 import { productJsonLd } from '../../lib/site-config.js';
-import { BUSINESS_PHONE_DISPLAY, BUSINESS_PHONE_E164 } from '../../lib/business-info.js';
+import { BUSINESS_PHONE_DISPLAY, BUSINESS_PHONE_E164, BUSINESS_WHATSAPP_URL } from '../../lib/business-info.js';
 
 const C = {
   brand: '#1B6B4A', brandLight: '#E8F5EE', brandDark: '#14503A',
@@ -114,7 +114,10 @@ export default function LandingPage({ path, productName, description, heading, i
           <p style={{ fontSize: 14, color: C.muted, marginTop: 18 }}>
             Questions? <a href="mailto:edibleprintorders@gmail.com" style={{ color: C.brand }}>edibleprintorders@gmail.com</a>
             {' · '}
-            <a href={'tel:' + BUSINESS_PHONE_E164} style={{ color: C.brand }}>{BUSINESS_PHONE_DISPLAY}</a>
+            <a href={'sms:' + BUSINESS_PHONE_E164} style={{ color: C.brand }}>Text</a>
+            {' or '}
+            <a href={BUSINESS_WHATSAPP_URL} target="_blank" rel="noopener noreferrer" style={{ color: C.brand }}>WhatsApp</a>
+            {' ' + BUSINESS_PHONE_DISPLAY}
           </p>
         </div>
       </main>
