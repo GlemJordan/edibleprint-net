@@ -593,6 +593,70 @@ async function renderPdfPageToCanvas(file, pageNumber, targetWidthPx) {
   return { canvas, pageWidthIn: viewport1.width / 72, pageHeightIn: viewport1.height / 72, numPages: pdfDoc.numPages };
 }
 
+/* ═══ PDFs in the main editor flow ═══
+   The editor draws every layer through new Image(), and a browser can't
+   decode a PDF as an image: a PDF used to go in as a data:application/pdf
+   URL, so the editor canvas and the print preview both stayed blank. A PDF
+   is therefore rasterized once, on upload, into a PNG, and from then on the
+   editor (crop, preview, hi-res print render, checkout upload) only ever
+   sees a normal image. Page 1 is used; the caller tells the customer when
+   the file has more pages. */
+const PDF_RASTER_LONG_SIDE_PX = 3508; // A4 long side at 300 DPI — the largest sheet we print
+const PDF_OPEN_ERROR_MESSAGE = "We couldn't open this PDF. Please save it as a JPG or PNG and upload that instead.";
+
+function isPdfFile(file) {
+  return !!file && (file.type === 'application/pdf' || /\.pdf$/i.test(file.name || ''));
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (ev) => resolve(ev.target.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+async function rasterizePdfFirstPage(file) {
+  const pdfjsLib = await getPdfjsLib();
+  const buf = await file.arrayBuffer();
+  const pdfDoc = await pdfjsLib.getDocument({ data: buf }).promise;
+  try {
+    const page = await pdfDoc.getPage(1);
+    const viewport1 = page.getViewport({ scale: 1 });
+    const scale = PDF_RASTER_LONG_SIDE_PX / Math.max(viewport1.width, viewport1.height);
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(viewport.width));
+    canvas.height = Math.max(1, Math.round(viewport.height));
+    const ctx = canvas.getContext('2d');
+    // Paint white first so the page looks exactly as it does in a PDF viewer.
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    const dataUrl = canvas.toDataURL('image/png');
+    canvas.width = 0; canvas.height = 0; // release the bitmap right away (matters on iOS)
+    return { dataUrl, numPages: pdfDoc.numPages };
+  } finally {
+    pdfDoc.destroy?.();
+  }
+}
+
+/* Turns whatever the customer picked into an image src the editor can draw:
+   images pass through untouched (same data URL as before), PDFs are
+   rasterized. Returns { src, numPages } — numPages is 1 for images. */
+async function fileToEditorImageSrc(file) {
+  if (isPdfFile(file)) {
+    const { dataUrl, numPages } = await rasterizePdfFirstPage(file);
+    return { src: dataUrl, numPages };
+  }
+  return { src: await readFileAsDataUrl(file), numPages: 1 };
+}
+
+function multiPagePdfNotice(numPages) {
+  return `Your PDF has ${numPages} pages — we've loaded page 1. To print another page, save that page as its own PDF or image and upload it as a new design.`;
+}
+
 /* Thin-band edge scan for the "content too close to the trim edge" warning.
    Deliberately NOT the flood-fill from detectBorderWhiteRatio above — that
    answers "how much of the background is white", this answers "is there any
@@ -2435,17 +2499,28 @@ function ImageEditor({ layers, onLayersChange, shape, sizeId, sizeObj, onCrop, o
     if (selectedLayerId === id) setSelectedLayerId(remaining[remaining.length - 1]?.id ?? null);
   };
 
-  const handleAddLayerFile = (e) => {
+  const [addingLayerFile, setAddingLayerFile] = useState(false);
+  const handleAddLayerFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (addLayerFileRef.current) addLayerFileRef.current.value = '';
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const newLayer = { id: String(Date.now()), src: ev.target.result, name: file.name, x: 0, y: 0, scale: 1, rotation: 0, _autoFit: true };
-      onLayersChange([...layers, newLayer]);
-      setSelectedLayerId(newLayer.id);
-    };
-    reader.readAsDataURL(file);
+    setAddingLayerFile(true);
+    let result;
+    try {
+      result = await fileToEditorImageSrc(file);
+    } catch (err) {
+      console.error('[add-image] could not read file:', err);
+      alert(isPdfFile(file) ? PDF_OPEN_ERROR_MESSAGE : "We couldn't open this file. Please try a JPG, PNG or PDF.");
+      return;
+    } finally {
+      setAddingLayerFile(false);
+    }
+    if (result.numPages > 1) alert(multiPagePdfNotice(result.numPages));
+    const newLayer = { id: String(Date.now()), src: result.src, name: file.name, x: 0, y: 0, scale: 1, rotation: 0, _autoFit: true };
+    // Latest-callback ref + functional update: the PDF render is async, so
+    // `layers` from this closure may be stale by the time it finishes.
+    onLayersChangeRef.current(prev => [...prev, newLayer]);
+    setSelectedLayerId(newLayer.id);
   };
 
   /* Per-layer slider range. Max is capped at 3x (300%) regardless of canvas
@@ -2601,11 +2676,11 @@ function ImageEditor({ layers, onLayersChange, shape, sizeId, sizeObj, onCrop, o
               fontFamily: "'Outfit', sans-serif" }}>
             ⟲ Recenter
           </button>
-          <button onClick={() => addLayerFileRef.current?.click()}
+          <button onClick={() => addLayerFileRef.current?.click()} disabled={addingLayerFile}
             style={{ fontSize: 11, padding: '5px 10px', background: C.brandLight, color: C.brand,
-              border: '1px solid ' + C.brand, borderRadius: 6, cursor: 'pointer', fontWeight: 600,
+              border: '1px solid ' + C.brand, borderRadius: 6, cursor: addingLayerFile ? 'wait' : 'pointer', fontWeight: 600,
               fontFamily: "'Outfit', sans-serif" }}>
-            + Add Image
+            {addingLayerFile ? 'Loading…' : '+ Add Image'}
           </button>
           {layers.length > 1 && effectiveSelectedId && (
             <button onClick={() => deleteLayer(effectiveSelectedId)} title="Delete selected layer"
@@ -2614,7 +2689,7 @@ function ImageEditor({ layers, onLayersChange, shape, sizeId, sizeObj, onCrop, o
               🗑
             </button>
           )}
-          <input ref={addLayerFileRef} type="file" accept="image/*" onChange={handleAddLayerFile} style={{ display: 'none' }} />
+          <input ref={addLayerFileRef} type="file" accept="image/*,.pdf" onChange={handleAddLayerFile} style={{ display: 'none' }} />
         </div>
       </div>
 
@@ -3309,48 +3384,61 @@ export default function EdiblePrintApp() {
     };
   }, []);
 
-  const addDesignFromFile = (file) => {
+  const [preparingFile, setPreparingFile] = useState(false);
+  const addDesignFromFile = async (file) => {
     if (!file) return;
+    if (preparingFile) return;
     if (designs.length >= 5) { alert('Maximum 5 designs per order.'); return; }
     if (atSheetLimit) { alert(orderLimitMessage()); return; }
     trackGA('add_to_design', { method: 'file_upload', design_count: designs.length + 1 });
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const newId = String(Date.now());
-      const initialLayer = { id: String(Date.now() + 1), src: ev.target.result, name: file.name, x: 0, y: 0, scale: 1, rotation: 0, _autoFit: true };
-      const newShape = pendingShape || 'circular';
-      const newSizeId = pendingSizeId || (SIZES[newShape]?.[SIZES[newShape].length - 1]?.id || 'c8');
-      const newSizeObj = (SIZES[newShape] || []).find(sz => sz.id === newSizeId) || (SIZES[newShape] || [])[0];
-      const newPrice = newSizeObj?.price || 0;
-      trackGA('add_to_cart', {
-        currency: 'CAD',
-        value: newPrice,
-        items: [{ item_id: `${newShape}-${newSizeId}`, item_name: `EdiblePrint ${newShape}`, price: newPrice, quantity: 1 }],
-      });
-      setDesigns(ds => [...ds, {
-        id: newId,
-        layers: [initialLayer],
-        shape: newShape,
-        material: 'icing',
-        cutToShape: false,
-        cutGuide: true,
-        sizeId: newSizeId,
-        customW: '',
-        customH: '',
-        customShapeKind: 'rectangle',
-        qty: 1,
-        notes: '',
-        bgColor: '#FFFFFF',
-        textOverlay: { text: '', fontSize: 24, color: '#FFFFFF', position: { x: 50, y: 85 }, fontFamily: 'Arial', fontStyle: 'normal' },
-        cropPreview: null,
-        hiResCrop: null,
-      }]);
-      setPendingShape(null);
-      setPendingSizeId(null);
-      setActiveDesignId(newId);
-      setStep(2);
-    };
-    reader.readAsDataURL(file);
+    /* PDFs are rasterized to a PNG here (see fileToEditorImageSrc) — the
+       editor can't draw a PDF directly, which used to leave the canvas and
+       the print preview blank. */
+    setPreparingFile(true);
+    let result;
+    try {
+      result = await fileToEditorImageSrc(file);
+    } catch (err) {
+      console.error('[upload] could not read file:', err);
+      alert(isPdfFile(file) ? PDF_OPEN_ERROR_MESSAGE : "We couldn't open this file. Please try a JPG, PNG or PDF.");
+      return;
+    } finally {
+      setPreparingFile(false);
+    }
+    if (result.numPages > 1) alert(multiPagePdfNotice(result.numPages));
+    const newId = String(Date.now());
+    const initialLayer = { id: String(Date.now() + 1), src: result.src, name: file.name, x: 0, y: 0, scale: 1, rotation: 0, _autoFit: true };
+    const newShape = pendingShape || 'circular';
+    const newSizeId = pendingSizeId || (SIZES[newShape]?.[SIZES[newShape].length - 1]?.id || 'c8');
+    const newSizeObj = (SIZES[newShape] || []).find(sz => sz.id === newSizeId) || (SIZES[newShape] || [])[0];
+    const newPrice = newSizeObj?.price || 0;
+    trackGA('add_to_cart', {
+      currency: 'CAD',
+      value: newPrice,
+      items: [{ item_id: `${newShape}-${newSizeId}`, item_name: `EdiblePrint ${newShape}`, price: newPrice, quantity: 1 }],
+    });
+    setDesigns(ds => [...ds, {
+      id: newId,
+      layers: [initialLayer],
+      shape: newShape,
+      material: 'icing',
+      cutToShape: false,
+      cutGuide: true,
+      sizeId: newSizeId,
+      customW: '',
+      customH: '',
+      customShapeKind: 'rectangle',
+      qty: 1,
+      notes: '',
+      bgColor: '#FFFFFF',
+      textOverlay: { text: '', fontSize: 24, color: '#FFFFFF', position: { x: 50, y: 85 }, fontFamily: 'Arial', fontStyle: 'normal' },
+      cropPreview: null,
+      hiResCrop: null,
+    }]);
+    setPendingShape(null);
+    setPendingSizeId(null);
+    setActiveDesignId(newId);
+    setStep(2);
   };
 
   const addTextOnlyDesign = () => {
@@ -3413,7 +3501,7 @@ export default function EdiblePrintApp() {
     setIsDragOver(false);
     const file = e.dataTransfer?.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith('image/') && file.type !== 'application/pdf') return;
+    if (!file.type.startsWith('image/') && !isPdfFile(file)) return;
     addDesignFromFile(file);
   };
   const handleDragOver = (e) => { e.preventDefault(); setIsDragOver(true); };
@@ -4681,21 +4769,22 @@ export default function EdiblePrintApp() {
               <>
                 {designs.length < 5 && (
                   <div
-                    onClick={() => fileRef.current?.click()}
+                    onClick={() => { if (!preparingFile) fileRef.current?.click(); }}
                     onDrop={handleDrop}
                     onDragOver={handleDragOver}
                     onDragLeave={handleDragLeave}
+                    aria-busy={preparingFile}
                     style={{
                       border: '2.5px dashed ' + (isDragOver ? C.brand : C.border),
                       borderRadius: 20, padding: designs.length > 0 ? '36px 24px' : '56px 24px',
-                      cursor: 'pointer', transition: 'all 0.25s',
+                      cursor: preparingFile ? 'wait' : 'pointer', transition: 'all 0.25s',
                       background: isDragOver ? C.brandLight : C.white, textAlign: 'center',
                     }}>
-                    <div style={{ fontSize: designs.length > 0 ? 36 : 52, marginBottom: 14, opacity: 0.8 }}>🖼️</div>
+                    <div style={{ fontSize: designs.length > 0 ? 36 : 52, marginBottom: 14, opacity: 0.8 }}>{preparingFile ? '⏳' : '🖼️'}</div>
                     <p style={{ margin: 0, fontWeight: 600, fontSize: designs.length > 0 ? 15 : 17 }}>
-                      {isDragOver ? 'Drop your image here!' : designs.length > 0 ? 'Upload another image' : 'Tap to upload your image'}
+                      {preparingFile ? 'Preparing your file…' : isDragOver ? 'Drop your image here!' : designs.length > 0 ? 'Upload another image' : 'Tap to upload your image'}
                     </p>
-                    <p style={{ margin: '8px 0 0', fontSize: 13, color: '#bbb' }}>or drag and drop here</p>
+                    <p style={{ margin: '8px 0 0', fontSize: 13, color: '#bbb' }}>{preparingFile ? 'This only takes a few seconds' : 'or drag and drop here'}</p>
                   </div>
                 )}
                 <input ref={fileRef} type="file" accept="image/*,.pdf" onChange={handleFile} style={{ display: 'none' }} />

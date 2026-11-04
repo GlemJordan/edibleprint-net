@@ -14,6 +14,7 @@ const DEFAULT_TESTS = [
   'image-centering.mjs',
   'whitebg-default.mjs',
   'editor-regression.mjs',
+  'editor-pdf-upload.mjs',
   'upload-flow-stage1.mjs',
   'upload-flow-stage2.mjs',
   'print-preview-mobile.mjs',
