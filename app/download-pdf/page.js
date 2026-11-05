@@ -23,7 +23,7 @@ function DownloadPdfContent() {
 
         if (!verified.verified) {
           setStatus('error');
-          setError('Payment not verified. Please contact support@edibleprint.net.');
+          setError('Payment not verified. Please contact edibleprintorders@gmail.com.');
           return;
         }
 
@@ -112,7 +112,7 @@ function DownloadPdfContent() {
           <h2 style={{ color: '#DC2626' }}>Something went wrong</h2>
           <p style={{ color: '#374151' }}>{error}</p>
           <p style={{ color: '#6B7280', fontSize: 13 }}>
-            Email us at <a href="mailto:support@edibleprint.net" style={{ color: '#1B6B4A' }}>support@edibleprint.net</a> with your session ID:
+            Email us at <a href="mailto:edibleprintorders@gmail.com" style={{ color: '#1B6B4A' }}>edibleprintorders@gmail.com</a> with your session ID:
           </p>
           <code style={{
             display: 'block', background: '#F3F4F6', padding: '8px 12px',
