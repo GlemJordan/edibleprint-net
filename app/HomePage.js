@@ -4337,7 +4337,6 @@ export default function EdiblePrintApp() {
                 <li>We review every image before printing — we'll flag quality issues</li>
                 <li>Reprints sent within 24 hours for any production error</li>
                 <li>Arrives in protective packaging to prevent damage in transit</li>
-                <li>Every batch is taste-tested for colour accuracy</li>
               </ul>
               <button onClick={() => { setOrderMode('editor'); setStep(1); }} style={{ ...btnPrimary, padding: '13px 30px', fontSize: 15, borderRadius: 12 }}>
                 Order with Confidence →
