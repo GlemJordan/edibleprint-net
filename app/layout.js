@@ -1,6 +1,6 @@
 import GoogleAnalytics from './_components/analytics/GoogleAnalytics';
 import MetaPixel from './_components/analytics/MetaPixel';
-import { BUSINESS_ADDRESS, BUSINESS_PUBLIC_STREET } from '../lib/business-info.js';
+import { BUSINESS_ADDRESS } from '../lib/business-info.js';
 import { SITE_URL, OG_IMAGE_URL } from '../lib/site-config.js';
 
 export const metadata = {
@@ -46,8 +46,9 @@ export default function RootLayout({ children }) {
     logo: `${SITE_URL}/logo-assets/icon-512.png`,
     sameAs: ['https://www.facebook.com/marketplace/profile/61556264345219/'],
     address: {
+      // No street: like the Google Business Profile, the public address is
+      // the city only. Customers get the full address with their pickup.
       '@type': 'PostalAddress',
-      streetAddress: BUSINESS_PUBLIC_STREET,
       addressLocality: BUSINESS_ADDRESS.city,
       addressRegion: BUSINESS_ADDRESS.province,
       postalCode: BUSINESS_ADDRESS.postalCode,
