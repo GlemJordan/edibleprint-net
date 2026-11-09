@@ -12,6 +12,8 @@ import {
 } from '../lib/shipping-config.js';
 import ShippingMethodSelector from './_components/ShippingMethodSelector';
 import { CATALOG_SIZES } from '../lib/catalog-sizes.js';
+import { SIZE_USE, productFor } from '../lib/products.js';
+import Link from 'next/link';
 import { CATALOG_PRICES } from '../lib/catalog-prices.js';
 import {
   computeSheetPlacement, isWholeSheetShape, hasSheetMargin, BWSHEET_DESIGN_IN,
@@ -4017,43 +4019,21 @@ export default function EdiblePrintApp() {
      stripped). Titles deliberately avoid sizes/counts unless the photo
      matches a size we actually sell. */
   const GALLERY_INITIAL_COUNT = 12;
+  // Only photos with no characters, brands, video games, teams, TV shows,
+  // identifiable people or customer names: 24 were taken out of this list on
+  // 2026-11-09 (their files stay in public/gallery and on Cloudinary).
   const galleryItems = [
     { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180323/649680716_1500541474823954_8161943662036624436_n_supe0j.jpg', title: '2" Cookie Circles', category: 'Cookie Sheet' },
-    { url: '/gallery/round-gamer-birthday.webp', title: 'Gamer Birthday Round', category: 'Round' },
-    { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180334/WhatsApp_Image_2026-02-18_at_5.02.46_PM_4_bdffmh.jpg', title: 'Edible Print on Cookie', category: 'Cookie Topper' },
     { url: '/gallery/custom-gingerbread-50.webp', title: 'Gingerbread 50th Birthday', category: 'Custom' },
-    { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180316/631155092_927287009710918_2725418458120497650_n_alqxgi.jpg', title: '8" Round Cake Topper', category: 'Round' },
-    { url: '/gallery/fullsheet-superhero-birthday.webp', title: 'Superhero Birthday Sheet', category: 'Full Sheet' },
-    { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180315/564037940_606689965772579_7150919334617048888_n_vtkhf1.jpg', title: 'Full Sheet on Cake', category: 'Full Sheet' },
-    { url: '/gallery/cookie-circles-gaming.webp', title: 'Gamer Cookie Circles', category: 'Cookie Sheet' },
-    { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180326/661142328_1334185021979269_4781349991339791662_n_kjtbdp.jpg', title: '6" Round Cake Topper', category: 'Round' },
-    { url: '/gallery/round-princess-birthday.webp', title: 'Ice Princess Birthday Round', category: 'Round' },
-    { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180321/643374882_1221779420149107_4563453986619431265_n_x0ry5y.jpg', title: 'Full Sheet Print', category: 'Full Sheet' },
     { url: '/gallery/heart-eighteen.webp', title: '18th Birthday Heart', category: 'Heart' },
-    // ── Below the fold until "See more" ──
-    { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180330/674461215_2470531503382051_8704629536921250123_n_iztbl6.jpg', title: '6" Round Celebration', category: 'Round' },
-    { url: '/gallery/custom-soccer-jerseys.webp', title: 'Soccer Jersey Cut-Outs', category: 'Custom' },
-    { url: '/gallery/custom-bride-to-be-floral.webp', title: 'Bride-to-Be Floral', category: 'Custom' },
-    { url: '/gallery/fullsheet-music-birthday.webp', title: 'Pop Idol Birthday Sheet', category: 'Full Sheet' },
     // Generic title, deliberately no count or inches: this photo doesn't
     // correspond exactly to either remaining multicircle size (6/sheet or
     // 15/sheet) — see lib/catalog-sizes.js — so it shouldn't promise a
     // specific one.
     { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180311/WhatsApp_Image_2026-02-18_at_5.14.09_PM_z4dkxf.jpg', title: 'Mini Cookie Toppers', category: 'Cookie Sheet' },
-    { url: '/gallery/custom-ocean-birthday.webp', title: 'Under the Sea Birthday', category: 'Custom' },
-    { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180313/553460353_1257238136170817_2212358949708882210_n_syfirg.jpg', title: '8" Round on Cake', category: 'Round' },
-    { url: '/gallery/square-cartoon-topper.webp', title: 'Cartoon Hero Topper', category: 'Square' },
-    { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180311/WhatsApp_Image_2026-02-18_at_5.02.46_PM_vuvwmr.jpg', title: 'Photo Round 8"', category: 'Round' },
-    { url: '/gallery/round-photo-birthday.webp', title: 'Photo Birthday Round', category: 'Round' },
     { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180337/WhatsApp_Image_2026-02-18_at_5.02.46_PM_7_d04sga.jpg', title: '2" Circles on Cupcakes', category: 'Cookie Sheet' },
-    { url: '/gallery/custom-trophy-cutout.webp', title: 'Trophy Cut-Out', category: 'Custom' },
     { url: '/gallery/fullsheet-calendar-keepsake.webp', title: 'Calendar Keepsake Sheet', category: 'Full Sheet' },
     { url: '/gallery/cookie-circles-happily-ever-after.webp', title: 'Happily Ever After Circles', category: 'Cookie Sheet' },
-    { url: '/gallery/round-caricature-birthday.webp', title: 'Caricature Birthday Round', category: 'Round' },
-    { url: '/gallery/custom-pixel-cake-wraps.webp', title: 'Pixel Block Cake Strips', category: 'Custom' },
-    { url: '/gallery/cookie-circles-photo.webp', title: 'Photo Cookie Circles', category: 'Cookie Sheet' },
-    { url: '/gallery/round-anime-character.webp', title: 'Anime Character Round', category: 'Round' },
-    { url: '/gallery/fullsheet-event-logo.webp', title: 'Event Logo Sheet', category: 'Full Sheet' },
   ];
   const visibleGalleryItems = galleryExpanded ? galleryItems : galleryItems.slice(0, GALLERY_INITIAL_COUNT);
 
@@ -4187,28 +4167,9 @@ export default function EdiblePrintApp() {
             {(SIZES[pricingTab] || []).map((sz) => {
               const popular = sz.id === 'c8';
               const cookieGrid = sz.circleSize ? getCircleGrid(sz.w, sz.h, sz.circleSize) : null;
-              // Round/Heart/Square: a topper sits ON a frosted cake's surface,
-              // so it must be smaller than the cake itself — these used to
-              // suggest cupcakes/brownies for toppers as large as 5"-6",
-              // which don't fit any cupcake. Each size now names the cake
-              // diameter it's actually meant for (topper diameter -> cake
-              // diameter it's cut to sit on, one size up).
-              // "round"/"heart"/"square" and "cakes" are joined with a
-              // non-breaking space ( ) — a line break landing between
-              // them leaves "cakes" orphaned alone on its own line, which
-              // reads as if the number above it were the topper's own size
-              // instead of the cake it fits.
-              const descriptions = {
-                c5: 'Fits 6″ round cakes', c6: 'Fits 7″ round cakes',
-                c7: 'Fits 8″ round cakes', c8: 'Fits 9″–10″ round cakes',
-                h6: 'Fits 7″ heart cakes', h7: 'Fits 8″ heart cakes', h8: 'Fits 9″–10″ heart cakes',
-                s5: 'Fits 6″ square cakes', s6: 'Fits 7″ square cakes',
-                s7: 'Fits 8″ square cakes', s8: 'Fits 9″–10″ square cakes',
-                mc2: '15 toppers/sheet — cupcakes & cookies',
-                mc3: '6 toppers/sheet — cookies & mini treats',
-                a4: 'For full sheet cakes & large projects',
-                bw1: 'Economy grayscale — text, logos & portraits',
-              };
+              // What each size is for lives in lib/products.js (SIZE_USE), shared
+              // with the product pages so the two can't describe a size differently.
+              const product = productFor(pricingTab, sz.id);
               const isBestValue = sz.id === 'bw1';
               const isHovered = hoveredCardId === sz.id;
               return (
@@ -4233,9 +4194,17 @@ export default function EdiblePrintApp() {
                   )}
                   <div style={{ fontSize: 32, fontWeight: 700, color: C.brand, marginBottom: 4 }}>{'$' + sz.price.toFixed(2)}</div>
                   <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 6 }}>{sz.label}</div>
-                  <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5, marginBottom: 6 }}>{descriptions[sz.id] || ''}</div>
+                  <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5, marginBottom: 6 }}>{SIZE_USE[sz.id] || ''}</div>
                   <div style={{ fontSize: 12, color: '#059669', fontWeight: 600, marginBottom: 10 }}>🚀 Production: {formatProductionWindow()}</div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: isHovered ? C.brand : C.muted, opacity: isHovered ? 1 : 0.6 }}>Order this size →</div>
+                  {product && (
+                    // Its own link inside the clickable card: stopPropagation keeps
+                    // the card from also opening the editor.
+                    <Link href={product.path} onClick={(e) => e.stopPropagation()}
+                      style={{ display: 'inline-block', marginTop: 8, fontSize: 12.5, fontWeight: 600, color: C.brand, textDecoration: 'underline' }}>
+                      View details
+                    </Link>
+                  )}
                 </div>
               );
             })}

@@ -2,22 +2,23 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PRODUCTS, findProduct, sizesOf } from '../../../lib/products.js';
 import { SITE_URL } from '../../../lib/site-config.js';
-import { shapeSupportsMaterial, MATERIALS } from '../../../lib/material-config.js';
 import { shapeSupportsCut, cutSurchargeFor } from '../../../lib/cutting-config.js';
 import {
   getShippingMethods, describeShippingMethod, formatProductionWindow, PRODUCTION_BUSINESS_DAYS,
 } from '../../../lib/shipping-config.js';
 import { C, LandingNav, LandingFooter, ContactLine } from '../../_components/LandingChrome.js';
 
-// One page per catalog size: the landing page Google Merchant Center sends
-// shoppers to, so its one visible price and its Offer must equal the feed's.
+// One page per Merchant Center product (lib/products.js), rendered at build
+// time so the price and the Product markup are in the initial HTML: Google
+// compares them with the listing before approving it.
 export const dynamicParams = false;
 
 export function generateStaticParams() {
   return PRODUCTS.map((p) => ({ slug: p.slug }));
 }
 
-const describe = (p) => `${p.title}, printed with your photo or logo. $${p.price.toFixed(2)} CAD. Free pickup in London, ON or shipping across Canada.`;
+const money = (n) => `$${n.toFixed(2)}`;
+const describe = (p) => `${p.title}. Printed with your photo or logo, ${money(p.price)} CAD. Free pickup in London, ON or shipping across Canada.`;
 
 export async function generateMetadata({ params }) {
   const product = findProduct((await params).slug);
@@ -29,7 +30,7 @@ export async function generateMetadata({ params }) {
     alternates: { canonical: product.path },
     openGraph: {
       title, description: describe(product), url: product.path, siteName: 'EdiblePrint.ca',
-      locale: 'en_CA', type: 'website', images: [{ url: product.image, alt: product.title }],
+      locale: 'en_CA', type: 'website', images: [{ url: product.image, width: 1200, height: 1200, alt: product.title }],
     },
   };
 }
@@ -53,10 +54,9 @@ function productJsonLd(p) {
     '@id': `${url}#product`,
     name: p.title,
     description: p.blurb,
-    sku: p.id,
     image: SITE_URL + p.image,
-    category: 'Edible Baking Decorations',
-    brand: { '@type': 'Brand', name: 'EdiblePrint.ca' },
+    sku: p.id,
+    brand: { '@type': 'Brand', name: 'EdiblePrint' },
     offers: {
       '@type': 'Offer',
       url,
@@ -66,9 +66,8 @@ function productJsonLd(p) {
       itemCondition: 'https://schema.org/NewCondition',
       seller: { '@id': `${SITE_URL}/#business` },
       shippingDetails: getShippingMethods().map(delivery),
-      // Every print is made to order from the customer's own image, so it
-      // can't be returned; a faulty or damaged print is reprinted or refunded
-      // instead (see /refund).
+      // Made to order from the customer's own image, so it can't be
+      // returned; a faulty or damaged print is reprinted or refunded (/refund).
       hasMerchantReturnPolicy: {
         '@type': 'MerchantReturnPolicy',
         applicableCountry: 'CA',
@@ -78,48 +77,49 @@ function productJsonLd(p) {
   };
 }
 
+const h2 = { fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 700, margin: '0 0 12px' };
+const cell = { padding: '10px 12px 10px 0', borderBottom: '1px solid ' + C.border, verticalAlign: 'top', lineHeight: 1.5 };
+
 export default async function ProductPage({ params }) {
   const product = findProduct((await params).slug);
   if (!product) notFound();
-  const ctaHref = `/?start=${product.sizeId}`;
-  const cut = shapeSupportsCut(product.shape, product.sizeId) ? cutSurchargeFor(product.shape, product.sizeId) : null;
+  const customizeHref = `/?start=${product.sizeId}`;
   const sizes = sizesOf(product);
+  const cut = shapeSupportsCut(product.shape, product.sizeId) ? cutSurchargeFor(product.shape, product.sizeId) : null;
 
   const details = [
-    'Printed with your own photo, logo or design: you upload it while ordering, no account needed',
-    shapeSupportsMaterial(product.shape)
-      ? `Printed on ${MATERIALS.icing.label.toLowerCase()} or ${MATERIALS.wafer.label.toLowerCase()}, same price`
-      : `Printed on ${MATERIALS.icing.label.toLowerCase()}`,
-    cut !== null && `Optional: cut to shape on our plotter for $${cut.toFixed(2)} per sheet`,
-    'We check your image before printing and tell you about any quality issue',
-    `Ready in ${formatProductionWindow()}`,
+    ['Size', product.sizeText],
+    ['Best for', product.use],
+    ['Material', product.material],
+    cut !== null && ['Cut to shape', `Optional, ${money(cut)} per sheet: we cut it on our plotter so it's ready to place`],
+    ['Production', `Ready in ${formatProductionWindow()}`],
   ].filter(Boolean);
 
   return (
     <div style={{ fontFamily: "'Outfit', sans-serif", background: C.bg, minHeight: '100vh', color: C.text }}>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd(product)) }} />
-      <LandingNav ctaHref={ctaHref} />
+      <LandingNav ctaHref={customizeHref} />
 
       <main style={{ maxWidth: 960, margin: '0 auto', padding: '40px 24px' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 40, alignItems: 'flex-start' }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={product.image} alt={product.title} width={1200} height={1200}
-            style={{ flex: '1 1 320px', maxWidth: 440, width: '100%', height: 'auto', borderRadius: 16,
-              border: '1px solid ' + C.border, background: C.white, objectFit: 'cover', aspectRatio: '1 / 1' }} />
+            style={{ flex: '1 1 300px', maxWidth: 440, width: '100%', height: 'auto', borderRadius: 16,
+              border: '1px solid ' + C.border, background: C.white }} />
 
-          <div style={{ flex: '1 1 320px' }}>
-            <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 'clamp(30px, 5vw, 44px)',
-              fontWeight: 700, margin: '0 0 10px', lineHeight: 1.1 }}>
+          <div style={{ flex: '1 1 320px', minWidth: 0 }}>
+            <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 'clamp(28px, 4.5vw, 40px)',
+              fontWeight: 700, margin: '0 0 10px', lineHeight: 1.15 }}>
               {product.title}
             </h1>
-            <p style={{ fontSize: 30, fontWeight: 700, color: C.brandDark, margin: '0 0 18px' }}>
-              ${product.price.toFixed(2)} <span style={{ fontSize: 15, fontWeight: 500, color: C.muted }}>CAD per sheet</span>
+            <p style={{ fontSize: 30, fontWeight: 700, color: C.brandDark, margin: '0 0 16px' }}>
+              {money(product.price)} CAD <span style={{ fontSize: 15, fontWeight: 500, color: C.muted }}>per sheet</span>
             </p>
-            <p style={{ fontSize: 16.5, lineHeight: 1.7, margin: '0 0 22px' }}>{product.blurb}</p>
+            <p style={{ fontSize: 16.5, lineHeight: 1.7, margin: '0 0 20px' }}>{product.blurb}</p>
 
             {sizes.length > 1 && (
-              <div style={{ marginBottom: 24 }}>
-                <p style={{ fontSize: 14, fontWeight: 600, margin: '0 0 8px' }}>Size</p>
+              <div style={{ marginBottom: 22 }}>
+                <p style={{ fontSize: 14, fontWeight: 600, margin: '0 0 8px' }}>Other sizes</p>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {sizes.map((s) => {
                     const current = s.slug === product.slug;
@@ -127,7 +127,7 @@ export default async function ProductPage({ params }) {
                       <Link key={s.slug} href={s.path} aria-current={current ? 'page' : undefined}
                         style={{ border: '1.5px solid ' + (current ? C.brand : C.border), background: current ? C.brandLight : C.white,
                           color: C.text, borderRadius: 10, padding: '8px 12px', fontSize: 14, textDecoration: 'none' }}>
-                        {s.size}
+                        {s.sizeLabel}
                       </Link>
                     );
                   })}
@@ -135,34 +135,45 @@ export default async function ProductPage({ params }) {
               </div>
             )}
 
-            <Link href={ctaHref} style={{ background: C.brand, color: '#fff', borderRadius: 14,
+            <Link href={customizeHref} style={{ background: C.brand, color: '#fff', borderRadius: 14,
               padding: '16px 36px', fontSize: 16, fontWeight: 600, textDecoration: 'none',
               boxShadow: '0 4px 16px rgba(27,107,74,0.25)', display: 'inline-block' }}>
-              Upload Your Photo →
+              Customize this size
             </Link>
+            <p role="note" style={{ fontSize: 14, color: C.brandDark, background: C.brandLight, border: '1px solid #C6E6D6',
+              borderRadius: 10, padding: '10px 14px', margin: '16px 0 0', lineHeight: 1.5 }}>
+              Only upload images you own or have permission to use.
+            </p>
           </div>
         </div>
 
         <section style={{ marginTop: 48 }}>
-          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 700, margin: '0 0 12px' }}>What You Get</h2>
-          <ul style={{ margin: 0, padding: '0 0 0 20px', fontSize: 15.5, lineHeight: 1.9 }}>
-            {details.map((d) => <li key={d}>{d}</li>)}
-          </ul>
+          <h2 style={h2}>Product Details</h2>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 15.5 }}>
+            <tbody>
+              {details.map(([k, v]) => (
+                <tr key={k}>
+                  <th scope="row" style={{ ...cell, textAlign: 'left', fontWeight: 600, width: 140 }}>{k}</th>
+                  <td style={cell}>{v}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </section>
 
-        <section style={{ marginTop: 32 }}>
-          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 700, margin: '0 0 12px' }}>Pickup & Shipping</h2>
+        <section style={{ marginTop: 36 }}>
+          <h2 style={h2}>Pickup & Shipping</h2>
           <ul style={{ margin: 0, padding: '0 0 0 20px', fontSize: 15.5, lineHeight: 1.9 }}>
-            <li><strong>Free pickup</strong> in London, Ontario</li>
+            <li><strong>Free pickup</strong> in London, ON</li>
             {getShippingMethods().map((m) => (
               <li key={m.id}><strong>{m.label}</strong> across Canada ({m.carrier}): {describeShippingMethod(m)}</li>
             ))}
           </ul>
           <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.7, margin: '12px 0 0' }}>
-            Shipping times start once your print is ready. Read our{' '}
-            <Link href="/shipping" style={{ color: C.brand }}>shipping</Link>,{' '}
-            <Link href="/refund" style={{ color: C.brand }}>refund and reprint</Link> and{' '}
-            <Link href="/allergens" style={{ color: C.brand }}>ingredients and allergens</Link> pages.
+            Shipping times start once your print is ready. See{' '}
+            <Link href="/shipping" style={{ color: C.brand }}>Shipping</Link>,{' '}
+            <Link href="/refund" style={{ color: C.brand }}>Refunds & Reprints</Link> and{' '}
+            <Link href="/allergens" style={{ color: C.brand }}>Ingredients & Allergens</Link>.
           </p>
         </section>
 
