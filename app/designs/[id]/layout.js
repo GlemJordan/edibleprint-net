@@ -6,7 +6,7 @@ export async function generateMetadata({ params }) {
   const design = getDesignById(id);
   if (!design) return { robots: { index: false, follow: false } };
   const category = getCategories().find((c) => c.id === design.category)?.label || '';
-  const title = `${design.name} — ${category} Edible Cake Topper | EdiblePrint.net`;
+  const title = `${design.name} — ${category} Edible Cake Topper | EdiblePrint.ca`;
   const description = `Personalize the ${design.name} edible design with your own text. Printed on icing sheets or wafer paper, with free pickup in London, ON or shipping across Canada.`;
   return {
     title,
@@ -16,7 +16,7 @@ export async function generateMetadata({ params }) {
       title,
       description,
       url: `/designs/${design.id}`,
-      siteName: 'EdiblePrint.net',
+      siteName: 'EdiblePrint.ca',
       locale: 'en_CA',
       type: 'website',
       images: [{ url: design.sourceFile, alt: design.name }],

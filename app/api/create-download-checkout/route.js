@@ -4,6 +4,7 @@ import { isValidEmail } from '../../../lib/validate-email.js';
 import { isWholeSheetShape, sheetFormatLabel, shapeDisplayLabel, customShapeLabel } from '../../../lib/paper-config.js';
 import { resolveMaterial, materialDisplayLabel } from '../../../lib/material-config.js';
 import { shapeSupportsCutGuide } from '../../../lib/cut-guide-config.js';
+import { getBaseUrl } from '../../../lib/site-config.js';
 
 const isTest = process.env.STRIPE_MODE === 'test';
 const stripeKey = isTest
@@ -26,7 +27,7 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://edibleprint.net';
+  const baseUrl = getBaseUrl();
 
   // Upload image to Cloudinary so we can store a short URL in Stripe metadata
   const uploadResp = await fetch(`${baseUrl}/api/upload-image`, {

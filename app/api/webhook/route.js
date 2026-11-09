@@ -9,6 +9,7 @@ import { decodeCustomShapeKind } from '../../../lib/cut-guide-config.js';
 import { getShippingMethod, normalizeShippingMethod, getShippingPackages, countSheets } from '../../../lib/shipping-config.js';
 import { confirmationShippingBlock } from '../../../lib/shipping-email.js';
 import { UPLOAD_FIT_SHAPES } from '../../../lib/paper-config.js';
+import { getBaseUrl } from '../../../lib/site-config.js';
 
 // CASL sender-identification footer for the 4 customer/admin-facing
 // templates (owner order email, customer confirmation, magic link,
@@ -16,8 +17,8 @@ import { UPLOAD_FIT_SHAPES } from '../../../lib/paper-config.js';
 // sendCriticalOrderLossAlert below, since those are internal operational
 // alerts to the business owner, not commercial electronic messages to a
 // third party.
-const CASL_FOOTER_HTML = '<p style="font-size:12px;color:#9ca3af;text-align:center;margin:8px 0 0;line-height:1.6;">EdiblePrint.net — ' + BUSINESS_ADDRESS_ONE_LINE + '</p>';
-const CASL_FOOTER_TEXT = '\nEdiblePrint.net — ' + BUSINESS_ADDRESS_ONE_LINE + '\n';
+const CASL_FOOTER_HTML = '<p style="font-size:12px;color:#9ca3af;text-align:center;margin:8px 0 0;line-height:1.6;">EdiblePrint.ca — ' + BUSINESS_ADDRESS_ONE_LINE + '</p>';
+const CASL_FOOTER_TEXT = '\nEdiblePrint.ca — ' + BUSINESS_ADDRESS_ONE_LINE + '\n';
 
 export const maxDuration = 60;
 
@@ -35,7 +36,7 @@ const stripe = new Stripe(stripeKey);
 // logo-full.png (white/light circular badge) is used here rather than the
 // dark-green wordmark variants, since it needs to read on the dark green
 // banner background both emails use.
-const LOGO_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://edibleprint.net') + '/logo-assets/logo-full.png';
+const LOGO_URL = getBaseUrl() + '/logo-assets/logo-full.png';
 
 const SHAPE_LABELS = {
   circular: 'Round', square: 'Square', rectangular: 'Rectangle',
@@ -121,7 +122,7 @@ async function sendAlertEmail(orderId, errorMsg) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'EdiblePrint.net <orders@edibleprint.net>',
+        from: 'EdiblePrint.ca <orders@edibleprint.ca>',
         to: ['edibleprintorders@gmail.com'],
         subject: '⚠️ ORDER PROCESSING FAILED — #' + orderId,
         html: '<p><strong>Order ' + orderId + ' failed to process fully.</strong></p>'
@@ -152,7 +153,7 @@ async function sendCustomerEmailFailedAlert(orderId, customerEmail, err) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'EdiblePrint.net <orders@edibleprint.net>',
+        from: 'EdiblePrint.ca <orders@edibleprint.ca>',
         to: [process.env.ORDER_NOTIFICATION_EMAIL || 'glenj.belmar@gmail.com', 'edibleprintorders@gmail.com'],
         subject: '⚠️ Customer confirmation email FAILED — #' + orderId,
         html: '<p><strong>The order confirmation email to the customer for order ' + orderId + ' failed to send after retries.</strong></p>'
@@ -272,7 +273,7 @@ async function sendCriticalOrderLossAlert(session, orderId, designs, err, isTest
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'EdiblePrint.net <orders@edibleprint.net>',
+        from: 'EdiblePrint.ca <orders@edibleprint.ca>',
         to: [process.env.ORDER_NOTIFICATION_EMAIL || 'glenj.belmar@gmail.com', 'edibleprintorders@gmail.com'],
         subject: '🚨 CRITICAL: ORDER LOST — payment captured, no record saved — ' + (session.id || orderId),
         html,
@@ -325,7 +326,7 @@ async function processOrder(session, orderId) {
     : shippingInfo.label + ' — ' + shippingInfo.carrier + (shippingPackages > 1 ? ' — ' + shippingPackages + ' packages' : '');
   // Customer-email block: what they bought and how long it takes once it ships.
   const shippingBlock = shippingInfo
-    ? confirmationShippingBlock(shippingInfo, (process.env.NEXT_PUBLIC_SITE_URL || 'https://edibleprint.net') + '/shipping')
+    ? confirmationShippingBlock(shippingInfo, getBaseUrl() + '/shipping')
     : null;
 
   // 1. Build + save OrderRecord (order.json + notes.txt → Cloudinary).
@@ -411,7 +412,7 @@ async function processOrder(session, orderId) {
   const ownerHtml = '<div style="font-family:Arial,sans-serif;max-width:640px;margin:0 auto;">'
     + (isTest ? '<div style="background:#F59E0B;color:white;padding:10px;text-align:center;border-radius:8px 8px 0 0;font-weight:bold;">⚠️ TEST ORDER — Not a real payment</div>' : '')
     + '<div style="background:#1B6B4A;color:white;padding:20px;' + (isTest ? '' : 'border-radius:8px 8px 0 0;') + '">'
-    + '<img src="' + LOGO_URL + '" alt="EdiblePrint.net" width="44" height="44" style="display:block;margin-bottom:10px;" />'
+    + '<img src="' + LOGO_URL + '" alt="EdiblePrint.ca" width="44" height="44" style="display:block;margin-bottom:10px;" />'
     + '<h1 style="margin:0;font-size:22px;">New Order: ' + orderId + '</h1>'
     + '<p style="margin:8px 0 0;opacity:0.9;">Total: $' + totalAmt.toFixed(2) + ' CAD &nbsp;|&nbsp; ' + designs.length + ' design' + (designs.length > 1 ? 's' : '') + '</p>'
     + '</div>'
@@ -456,7 +457,7 @@ async function processOrder(session, orderId) {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + process.env.RESEND_API_KEY, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          from: 'EdiblePrint.net Orders <orders@edibleprint.net>',
+          from: 'EdiblePrint.ca Orders <orders@edibleprint.ca>',
           to: [process.env.ORDER_NOTIFICATION_EMAIL || 'glenj.belmar@gmail.com'],
           reply_to: 'edibleprintorders@gmail.com',
           subject: (isTest ? '[TEST] ' : '') + 'New Order ' + orderId + ' — ' + designs.length + ' design' + (designs.length > 1 ? 's' : '') + ' — $' + totalAmt.toFixed(2) + ' CAD',
@@ -505,7 +506,7 @@ async function processOrder(session, orderId) {
 
   const customerHtml = '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1a1a1a;">'
     + '<div style="background:#1B6B4A;color:white;padding:28px 24px;border-radius:8px 8px 0 0;text-align:center;">'
-    + '<img src="' + LOGO_URL + '" alt="EdiblePrint.net" width="64" height="64" style="display:block;margin:0 auto 12px;" />'
+    + '<img src="' + LOGO_URL + '" alt="EdiblePrint.ca" width="64" height="64" style="display:block;margin:0 auto 12px;" />'
     + '<h1 style="margin:0 0 8px;font-size:26px;letter-spacing:-0.5px;">Thank you for your order!</h1>'
     + '<p style="margin:0;font-size:16px;opacity:0.9;">Order <strong>#' + orderId + '</strong></p>'
     + '</div>'
@@ -545,7 +546,7 @@ async function processOrder(session, orderId) {
     + '<hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;" />'
     + '<p style="font-size:13px;color:#6b7280;text-align:center;margin:0;">Questions? Reply to this email or contact <a href="mailto:edibleprintorders@gmail.com" style="color:#1B6B4A;">edibleprintorders@gmail.com</a></p>'
     + '<hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0;" />'
-    + '<p style="font-size:12px;color:#9ca3af;text-align:center;margin:0;line-height:1.6;">This email serves as your official receipt.<br/>EdiblePrint.net — ' + BUSINESS_ADDRESS_ONE_LINE + '</p>'
+    + '<p style="font-size:12px;color:#9ca3af;text-align:center;margin:0;line-height:1.6;">This email serves as your official receipt.<br/>EdiblePrint.ca — ' + BUSINESS_ADDRESS_ONE_LINE + '</p>'
     + '</div></div>';
 
   const customerText = 'Thank you for your order!\n'
@@ -564,7 +565,7 @@ async function processOrder(session, orderId) {
     + 'Questions about your order? Text or WhatsApp us at ' + BUSINESS_PHONE_DISPLAY + '\n\n'
     + 'Questions? Reply to this email or contact edibleprintorders@gmail.com\n\n'
     + 'This email serves as your official receipt.\n'
-    + 'EdiblePrint.net — ' + BUSINESS_ADDRESS_ONE_LINE;
+    + 'EdiblePrint.ca — ' + BUSINESS_ADDRESS_ONE_LINE;
 
   try {
     await withRetry(async () => {
@@ -572,10 +573,10 @@ async function processOrder(session, orderId) {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + process.env.RESEND_API_KEY, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          from: 'EdiblePrint.net <orders@edibleprint.net>',
+          from: 'EdiblePrint.ca <orders@edibleprint.ca>',
           to: [session.customer_email],
           reply_to: 'edibleprintorders@gmail.com',
-          subject: 'Order Confirmed — EdiblePrint.net #' + orderId,
+          subject: 'Order Confirmed — EdiblePrint.ca #' + orderId,
           html: customerHtml,
           text: customerText,
         }),

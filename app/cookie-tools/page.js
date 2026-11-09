@@ -4,7 +4,7 @@ import { MAKE3D_PRODUCTS, formatCad } from '../../lib/make3d-products.js';
 import { BUSINESS_PHONE_E164 } from '../../lib/business-info.js';
 
 export const metadata = {
-  title: 'Cookie Cutters, Logo Stamps & Cake Pop Rollers | EdiblePrint.net',
+  title: 'Cookie Cutters, Logo Stamps & Cake Pop Rollers | EdiblePrint.ca',
   description: 'Custom logo cookie stamps, cookie cutters and cake pop rollers by MAKE3D, made in London, Ontario. Pair them with a matching edible print.',
   alternates: { canonical: '/cookie-tools' },
 };
@@ -57,7 +57,7 @@ export default function CookieToolsPage() {
         <div style={{ maxWidth: 1080, margin: '0 auto', padding: '16px 24px', display: 'flex',
           alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <Link href="/" style={{ display: 'flex', alignItems: 'center' }}>
-            <Image src="/logo-assets/logo-header.png" alt="EdiblePrint.net" width={160} height={40}
+            <Image src="/logo-assets/logo-header.png" alt="EdiblePrint.ca" width={160} height={40}
               style={{ height: 36, width: 'auto' }} priority />
           </Link>
           <Link href="/" style={{ color: C.muted, fontSize: 13.5, textDecoration: 'none' }}>← Edible prints</Link>
@@ -147,7 +147,7 @@ export default function CookieToolsPage() {
 
       <footer style={{ padding: '28px 24px', textAlign: 'center', borderTop: '1px solid ' + C.border,
         color: C.muted, fontSize: 13 }}>
-        <p style={{ margin: 0 }}>© {new Date().getFullYear()} EdiblePrint.net · Baking tools by MAKE3D ·{' '}
+        <p style={{ margin: 0 }}>© {new Date().getFullYear()} EdiblePrint.ca · Baking tools by MAKE3D ·{' '}
           <Link href="/" style={{ color: C.brand, textDecoration: 'none' }}>Home</Link>
         </p>
       </footer>

@@ -2,8 +2,8 @@ import Link from 'next/link';
 import { getShippingMethod, formatBusinessDayRange } from '../../lib/shipping-config.js';
 
 export const metadata = {
-  title: 'About Us — EdiblePrint.net',
-  description: 'Learn about EdiblePrint.net — custom edible image printing made with care in London, Ontario, Canada.',
+  title: 'About Us — EdiblePrint.ca',
+  description: 'Learn about EdiblePrint.ca — custom edible image printing made with care in London, Ontario, Canada.',
   alternates: { canonical: '/about' },
 };
 
@@ -24,7 +24,7 @@ export default function AboutPage() {
           <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 700, letterSpacing: -0.5 }}>
             <span style={{ color: C.brand }}>edible</span>
             <span style={{ color: C.text }}>print</span>
-            <span style={{ fontSize: 11, color: C.muted, fontWeight: 400, marginLeft: 4, fontFamily: "'Outfit', sans-serif" }}>.net</span>
+            <span style={{ fontSize: 11, color: C.muted, fontWeight: 400, marginLeft: 4, fontFamily: "'Outfit', sans-serif" }}>.ca</span>
           </span>
         </Link>
         <Link href="/" style={{ background: C.brand, color: '#fff', border: 'none', borderRadius: 10,
@@ -37,7 +37,7 @@ export default function AboutPage() {
       <main style={{ maxWidth: 760, margin: '0 auto', padding: '56px 24px' }}>
         <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 'clamp(32px, 6vw, 52px)',
           fontWeight: 700, margin: '0 0 12px', letterSpacing: -0.5 }}>
-          About <span style={{ color: C.brand }}>EdiblePrint.net</span>
+          About <span style={{ color: C.brand }}>EdiblePrint.ca</span>
         </h1>
         <p style={{ fontSize: 18, color: C.muted, lineHeight: 1.65, marginBottom: 36 }}>
           Custom edible image printing — made with care in London, Ontario.
@@ -45,7 +45,7 @@ export default function AboutPage() {
 
         <div style={{ fontSize: 16, lineHeight: 1.8, color: C.text, marginBottom: 28 }}>
           <p>
-            EdiblePrint.net was born out of a simple idea: <strong>everyone deserves a stunning, personalised cake</strong>.
+            EdiblePrint.ca was born out of a simple idea: <strong>everyone deserves a stunning, personalised cake</strong>.
             We started as a small operation in London, Ontario, printing custom edible images for local bakers and home decorators.
             Word spread quickly — because the quality spoke for itself.
           </p>
@@ -93,7 +93,7 @@ export default function AboutPage() {
 
       <footer style={{ padding: '28px 24px', textAlign: 'center', borderTop: '1px solid ' + C.border,
         color: C.muted, fontSize: 13, marginTop: 40 }}>
-        <p style={{ margin: 0 }}>© {new Date().getFullYear()} EdiblePrint.net · All rights reserved ·{' '}
+        <p style={{ margin: 0 }}>© {new Date().getFullYear()} EdiblePrint.ca · All rights reserved ·{' '}
           <Link href="/" style={{ color: C.brand, textDecoration: 'none' }}>Home</Link>
         </p>
       </footer>

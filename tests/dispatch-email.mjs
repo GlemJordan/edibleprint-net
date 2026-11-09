@@ -142,7 +142,7 @@ const failsWith = async (fn, status, code) => { try { await fn(); return false; 
   const r = await deliverDispatchEmail(order(), { env: SEND, fetchImpl: s.fn, now: NOW });
   const c = s.calls[0];
   check('send: one request to Resend, addressed to the customer only', s.calls.length === 1 && c.url === 'https://api.resend.com/emails' && c.body.to.join() === 'ana@example.com', c);
-  check('send: replies go to the business inbox, from the orders address, with the subject', c.body.reply_to === DISPATCH_REPLY_TO && /orders@edibleprint\.net/.test(c.body.from) && c.body.subject === 'Your EdiblePrint order EP-TEST has shipped');
+  check('send: replies go to the business inbox, from the orders address, with the subject', c.body.reply_to === DISPATCH_REPLY_TO && /orders@edibleprint\.ca/.test(c.body.from) && c.body.subject === 'Your EdiblePrint order EP-TEST has shipped');
   check('send: carries both html and text, authenticated', c.body.html.includes('<table') && c.body.text.length > 50 && c.init.headers.Authorization === 'Bearer key_test');
   check('send: records when and to whom (flat values, count 1)',
     r.sent === true && r.notifications.dispatchEmailSentAt === NOW.toISOString() && r.notifications.dispatchEmailTo === 'ana@example.com'

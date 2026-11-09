@@ -1,8 +1,8 @@
 import LegalLayout from '../_components/LegalLayout';
 
 export const metadata = {
-  title: 'Privacy Policy — EdiblePrint.net',
-  description: 'How EdiblePrint.net collects, uses, and protects your personal information.',
+  title: 'Privacy Policy — EdiblePrint.ca',
+  description: 'How EdiblePrint.ca collects, uses, and protects your personal information.',
   alternates: { canonical: '/privacy' },
 };
 
@@ -20,7 +20,7 @@ export default function PrivacyPage() {
 
       <p style={p}>
         EdiblePrint ("we," "our," or "us") respects your privacy. This Privacy Policy explains how we collect,
-        use, and protect your personal information when you visit edibleprint.net or place an order with us.
+        use, and protect your personal information when you visit edibleprint.ca or place an order with us.
       </p>
 
       <h2 style={h2}>Information We Collect</h2>

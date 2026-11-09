@@ -144,12 +144,12 @@ async function newAdminPage(browser, viewport = { width: 1400, height: 1000 }) {
     if (r.request().method() === 'GET') {
       emailGets.push(id);
       if (rec.shippingMethod === 'pickup') return r.fulfill({ status: 400, json: { error: 'Pickup orders are not shipped, so there is no shipping email.' } });
-      return r.fulfill({ json: prepareDispatchEmail(rec, { env: emailEnv, siteUrl: 'https://edibleprint.net', today: '2026-09-28' }) });
+      return r.fulfill({ json: prepareDispatchEmail(rec, { env: emailEnv, siteUrl: 'https://edibleprint.ca', today: '2026-09-28' }) });
     }
     const body = r.request().postDataJSON() || {};
     emailPosts.push({ id, ...body });
     try {
-      const result = await deliverDispatchEmail(rec, { resend: body.resend === true, env: emailEnv, fetchImpl: fakeResend, now: new Date('2026-09-28T15:00:00.000Z'), siteUrl: 'https://edibleprint.net' });
+      const result = await deliverDispatchEmail(rec, { resend: body.resend === true, env: emailEnv, fetchImpl: fakeResend, now: new Date('2026-09-28T15:00:00.000Z'), siteUrl: 'https://edibleprint.ca' });
       rec.notifications = { ...rec.notifications, ...result.notifications };
       return r.fulfill({ json: { ok: true, mode: result.mode, sent: result.sent, to: result.to, subject: result.subject, redirected: result.redirected, at: result.at, notifications: result.notifications, recorded: true } });
     } catch (e) {
