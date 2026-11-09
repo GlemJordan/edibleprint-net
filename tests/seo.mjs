@@ -12,7 +12,7 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 const INDEXABLE = [
   '/', '/edible-images-for-cakes', '/edible-cookie-toppers', '/edible-logo-prints',
   '/edible-images-london-ontario', '/designs', '/cookie-tools', '/about', '/shipping',
-  '/refund', '/allergens', '/terms', '/privacy', '/products/round-edible-cake-topper-8-inch', `/designs/${catalog.designs.find((d) => d.active !== false).id}`,
+  '/refund', '/allergens', '/terms', '/privacy', '/products/round-8-inch', `/designs/${catalog.designs.find((d) => d.active !== false).id}`,
 ];
 const NOINDEX = ['/success', '/cancel', '/download-pdf'];
 
@@ -48,6 +48,21 @@ const descriptionOf = (html) => /<meta name="description" content="([^"]*)"/.exe
     const html = await (await fetchPage(path)).text();
     check(`${path}: noindex`, /<meta name="robots" content="noindex/.test(html));
   }
+
+  // The home gallery and hero carousel show no characters, brands, games,
+  // teams, TV shows, identifiable people or customer names. These were taken
+  // off on 2026-11-09; their files still exist, so this guards the lists.
+  const RETIRED = [
+    'round-gamer-birthday', 'fullsheet-superhero-birthday', 'cookie-circles-gaming', 'round-princess-birthday',
+    'custom-soccer-jerseys', 'custom-bride-to-be-floral', 'fullsheet-music-birthday', 'custom-ocean-birthday',
+    'square-cartoon-topper', 'round-photo-birthday', 'custom-trophy-cutout', 'round-caricature-birthday',
+    'custom-pixel-cake-wraps', 'cookie-circles-photo', 'round-anime-character', 'fullsheet-event-logo',
+    'bdffmh', 'alqxgi', 'vtkhf1', 'kjtbdp', 'x0ry5y', 'iztbl6', 'syfirg', 'vuvwmr', // Cloudinary
+    'ejemplo-1-', 'ejemplo-3-', // hero
+  ];
+  const home = await (await fetchPage('/')).text();
+  check('home: gallery is there', home.includes('Real Customer Prints') && home.includes('heart-eighteen'));
+  for (const name of RETIRED) check(`home: retired image ${name} not shown`, !home.includes(name));
 
   const missing = await fetchPage('/designs/this-design-does-not-exist');
   check('unknown design: 404', missing.status === 404, missing.status);

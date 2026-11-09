@@ -5,10 +5,11 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { formatProductionWindow } from '../../lib/shipping-config.js';
 
+// Only artwork with no identifiable person, character, brand or TV show:
+// ejemplo-1 (a portrait) and ejemplo-3 (a TV-show meme) were taken off the
+// carousel on 2026-11-09. Their files stay in public/hero.
 const SLIDES = [
-  { tag: 'Photo cake',     after: '/hero/ejemplo-1-after.jpg', before: '/hero/ejemplo-1-before.jpg' },
   { tag: 'Leopard print',  after: '/hero/ejemplo-2-after.jpg', before: '/hero/ejemplo-2-before.jpg' },
-  { tag: 'Birthday cake',  after: '/hero/ejemplo-3-after.jpg', before: '/hero/ejemplo-3-before.jpg' },
   { tag: 'Space cupcakes', after: '/hero/ejemplo-4-after.jpg', before: '/hero/ejemplo-4-before.jpg' },
 ];
 
@@ -293,7 +294,7 @@ export default function HeroSection({ onOrderClick, onUploadFileClick, cutoffMsg
                   <span style={{ color: '#1f5236', fontWeight: 700, fontSize: 15 }}>{slide.tag}</span>
                   <span style={{ color: '#5c6b62', fontSize: 12 }}>After — finished edible print</span>
                   <span style={{ color: '#5c6b62', fontSize: 11, opacity: 0.7 }}>
-                    Add: /public/hero/ejemplo-{current + 1}-after.jpg
+                    Add: /public{slide.after}
                   </span>
                 </div>
               ) : (
