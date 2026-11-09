@@ -24,6 +24,7 @@ const DEFAULT_TESTS = [
   'shipping-labels-ui.mjs',
   'shipping-copy.mjs',
   'seo.mjs',
+  'merchant-feed.mjs',
   // The two below need no dev server (pure functions / the route handler run
   // in-process with Stripe's transport stubbed).
   'checkout-pricing.mjs',

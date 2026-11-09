@@ -126,6 +126,15 @@ const START_LINKS = {
   fullsheet: ['fullsheet', 'a4'],
 };
 
+// A ?start= value is one of the keys above, or a catalog size id (?start=c7)
+// from a product page (app/products), which opens that exact size.
+function resolveStartLink(key) {
+  if (typeof key !== 'string') return null;
+  if (Object.hasOwn(START_LINKS, key)) return START_LINKS[key];
+  const shape = Object.keys(CATALOG_SIZES).find((sh) => CATALOG_SIZES[sh].some((sz) => sz.id === key));
+  return shape ? [shape, key] : null;
+}
+
 // Occasion cards that have a dedicated page behind them.
 const OCCASION_LINKS = {
   '🎂 Birthday Cakes': '/edible-images-for-cakes',
@@ -3483,7 +3492,7 @@ export default function EdiblePrintApp() {
   // the matching product instead of dropping the customer back on the home
   // page. The param is removed once used so a reload doesn't reopen the editor.
   useEffect(() => {
-    const start = START_LINKS[new URLSearchParams(window.location.search).get('start')];
+    const start = resolveStartLink(new URLSearchParams(window.location.search).get('start'));
     if (!start) return;
     handlePricingCardClick(start[0], start[1]);
     window.history.replaceState(null, '', window.location.pathname);

@@ -12,7 +12,7 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 const INDEXABLE = [
   '/', '/edible-images-for-cakes', '/edible-cookie-toppers', '/edible-logo-prints',
   '/edible-images-london-ontario', '/designs', '/cookie-tools', '/about', '/shipping',
-  '/refund', '/allergens', '/terms', '/privacy', `/designs/${catalog.designs.find((d) => d.active !== false).id}`,
+  '/refund', '/allergens', '/terms', '/privacy', '/products/round-edible-cake-topper-8-inch', `/designs/${catalog.designs.find((d) => d.active !== false).id}`,
 ];
 const NOINDEX = ['/success', '/cancel', '/download-pdf'];
 

@@ -1,5 +1,6 @@
 import { SITE_URL } from '../lib/site-config.js';
 import { getActiveDesigns } from '../lib/design-catalog.js';
+import { PRODUCTS } from '../lib/products.js';
 
 const PATHS = [
   '/',
@@ -20,6 +21,7 @@ const PATHS = [
 export default function sitemap() {
   return [
     ...PATHS.map((path) => ({ url: SITE_URL + (path === '/' ? '' : path) })),
+    ...PRODUCTS.map((p) => ({ url: SITE_URL + p.path })),
     ...getActiveDesigns().map((d) => ({ url: `${SITE_URL}/designs/${d.id}` })),
   ];
 }
