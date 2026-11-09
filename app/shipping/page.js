@@ -13,8 +13,8 @@ import {
 } from '../../lib/shipping-config.js';
 
 export const metadata = {
-  title: 'Shipping Policy — EdiblePrint.net',
-  description: 'Shipping methods, transit times, and rates for EdiblePrint.net orders across Canada.',
+  title: 'Shipping Policy — EdiblePrint.ca',
+  description: 'Shipping methods, transit times, and rates for EdiblePrint.ca orders across Canada.',
   alternates: { canonical: '/shipping' },
 };
 

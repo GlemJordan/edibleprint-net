@@ -26,7 +26,7 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://edibleprint.net';
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://edibleprint.ca';
 
   // Upload image to Cloudinary so we can store a short URL in Stripe metadata
   const uploadResp = await fetch(`${baseUrl}/api/upload-image`, {

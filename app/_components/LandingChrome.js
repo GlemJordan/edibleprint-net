@@ -28,7 +28,7 @@ export function LandingNav({ ctaHref }) {
         <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 700, letterSpacing: -0.5 }}>
           <span style={{ color: C.brand }}>edible</span>
           <span style={{ color: C.text }}>print</span>
-          <span style={{ fontSize: 11, color: C.muted, fontWeight: 400, marginLeft: 4, fontFamily: "'Outfit', sans-serif" }}>.net</span>
+          <span style={{ fontSize: 11, color: C.muted, fontWeight: 400, marginLeft: 4, fontFamily: "'Outfit', sans-serif" }}>.ca</span>
         </span>
       </Link>
       <Link href={ctaHref} style={{ background: C.brand, color: '#fff', borderRadius: 10,
@@ -64,7 +64,7 @@ export function LandingFooter({ path }) {
           </span>
         ))}
       </p>
-      <p style={{ margin: 0 }}>© {new Date().getFullYear()} EdiblePrint.net · All rights reserved ·{' '}
+      <p style={{ margin: 0 }}>© {new Date().getFullYear()} EdiblePrint.ca · All rights reserved ·{' '}
         <Link href="/" style={{ color: C.brand, textDecoration: 'none' }}>Home</Link>
       </p>
     </footer>

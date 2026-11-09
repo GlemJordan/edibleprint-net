@@ -5,7 +5,7 @@ const PATH = '/edible-images-london-ontario';
 const DESCRIPTION = 'Edible image printing in London, Ontario. Upload your photo online, then pick up your custom cake topper or cookie sheet for free in East London. From $9.99.';
 
 export const metadata = {
-  title: 'Edible Image Printing in London, Ontario | EdiblePrint.net',
+  title: 'Edible Image Printing in London, Ontario | EdiblePrint.ca',
   description: DESCRIPTION,
   alternates: { canonical: PATH },
 };

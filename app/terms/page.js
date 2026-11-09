@@ -2,8 +2,8 @@ import LegalLayout from '../_components/LegalLayout';
 import { formatProductionWindow, shippingTimesSentence } from '../../lib/shipping-config.js';
 
 export const metadata = {
-  title: 'Terms of Service — EdiblePrint.net',
-  description: 'Terms governing your use of EdiblePrint.net and purchase of custom edible prints.',
+  title: 'Terms of Service — EdiblePrint.ca',
+  description: 'Terms governing your use of EdiblePrint.ca and purchase of custom edible prints.',
   alternates: { canonical: '/terms' },
 };
 
@@ -20,7 +20,7 @@ export default function TermsPage() {
     <LegalLayout title="Terms of Service" lastUpdated="Last updated: September 25, 2026">
 
       <p style={p}>
-        Welcome to EdiblePrint. By accessing or using edibleprint.net, you agree to these Terms of Service.
+        Welcome to EdiblePrint. By accessing or using edibleprint.ca, you agree to these Terms of Service.
         If you do not agree, please do not use our services.
       </p>
 

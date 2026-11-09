@@ -53,7 +53,7 @@ export async function POST(request) {
 
     console.log('[MAGIC LINK] JWT generated, length:', token.length);
 
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://edibleprint.net';
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://edibleprint.ca';
     const magicLink = `${baseUrl}/api/admin/verify-link?token=${token}`;
 
     console.log('[MAGIC LINK] Sending email to:', email);
@@ -61,7 +61,7 @@ export async function POST(request) {
     const resend = new Resend(resendKey);
 
     const result = await resend.emails.send({
-      from: 'EdiblePrint.net <orders@edibleprint.net>',
+      from: 'EdiblePrint.ca <orders@edibleprint.ca>',
       to: email,
       subject: 'Your EdiblePrint admin login link',
       html: `
@@ -86,7 +86,7 @@ export async function POST(request) {
             This link expires in 15 minutes.
           </p>
           <p style="color: #888; font-size: 12px; margin-top: 24px;">
-            EdiblePrint.net — ${BUSINESS_ADDRESS_ONE_LINE}
+            EdiblePrint.ca — ${BUSINESS_ADDRESS_ONE_LINE}
           </p>
         </div>
       `,
@@ -94,7 +94,7 @@ export async function POST(request) {
         + `Click the link below to enable admin mode for the next 30 days:\n`
         + `${magicLink}\n\n`
         + `This link expires in 15 minutes.\n\n`
-        + `EdiblePrint.net — ${BUSINESS_ADDRESS_ONE_LINE}`,
+        + `EdiblePrint.ca — ${BUSINESS_ADDRESS_ONE_LINE}`,
     });
 
     console.log('[MAGIC LINK] Resend response:', JSON.stringify(result));

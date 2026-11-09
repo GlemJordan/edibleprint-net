@@ -1,6 +1,6 @@
 // The page itself is a client component, so its metadata has to live here.
 export const metadata = {
-  title: 'Order Confirmed | EdiblePrint.net',
+  title: 'Order Confirmed | EdiblePrint.ca',
   robots: { index: false, follow: false },
 };
 

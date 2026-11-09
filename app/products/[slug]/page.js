@@ -22,13 +22,13 @@ const describe = (p) => `${p.title}, printed with your photo or logo. $${p.price
 export async function generateMetadata({ params }) {
   const product = findProduct((await params).slug);
   if (!product) return {};
-  const title = `${product.title} | EdiblePrint.net`;
+  const title = `${product.title} | EdiblePrint.ca`;
   return {
     title,
     description: describe(product),
     alternates: { canonical: product.path },
     openGraph: {
-      title, description: describe(product), url: product.path, siteName: 'EdiblePrint.net',
+      title, description: describe(product), url: product.path, siteName: 'EdiblePrint.ca',
       locale: 'en_CA', type: 'website', images: [{ url: product.image, alt: product.title }],
     },
   };
@@ -56,7 +56,7 @@ function productJsonLd(p) {
     sku: p.id,
     image: SITE_URL + p.image,
     category: 'Edible Baking Decorations',
-    brand: { '@type': 'Brand', name: 'EdiblePrint.net' },
+    brand: { '@type': 'Brand', name: 'EdiblePrint.ca' },
     offers: {
       '@type': 'Offer',
       url,

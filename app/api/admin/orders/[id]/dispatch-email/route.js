@@ -6,7 +6,7 @@ import { todayInBusinessTimezone } from '../../../../../../lib/delivery-urgency.
 import { resolveOrderShippingMethod } from '../../../../../../lib/shipping-config.js';
 import { DispatchEmailError, deliverDispatchEmail, prepareDispatchEmail } from '../../../../../../lib/dispatch-email-send.js';
 
-const siteUrl = () => process.env.NEXT_PUBLIC_SITE_URL || 'https://edibleprint.net';
+const siteUrl = () => process.env.NEXT_PUBLIC_SITE_URL || 'https://edibleprint.ca';
 
 async function readRecord(orderId) {
   return JSON.parse(await fetchRawText(`${orderFolderPath(orderId)}/order`));

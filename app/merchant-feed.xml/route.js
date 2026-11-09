@@ -1,5 +1,5 @@
 // Google Merchant Center product feed (RSS 2.0 with the g: namespace), at
-// https://www.edibleprint.net/merchant-feed.xml. Merchant Center fetches it on
+// https://www.edibleprint.ca/merchant-feed.xml. Merchant Center fetches it on
 // a schedule and lists every item for free on Google Shopping and in search.
 // Built at deploy time from lib/products.js, so a price change in
 // lib/catalog-prices.js reaches the feed and the product pages together.
@@ -50,7 +50,7 @@ function item(p) {
     tag('availability', 'in_stock'),
     tag('price', `${p.price.toFixed(2)} CAD`),
     tag('condition', 'new'),
-    tag('brand', 'EdiblePrint.net'),
+    tag('brand', 'EdiblePrint.ca'),
     // Made to order: there is no barcode or manufacturer part number.
     tag('identifier_exists', 'no'),
     tag('google_product_category', GOOGLE_CATEGORY),
@@ -71,7 +71,7 @@ export function GET() {
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">',
     '  <channel>',
-    '    <title>EdiblePrint.net</title>',
+    '    <title>EdiblePrint.ca</title>',
     `    <link>${SITE_URL}</link>`,
     '    <description>Custom edible image prints for cakes, cookies and cupcakes, made in London, Ontario.</description>',
     ...PRODUCTS.map(item),

@@ -114,7 +114,7 @@ export async function POST(request) {
       const pdfBase64 = Buffer.from(pdfBytes).toString('base64');
 
       const emailResult = await resend.emails.send({
-        from: 'EdiblePrint.net <orders@edibleprint.net>',
+        from: 'EdiblePrint.ca <orders@edibleprint.ca>',
         to: customerEmail,
         subject: 'Your EdiblePrint PDF download',
         html: `
@@ -131,7 +131,7 @@ export async function POST(request) {
             </p>
             <p style="font-size: 12px; color: #888; margin-top: 24px;">
               Need help? Reply to this email.<br>
-              EdiblePrint.net — ${BUSINESS_ADDRESS_ONE_LINE}
+              EdiblePrint.ca — ${BUSINESS_ADDRESS_ONE_LINE}
             </p>
           </div>
         `,
@@ -140,7 +140,7 @@ export async function POST(request) {
           + `Order details:\nShape: ${shapeDisplayLabel(shape)}${sizeLabel ? `\nSize: ${sizeLabel}` : ''}\nMaterial: ${materialDisplayLabel(resolvedMaterial)}\n\n`
           + `How to print: Open the attached PDF and print at 100% scale (no fit-to-page) on ${resolvedMaterial === 'wafer' ? 'edible wafer paper' : 'edible icing sheets'} using a food-safe printer.\n\n`
           + `Need help? Reply to this email.\n`
-          + `EdiblePrint.net — ${BUSINESS_ADDRESS_ONE_LINE}`,
+          + `EdiblePrint.ca — ${BUSINESS_ADDRESS_ONE_LINE}`,
         attachments: [
           {
             filename,

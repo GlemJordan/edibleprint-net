@@ -200,7 +200,7 @@ function Logo({ footer = false }) {
       <div style={{ textAlign: 'center' }}>
         <NextImage
           src="/logo-assets/logo-full.png"
-          alt="EdiblePrint.net"
+          alt="EdiblePrint.ca"
           width={800}
           height={800}
           style={{ height: 80, width: 'auto', display: 'inline-block' }}
@@ -213,7 +213,7 @@ function Logo({ footer = false }) {
       <span className="ep-logo-desktop">
         <NextImage
           src="/logo-assets/logo-header.png"
-          alt="EdiblePrint.net"
+          alt="EdiblePrint.ca"
           width={879}
           height={200}
           priority
@@ -223,7 +223,7 @@ function Logo({ footer = false }) {
       <span className="ep-logo-mobile">
         <NextImage
           src="/logo-assets/logo-compact.png"
-          alt="EdiblePrint.net"
+          alt="EdiblePrint.ca"
           width={657}
           height={116}
           priority
@@ -422,7 +422,7 @@ function drawWatermark(ctx, canvasW, canvasH) {
   ctx.textBaseline = 'middle';
   ctx.translate(canvasW / 2, canvasH / 2);
   ctx.rotate(-Math.PI / 6);
-  const text = 'EDIBLEPRINT.NET';
+  const text = 'EDIBLEPRINT.CA';
   const spacing = 100;
   const reps = Math.ceil(Math.max(canvasW, canvasH) / spacing) + 2;
   for (let i = -reps; i <= reps; i++) {
@@ -4641,7 +4641,7 @@ export default function EdiblePrintApp() {
             <div style={{ maxWidth: 1000, margin: '0 auto', display: 'flex', flexWrap: 'wrap',
               justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
               <p style={{ margin: 0, fontSize: 12.5, color: '#6B7280' }}>
-                © {new Date().getFullYear()} EdiblePrint.net · All rights reserved
+                © {new Date().getFullYear()} EdiblePrint.ca · All rights reserved
               </p>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 {['VISA', 'MC', 'AMEX', 'Apple Pay', 'Google Pay'].map(card => (

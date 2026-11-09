@@ -3,8 +3,8 @@ import LegalLayout from '../_components/LegalLayout';
 import { standardNotArrivedSentence } from '../../lib/shipping-config.js';
 
 export const metadata = {
-  title: 'Refund Policy — EdiblePrint.net',
-  description: 'EdiblePrint.net refund and reprint policy for custom edible prints.',
+  title: 'Refund Policy — EdiblePrint.ca',
+  description: 'EdiblePrint.ca refund and reprint policy for custom edible prints.',
   alternates: { canonical: '/refund' },
 };
 

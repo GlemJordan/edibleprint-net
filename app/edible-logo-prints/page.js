@@ -6,7 +6,7 @@ const PATH = '/edible-logo-prints';
 const DESCRIPTION = 'Print your business logo on cookies, cupcakes and cakes. Custom edible logo prints for corporate events, product launches and client gifts, shipped across Canada.';
 
 export const metadata = {
-  title: 'Edible Logo Prints for Corporate Events | EdiblePrint.net',
+  title: 'Edible Logo Prints for Corporate Events | EdiblePrint.ca',
   description: DESCRIPTION,
   alternates: { canonical: PATH },
 };
