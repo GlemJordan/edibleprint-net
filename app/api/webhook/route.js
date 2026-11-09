@@ -9,6 +9,7 @@ import { decodeCustomShapeKind } from '../../../lib/cut-guide-config.js';
 import { getShippingMethod, normalizeShippingMethod, getShippingPackages, countSheets } from '../../../lib/shipping-config.js';
 import { confirmationShippingBlock } from '../../../lib/shipping-email.js';
 import { UPLOAD_FIT_SHAPES } from '../../../lib/paper-config.js';
+import { getBaseUrl } from '../../../lib/site-config.js';
 
 // CASL sender-identification footer for the 4 customer/admin-facing
 // templates (owner order email, customer confirmation, magic link,
@@ -35,7 +36,7 @@ const stripe = new Stripe(stripeKey);
 // logo-full.png (white/light circular badge) is used here rather than the
 // dark-green wordmark variants, since it needs to read on the dark green
 // banner background both emails use.
-const LOGO_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://edibleprint.ca') + '/logo-assets/logo-full.png';
+const LOGO_URL = getBaseUrl() + '/logo-assets/logo-full.png';
 
 const SHAPE_LABELS = {
   circular: 'Round', square: 'Square', rectangular: 'Rectangle',
@@ -325,7 +326,7 @@ async function processOrder(session, orderId) {
     : shippingInfo.label + ' — ' + shippingInfo.carrier + (shippingPackages > 1 ? ' — ' + shippingPackages + ' packages' : '');
   // Customer-email block: what they bought and how long it takes once it ships.
   const shippingBlock = shippingInfo
-    ? confirmationShippingBlock(shippingInfo, (process.env.NEXT_PUBLIC_SITE_URL || 'https://edibleprint.ca') + '/shipping')
+    ? confirmationShippingBlock(shippingInfo, getBaseUrl() + '/shipping')
     : null;
 
   // 1. Build + save OrderRecord (order.json + notes.txt → Cloudinary).

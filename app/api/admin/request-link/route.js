@@ -2,6 +2,7 @@ import { SignJWT } from 'jose';
 import { Resend } from 'resend';
 import { NextResponse } from 'next/server';
 import { BUSINESS_ADDRESS_ONE_LINE } from '../../../../lib/business-info.js';
+import { getBaseUrl } from '../../../../lib/site-config.js';
 
 export async function POST(request) {
   console.log('[MAGIC LINK] Request received');
@@ -53,7 +54,7 @@ export async function POST(request) {
 
     console.log('[MAGIC LINK] JWT generated, length:', token.length);
 
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://edibleprint.ca';
+    const baseUrl = getBaseUrl();
     const magicLink = `${baseUrl}/api/admin/verify-link?token=${token}`;
 
     console.log('[MAGIC LINK] Sending email to:', email);
