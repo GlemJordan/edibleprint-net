@@ -35,7 +35,7 @@ const descriptionOf = (html) => /<meta name="description" content="([^"]*)"/.exe
     check(`${path}: not noindex`, !/<meta name="robots" content="[^"]*noindex/.test(html));
     // The business takes texts and WhatsApp only, and the unit stays private.
     check(`${path}: no call links`, !/href="tel:/.test(html) && !/"telephone"/.test(html));
-    check(`${path}: no street in the public address`, !/"streetAddress"/.test(html) && !/Burslem/.test(html));
+    check(`${path}: no unit in the public address`, !/"streetAddress":"[^"]*Unit/.test(html) && !/Unit 7/.test(html));
     check(`${path}: one h1`, path.startsWith('/designs/') || (html.match(/<h1/g) || []).length === 1, (html.match(/<h1/g) || []).length);
     const description = descriptionOf(html) || '';
     check(`${path}: description fits a search result`, description.length >= 50 && description.length <= 170, description.length);

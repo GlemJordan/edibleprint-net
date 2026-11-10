@@ -3,7 +3,7 @@ import { NextResponse, after } from 'next/server';
 import { buildOrderRecord, saveOrderRecord, recordNotification, urgentFlagLabel, generateUniqueOrderId } from '../../../lib/order-record.js';
 import { generateOrderPdfs } from '../../../lib/order-pdf-pipeline.js';
 import { withRetry } from '../../../lib/with-retry.js';
-import { BUSINESS_ADDRESS_ONE_LINE, BUSINESS_PHONE_DISPLAY } from '../../../lib/business-info.js';
+import { BUSINESS_ADDRESS_ONE_LINE, BUSINESS_PHONE_DISPLAY, BUSINESS_MAPS_URL } from '../../../lib/business-info.js';
 import { resolveMaterial, materialDisplayLabel } from '../../../lib/material-config.js';
 import { decodeCustomShapeKind } from '../../../lib/cut-guide-config.js';
 import { getShippingMethod, normalizeShippingMethod, getShippingPackages, countSheets } from '../../../lib/shipping-config.js';
@@ -537,6 +537,7 @@ async function processOrder(session, orderId) {
       ? '<div style="background:#FFF4EB;border-left:4px solid #E8873C;padding:14px 16px;border-radius:0 6px 6px 0;margin-bottom:20px;">'
         + '<p style="margin:0 0 6px;font-size:14px;font-weight:600;color:#374151;">Pickup Address</p>'
         + '<p style="margin:0;font-size:16px;font-weight:700;line-height:1.6;color:#374151;">' + BUSINESS_ADDRESS_ONE_LINE + '</p>'
+        + '<p style="margin:6px 0 0;font-size:14px;"><a href="' + BUSINESS_MAPS_URL + '" style="color:#1B6B4A;font-weight:700;">Get directions on Google Maps →</a></p>'
         + '<p style="margin:6px 0 0;font-size:13px;line-height:1.6;color:#6b7280;">Please wait for our confirmation email with your pickup time.</p>'
         + '</div>'
       : '')
@@ -560,7 +561,7 @@ async function processOrder(session, orderId) {
         : 'We\'ll review your image' + (designs.length > 1 ? 's' : '') + ' within 24 hours and contact you if any adjustments are needed.\n\n')
     + (shippingBlock ? shippingBlock.text : '')
     + (isPickup
-        ? 'Pickup Address\n' + BUSINESS_ADDRESS_ONE_LINE + '\nPlease wait for our confirmation email with your pickup time.\n\n'
+        ? 'Pickup Address\n' + BUSINESS_ADDRESS_ONE_LINE + '\nDirections: ' + BUSINESS_MAPS_URL + '\nPlease wait for our confirmation email with your pickup time.\n\n'
         : '')
     + 'Questions about your order? Text or WhatsApp us at ' + BUSINESS_PHONE_DISPLAY + '\n\n'
     + 'Questions? Reply to this email or contact edibleprintorders@gmail.com\n\n'
