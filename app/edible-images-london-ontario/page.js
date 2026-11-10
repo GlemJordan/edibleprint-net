@@ -1,5 +1,6 @@
 import LandingPage from '../_components/LandingPage';
 import { formatProductionWindow } from '../../lib/shipping-config.js';
+import { BUSINESS_PUBLIC_ADDRESS } from '../../lib/business-info.js';
 
 const PATH = '/edible-images-london-ontario';
 const DESCRIPTION = 'Edible image printing in London, Ontario. Upload your photo online, then pick up your custom cake topper or cookie sheet for free in East London. From $9.99.';
@@ -17,7 +18,7 @@ export default function EdibleImagesLondonOntarioPage() {
       productName="Edible Image Printing in London, Ontario"
       description={DESCRIPTION}
       heading="Edible Image Printing in London, Ontario"
-      intro="Need a photo cake topper or logo cookies in London? Order online in a couple of minutes and pick up your prints for free in East London, with no shipping cost."
+      intro={`Need a photo cake topper or logo cookies in London? Order online in a couple of minutes and pick up your prints for free at ${BUSINESS_PUBLIC_ADDRESS} (East London), with no shipping cost.`}
       ctaHref="/?start=round"
       ctaLabel="Upload Your Photo →"
       prices={[
@@ -35,7 +36,7 @@ export default function EdibleImagesLondonOntarioPage() {
             'Upload your image and choose "Free Pickup — London, ON" at checkout',
             'We review your image before printing',
             `Your order is ready within ${formatProductionWindow()} — order before 2 PM EST for same-day production`,
-            'We confirm the exact address and pickup time by email',
+            `Pick up at ${BUSINESS_PUBLIC_ADDRESS}: we confirm your pickup time by email`,
           ],
         },
         {

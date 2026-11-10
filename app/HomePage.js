@@ -27,7 +27,7 @@ import { shapeSupportsCutGuide, cutGuideShapeKind, CUT_GUIDE_COLOR, CUT_GUIDE_CA
 import { shapeOutlinePath } from '../lib/shape-paths.js';
 import { buildPdfFilename } from '../lib/pdf-filename.js';
 import MaterialPicker from './_components/MaterialPicker.js';
-import { BUSINESS_PHONE_DISPLAY, BUSINESS_PHONE_E164, BUSINESS_WHATSAPP_URL } from '../lib/business-info.js';
+import { BUSINESS_PHONE_DISPLAY, BUSINESS_PHONE_E164, BUSINESS_WHATSAPP_URL, BUSINESS_PUBLIC_ADDRESS, BUSINESS_PUBLIC_STREET, BUSINESS_MAPS_URL } from '../lib/business-info.js';
 
 /* ═══ PRICING CONFIG ═══
    id/label/w/h (+ per-shape extras) come from lib/catalog-sizes.js — the
@@ -4131,7 +4131,9 @@ export default function EdiblePrintApp() {
                 Local to London? Pick up for free
               </h2>
               <p style={{ margin: 0, fontSize: 14.5, color: C.text, lineHeight: 1.5 }}>
-                Order online and pick up your prints in East London, ON, with no shipping cost. We confirm the exact address and pickup time by email.{' '}
+                Order online and pick up your prints at <strong>{BUSINESS_PUBLIC_ADDRESS}</strong> (East London), with no shipping cost. We confirm your pickup time by email.{' '}
+                <a href={BUSINESS_MAPS_URL} target="_blank" rel="noopener noreferrer" style={{ color: C.brandDark, fontWeight: 600 }}>Get directions</a>
+                {' · '}
                 <a href="/edible-images-london-ontario" style={{ color: C.brandDark, fontWeight: 600 }}>Edible printing in London, ON →</a>
               </p>
             </div>
@@ -5660,7 +5662,7 @@ export default function EdiblePrintApp() {
             <div style={{ marginTop: 26 }}>
               <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 10 }}>Shipping Method</label>
               {[
-                { key: 'pickup', label: 'Free Pickup — London, ON', price: 0, note: "East London, ON. We'll confirm the exact time by email." },
+                { key: 'pickup', label: 'Free Pickup — London, ON', price: 0, note: `${BUSINESS_PUBLIC_STREET}, East London, ON. We'll confirm the pickup time by email.` },
                 { key: 'shipping', label: 'Ship to my address', price: null, note: null },
               ].map((opt) => (
                 <label key={opt.key} style={{
