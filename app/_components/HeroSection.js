@@ -451,10 +451,15 @@ export default function HeroSection({ onOrderClick, onUploadFileClick, cutoffMsg
             }}>
               From your photo to the final product — swipe to see more examples
             </p>
-            <p style={{ textAlign: 'center', color: '#5c6b62', fontSize: 12.5, marginTop: 4, lineHeight: 1.5 }}>
-              We print the edible images only, we don&apos;t sell cakes. Cakes and treats shown are by our friends at{' '}
-              <a href="https://carlotitreats.ca" target="_blank" rel="noopener" style={{ color: '#1f5236', fontWeight: 600 }}>carlotitreats.ca</a>
-            </p>
+            <div role="note" style={{
+              marginTop: 12, padding: '12px 16px', borderRadius: 12,
+              background: '#FFF4E5', border: '2px solid #e8704a',
+              color: '#3d2a1f', fontSize: 14.5, lineHeight: 1.5, textAlign: 'center',
+            }}>
+              <strong style={{ display: 'block', fontSize: 16, color: '#c2410c', marginBottom: 2 }}>🎂 We don&apos;t sell cakes</strong>
+              We print the edible images only. The cakes and treats in these photos are made by our friends at{' '}
+              <a href="https://carlotitreats.ca" target="_blank" rel="noopener" style={{ color: '#c2410c', fontWeight: 700, textDecoration: 'underline' }}>carlotitreats.ca</a>
+            </div>
 
           </div>
         </div>

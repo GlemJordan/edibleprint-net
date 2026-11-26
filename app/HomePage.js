@@ -4426,10 +4426,15 @@ export default function EdiblePrintApp() {
               <p style={{ fontSize: 16, color: C.muted, maxWidth: 480, margin: '0 auto' }}>
                 Fresh from our printer — loved by customers across Canada
               </p>
-              <p style={{ fontSize: 13.5, color: C.muted, maxWidth: 520, margin: '10px auto 0' }}>
-                We sell the edible prints, not the cakes. Cakes and cookies in these photos were made by our friends at{' '}
-                <a href="https://carlotitreats.ca" target="_blank" rel="noopener" style={{ color: C.brand, fontWeight: 600 }}>carlotitreats.ca</a>
-              </p>
+              <div role="note" style={{
+                maxWidth: 560, margin: '18px auto 0', padding: '14px 18px', borderRadius: 12,
+                background: '#FFF4E5', border: '2px solid #e8704a',
+                color: '#3d2a1f', fontSize: 15, lineHeight: 1.5,
+              }}>
+                <strong style={{ display: 'block', fontSize: 17, color: '#c2410c', marginBottom: 2 }}>🎂 We don&apos;t sell cakes</strong>
+                We sell the edible prints only. The cakes and cookies in these photos were made by our friends at{' '}
+                <a href="https://carlotitreats.ca" target="_blank" rel="noopener" style={{ color: '#c2410c', fontWeight: 700, textDecoration: 'underline' }}>carlotitreats.ca</a>
+              </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
               {visibleGalleryItems.map((item) => (
