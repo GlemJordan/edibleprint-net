@@ -84,7 +84,7 @@ const visibleText = (html) => unescape(html.replace(/<!-- -->/g, '').replace(/<s
     for (const href of ['/shipping', '/refund', '/allergens']) check(`${p.id}: links ${href}`, html.includes(`href="${href}"`));
     check(`${p.id}: Customize this size → editor on its size`, html.includes(`href="/?start=${p.sizeId}"`) && text.includes('Customize this size'));
     check(`${p.id}: shows the product image`, html.includes(`src="${p.image}"`));
-    check(`${p.id}: no call link or street`, !/href="tel:/.test(html) && !/Burslem/.test(html));
+    check(`${p.id}: no call link or unit number`, !/href="tel:/.test(html) && !/Unit 7/.test(html));
 
     const ld = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)]
       .map((m) => JSON.parse(m[1])).find((j) => j['@type'] === 'Product');

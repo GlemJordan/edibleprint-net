@@ -240,9 +240,14 @@ export default function CustomizeDesignPage() {
           <div style={{ fontSize: 11, fontWeight: 700, color: C.brand, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>
             {categoryLabel}
           </div>
-          <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 700, color: C.text, margin: '0 0 16px' }}>
+          <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, fontWeight: 700, color: C.text, margin: design.description ? '0 0 8px' : '0 0 16px' }}>
             {design.name}
           </h1>
+          {design.description && (
+            <p style={{ color: C.muted, fontSize: 14.5, lineHeight: 1.6, margin: '0 0 18px', maxWidth: 560 }}>
+              {design.description}
+            </p>
+          )}
           <SheetPreview
             design={design} shape={shape} sizeObj={sizeObj} text={combinedText} fontFamily={font.family} color={color}
             photo={usePhoto ? photo : null} photoAdjust={photoAdjust}

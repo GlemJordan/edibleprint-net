@@ -5,6 +5,7 @@ import {
   getShippingCost, getShippingPackages, getShippingMethod, resolveMethodForSheets, DEFAULT_SHIPPING_METHOD,
 } from '../../../lib/shipping-config.js';
 import ShippingMethodSelector from '../../_components/ShippingMethodSelector';
+import { BUSINESS_PUBLIC_STREET } from '../../../lib/business-info.js';
 
 const C = {
   brand: '#1f5236', accent: '#e8704a', text: '#1a2420', muted: '#5c6b62',
@@ -116,7 +117,7 @@ export default function CustomerCheckoutForm({ design, unitPrice, designPayload,
       <Section title="Fulfillment">
         <div style={{ display: 'flex', gap: 16, marginBottom: 12 }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, cursor: 'pointer' }}>
-            <input type="radio" checked={fulfillment === 'pickup'} onChange={() => setFulfillment('pickup')} /> Pickup — East London, ON (free)
+            <input type="radio" checked={fulfillment === 'pickup'} onChange={() => setFulfillment('pickup')} /> Pickup — {BUSINESS_PUBLIC_STREET}, East London, ON (free)
           </label>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, cursor: 'pointer' }}>
             <input type="radio" checked={fulfillment === 'shipping'} onChange={() => setFulfillment('shipping')} /> Ship to my address

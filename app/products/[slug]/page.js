@@ -23,13 +23,13 @@ const describe = (p) => `${p.title}. Printed with your photo or logo, ${money(p.
 export async function generateMetadata({ params }) {
   const product = findProduct((await params).slug);
   if (!product) return {};
-  const title = `${product.title} | EdiblePrint.net`;
+  const title = `${product.title} | EdiblePrint.ca`;
   return {
     title,
     description: describe(product),
     alternates: { canonical: product.path },
     openGraph: {
-      title, description: describe(product), url: product.path, siteName: 'EdiblePrint.net',
+      title, description: describe(product), url: product.path, siteName: 'EdiblePrint.ca',
       locale: 'en_CA', type: 'website', images: [{ url: product.image, width: 1200, height: 1200, alt: product.title }],
     },
   };

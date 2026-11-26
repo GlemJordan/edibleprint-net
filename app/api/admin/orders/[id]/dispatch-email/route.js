@@ -5,8 +5,9 @@ import { getAdminSession } from '../../../../../../lib/admin-auth.js';
 import { todayInBusinessTimezone } from '../../../../../../lib/delivery-urgency.js';
 import { resolveOrderShippingMethod } from '../../../../../../lib/shipping-config.js';
 import { DispatchEmailError, deliverDispatchEmail, prepareDispatchEmail } from '../../../../../../lib/dispatch-email-send.js';
+import { getBaseUrl } from '../../../../../../lib/site-config.js';
 
-const siteUrl = () => process.env.NEXT_PUBLIC_SITE_URL || 'https://edibleprint.net';
+const siteUrl = () => getBaseUrl();
 
 async function readRecord(orderId) {
   return JSON.parse(await fetchRawText(`${orderFolderPath(orderId)}/order`));

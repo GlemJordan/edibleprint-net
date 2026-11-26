@@ -1,4 +1,5 @@
 import LegalLayout from '../_components/LegalLayout';
+import { BUSINESS_PUBLIC_ADDRESS, BUSINESS_MAPS_URL } from '../../lib/business-info.js';
 import {
   getShippingMethods,
   describeShippingMethod,
@@ -13,8 +14,8 @@ import {
 } from '../../lib/shipping-config.js';
 
 export const metadata = {
-  title: 'Shipping Policy — EdiblePrint.net',
-  description: 'Shipping methods, transit times, and rates for EdiblePrint.net orders across Canada.',
+  title: 'Shipping Policy — EdiblePrint.ca',
+  description: 'Shipping methods, transit times, and rates for EdiblePrint.ca orders across Canada.',
   alternates: { canonical: '/shipping' },
 };
 
@@ -45,7 +46,10 @@ export default function ShippingPage() {
         Tracked shipping sends your whole order in one package for one price, up to {TRACKED_MAX_SHEETS} sheets.{' '}
         {orderLimitMessage()}
       </p>
-      <p style={p}>Free local pickup is available in London, Ontario.</p>
+      <p style={p}>
+        Free local pickup is available at {BUSINESS_PUBLIC_ADDRESS} (East London).{' '}
+        <a href={BUSINESS_MAPS_URL} target="_blank" rel="noopener noreferrer" style={{ color: C.brand }}>Get directions</a>
+      </p>
 
       <h2 style={h2}>Production time</h2>
       <p style={p}>

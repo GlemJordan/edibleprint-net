@@ -10,6 +10,7 @@ import { UPLOAD_FIT_SHAPES } from '../../../lib/paper-config.js';
 import { shapeSupportsMaterial, resolveMaterial } from '../../../lib/material-config.js';
 import { shapeSupportsCut, cutSurchargeFor } from '../../../lib/cutting-config.js';
 import { shapeSupportsCutGuide, encodeCustomShapeKind } from '../../../lib/cut-guide-config.js';
+import { getBaseUrl } from '../../../lib/site-config.js';
 
 const isTest = process.env.STRIPE_MODE === 'test';
 // NOTE: STRIPE_SECRET_KEY_LIVE must be sk_live_... (a full Secret Key).
@@ -288,8 +289,8 @@ export async function POST(request) {
           },
         },
       } : {}),
-      success_url: (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000') + '/success?session_id={CHECKOUT_SESSION_ID}',
-      cancel_url: (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000') + '/cancel',
+      success_url: getBaseUrl('http://localhost:3000') + '/success?session_id={CHECKOUT_SESSION_ID}',
+      cancel_url: getBaseUrl('http://localhost:3000') + '/cancel',
     });
 
     return NextResponse.json({ url: session.url });

@@ -45,7 +45,7 @@ export default function DesignsCatalogPage() {
       <header style={{ borderBottom: '1px solid ' + C.border, background: C.white }}>
         <div style={{ maxWidth: 1080, margin: '0 auto', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Link href="/" style={{ display: 'flex', alignItems: 'center' }}>
-            <Image src="/logo-assets/logo-header.png" alt="EdiblePrint.net" width={160} height={40} style={{ height: 36, width: 'auto' }} priority />
+            <Image src="/logo-assets/logo-header.png" alt="EdiblePrint.ca" width={160} height={40} style={{ height: 36, width: 'auto' }} priority />
           </Link>
           <Link href="/" style={{ color: C.muted, fontSize: 13.5, textDecoration: 'none' }}>← Back to home</Link>
         </div>

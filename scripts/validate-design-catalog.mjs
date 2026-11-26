@@ -52,6 +52,11 @@ for (const d of catalog.designs) {
   seenIds.add(d.id);
 
   if (!d.name) errors.push(`${tag}: falta name`);
+  // Sin description la página del diseño queda casi sin texto propio y Google
+  // la descarta como "Rastreada: actualmente sin indexar". No frena el deploy.
+  if (typeof d.description !== 'string' || d.description.trim().length < 80) {
+    warnings.push(`${tag}: falta description (mínimo 80 caracteres) — la página del diseño queda con poco texto para Google`);
+  }
   if (!categoryIds.has(d.category)) errors.push(`${tag}: category "${d.category}" no existe en categories[]`);
 
   if (!d.sourceFile) {

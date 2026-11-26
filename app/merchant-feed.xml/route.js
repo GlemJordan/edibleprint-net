@@ -1,5 +1,5 @@
 // Google Merchant Center product feed (RSS 2.0 with the g: namespace), at
-// https://www.edibleprint.net/merchant-feed.xml. Same IDs, titles, links,
+// https://www.edibleprint.ca/merchant-feed.xml. Same IDs, titles, links,
 // images and prices as the product pages (lib/products.js), so it can be
 // used instead of a spreadsheet as the Merchant Center data source. Use one
 // or the other, not both: two sources with the same IDs overwrite each other.

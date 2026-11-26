@@ -6,7 +6,7 @@ const PATH = '/edible-cookie-toppers';
 const DESCRIPTION = 'Custom edible cookie toppers printed from your photo or logo. 6 or 15 per sheet, with cut-to-shape, free pickup in London, ON and Canada-wide shipping.';
 
 export const metadata = {
-  title: 'Custom Edible Cookie Toppers in Canada | EdiblePrint.net',
+  title: 'Custom Edible Cookie Toppers in Canada | EdiblePrint.ca',
   description: DESCRIPTION,
   alternates: { canonical: PATH },
 };

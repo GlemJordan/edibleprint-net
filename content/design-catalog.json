@@ -38,6 +38,7 @@
       "id": "birthday-balloon-bouquet-01",
       "name": "Balloon Bouquet",
       "category": "birthday",
+      "description": "A cheerful birthday topper with a ring of pastel balloons and colourful confetti around a clear centre, topped with \"Happy Birthday\" in coral script. Add the guest of honour's name and age, or a favourite photo, for a classic party cake that suits any age.",
       "sourceFile": "/designs/birthday/birthday-balloon-bouquet-01.jpg",
       "supportedShapes": [
         "circular",
@@ -89,6 +90,7 @@
       "id": "birthday-disco-party-01",
       "name": "Disco Party",
       "category": "birthday",
+      "description": "A glam disco-ball design with bright purple light rays, sparkles and a gold-rimmed centre under a bold pink \"Happy Birthday\". Perfect for a dance party, a teen birthday or a 70s-themed celebration, with room for a name, an age or a photo in the middle.",
       "sourceFile": "/designs/birthday/birthday-disco-party-01.jpg",
       "supportedShapes": [
         "circular",
@@ -117,6 +119,7 @@
       "id": "birthday-coquette-bows-01",
       "name": "Coquette Bows",
       "category": "birthday",
+      "description": "Soft pink polka dots, little bows and a scalloped lace frame give this birthday topper a sweet coquette look. Add a name and age in elegant script, or place a photo inside the lace circle, for a pink-themed party or a girly birthday cake.",
       "sourceFile": "/designs/birthday/birthday-coquette-bows-01.jpg",
       "supportedShapes": [
         "circular",
@@ -145,6 +148,7 @@
       "id": "birthday-cherries-gingham-01",
       "name": "Cherries & Gingham",
       "category": "birthday",
+      "description": "Red cherries on a pink gingham background surround a scalloped frame with \"Happy Birthday\" in bright red script. A fresh, picnic-style design for summer birthdays, a sweet first birthday or any retro-themed cake.",
       "sourceFile": "/designs/birthday/birthday-cherries-gingham-01.jpg",
       "supportedShapes": [
         "circular",
@@ -173,6 +177,7 @@
       "id": "birthday-vintage-heart-01",
       "name": "Vintage Heart",
       "category": "birthday",
+      "description": "A heart-shaped frame of pink pearl piping with a bow and cherries on a blush background, inspired by vintage heart cakes. Available as a heart topper as well as round or square, it works beautifully for birthdays, anniversaries and Valentine's Day.",
       "sourceFile": "/designs/birthday/birthday-vintage-heart-01.jpg",
       "supportedShapes": [
         "heart",
@@ -202,6 +207,7 @@
       "id": "holiday-spooky-night-01",
       "name": "Spooky Halloween",
       "category": "holidays",
+      "description": "A full moon glows over a purple night sky with bats, a friendly ghost and jack-o'-lanterns under \"Happy Halloween\" in orange lettering. Put a name or a family photo inside the moon for Halloween parties, October birthdays and spooky-season treats.",
       "sourceFile": "/designs/holidays/holiday-spooky-night-01.jpg",
       "supportedShapes": [
         "circular",
@@ -253,6 +259,7 @@
       "id": "holiday-diwali-lights-01",
       "name": "Diwali Rangoli",
       "category": "holidays",
+      "description": "A vibrant rangoli of pink, orange and yellow petals with glowing diyas frames \"Happy Diwali\" on a deep purple background. Personalize it with a family name or photo for Diwali sweets, celebration cakes and festival gatherings.",
       "sourceFile": "/designs/holidays/holiday-diwali-lights-01.jpg",
       "supportedShapes": [
         "circular",
@@ -281,6 +288,7 @@
       "id": "holiday-merry-bright-01",
       "name": "Christmas Wreath",
       "category": "holidays",
+      "description": "A green Christmas wreath with gold and white ornaments and red berries on a festive red background, with \"Merry Christmas\" in script. Add a family name or a holiday photo for Christmas cakes, cookie platters and office parties.",
       "sourceFile": "/designs/holidays/holiday-merry-bright-01.jpg",
       "supportedShapes": [
         "circular",
@@ -332,6 +340,7 @@
       "id": "kids-space-adventure-01",
       "name": "Space Adventure",
       "category": "kids",
+      "description": "Planets, a rocket ship and a shooting star orbit a glowing moon under \"Happy Birthday\" on a starry navy sky. A great pick for young astronauts: add the birthday child's name and age, or their photo inside the moon.",
       "sourceFile": "/designs/kids/kids-space-adventure-01.jpg",
       "supportedShapes": [
         "circular",
@@ -360,6 +369,7 @@
       "id": "kids-under-the-sea-01",
       "name": "Under the Sea",
       "category": "kids",
+      "description": "Tropical fish, bubbles, seaweed and coral surround a bubble-shaped centre on an ocean-blue background, with \"Happy Birthday\" across the top. Made for ocean, mermaid and pool-party birthdays, with room for a name, an age or a photo.",
       "sourceFile": "/designs/kids/kids-under-the-sea-01.jpg",
       "supportedShapes": [
         "circular",
@@ -388,6 +398,7 @@
       "id": "kids-fantasy-kingdom-01",
       "name": "Fantasy Kingdom",
       "category": "kids",
+      "description": "A pastel fairytale castle with pink turrets, a gold crown and soft clouds sits below \"Happy Birthday\" in purple script. Made for princess and fairytale parties: add the birthday child's name and age, or a photo in the circle above the castle.",
       "sourceFile": "/designs/kids/kids-fantasy-kingdom-01.jpg",
       "supportedShapes": [
         "circular",
@@ -416,6 +427,7 @@
       "id": "kids-comic-hero-01",
       "name": "Comic Hero",
       "category": "kids",
+      "description": "A bold comic-book design with an orange halftone burst, POW! and ZAP! bubbles, lightning bolts and a night-time city skyline under \"Happy Birthday\". An original superhero-style look with no licensed characters, ready for a name, an age or the birthday hero's own photo.",
       "sourceFile": "/designs/kids/kids-comic-hero-01.jpg",
       "supportedShapes": [
         "circular",
@@ -444,6 +456,7 @@
       "id": "baby-oh-baby-01",
       "name": "Oh Baby",
       "category": "baby-christening",
+      "description": "A gentle baby shower design in soft sage and cream, with hanging stars, a crescent moon, fluffy clouds and a sleepy teddy bear under \"Oh Baby\" in script. A gender-neutral choice for baby showers, gender reveals and sip-and-sees; add the baby's or parents' names, or an ultrasound photo.",
       "sourceFile": "/designs/baby-christening/baby-oh-baby-01.jpg",
       "supportedShapes": [
         "circular",
@@ -472,6 +485,7 @@
       "id": "baby-god-bless-01",
       "name": "God Bless (Baptism)",
       "category": "baby-christening",
+      "description": "A gold laurel wreath with a small cross and \"God Bless\" in gold script on an ivory background, with space below for the child's name. A simple, elegant design for baptisms, christenings and first communions, with the option to add a photo.",
       "sourceFile": "/designs/baby-christening/baby-god-bless-01.jpg",
       "supportedShapes": [
         "circular",
@@ -500,6 +514,7 @@
       "id": "sports-hockey-rink-01",
       "name": "Hockey Game Day",
       "category": "sports",
+      "description": "A hockey rink seen from above, with blue and red lines, crossed sticks and a puck, and \"Game Day\" around the centre circle. Ideal for hockey birthdays, team parties and end-of-season celebrations: add a player's name and number, or a team photo.",
       "sourceFile": "/designs/sports/sports-hockey-rink-01.jpg",
       "supportedShapes": [
         "circular",
@@ -551,6 +566,7 @@
       "id": "sports-soccer-pitch-01",
       "name": "Soccer Game Day",
       "category": "sports",
+      "description": "A striped green soccer pitch with field lines, gold stars and a ball, with \"Game Day\" arching over the centre circle. Great for soccer birthdays, team banquets and tournament wins: add a player's name and number, or a team photo.",
       "sourceFile": "/designs/sports/sports-soccer-pitch-01.jpg",
       "supportedShapes": [
         "circular",
@@ -602,6 +618,7 @@
       "id": "elegant-marble-gold-01",
       "name": "Marble & Gold",
       "category": "elegant",
+      "description": "White marble with soft grey veining, a double gold ring and scattered gold sparkles, with \"Happy Birthday\" in fine gold script. A refined, modern look for milestone birthdays like a 30th, 40th or 50th, or any adult celebration; add a name, an age or a photo.",
       "sourceFile": "/designs/elegant/elegant-marble-gold-01.jpg",
       "supportedShapes": [
         "circular",
@@ -653,6 +670,7 @@
       "id": "floral-wildflowers-01",
       "name": "Watercolor Wildflowers",
       "category": "floral",
+      "description": "Soft painted wildflowers in pink, blue and yellow, with trailing green leaves, frame a thin gold circle on a cream background. With no printed greeting, it fits any occasion: bridal showers, Mother's Day, spring birthdays or retirements, with your own name, short message or photo in the centre.",
       "sourceFile": "/designs/floral/floral-wildflowers-01.jpg",
       "supportedShapes": [
         "circular",
@@ -681,6 +699,7 @@
       "id": "graduation-congrats-grad-01",
       "name": "Congrats Grad",
       "category": "graduation",
+      "description": "A navy night sky with gold stars and confetti, a graduation cap and \"Congrats Grad\" in gold inside a gold-rimmed circle. Add the graduate's name and class year, or their photo, for high school, college and university graduation parties.",
       "sourceFile": "/designs/graduation/graduation-congrats-grad-01.jpg",
       "supportedShapes": [
         "circular",

@@ -27,7 +27,7 @@ import { shapeSupportsCutGuide, cutGuideShapeKind, CUT_GUIDE_COLOR, CUT_GUIDE_CA
 import { shapeOutlinePath } from '../lib/shape-paths.js';
 import { buildPdfFilename } from '../lib/pdf-filename.js';
 import MaterialPicker from './_components/MaterialPicker.js';
-import { BUSINESS_PHONE_DISPLAY, BUSINESS_PHONE_E164, BUSINESS_WHATSAPP_URL } from '../lib/business-info.js';
+import { BUSINESS_PHONE_DISPLAY, BUSINESS_PHONE_E164, BUSINESS_WHATSAPP_URL, BUSINESS_PUBLIC_ADDRESS, BUSINESS_PUBLIC_STREET, BUSINESS_MAPS_URL } from '../lib/business-info.js';
 
 /* ═══ PRICING CONFIG ═══
    id/label/w/h (+ per-shape extras) come from lib/catalog-sizes.js — the
@@ -215,7 +215,7 @@ function Logo({ footer = false }) {
       <div style={{ textAlign: 'center' }}>
         <NextImage
           src="/logo-assets/logo-full.png"
-          alt="EdiblePrint.net"
+          alt="EdiblePrint.ca"
           width={800}
           height={800}
           style={{ height: 80, width: 'auto', display: 'inline-block' }}
@@ -228,7 +228,7 @@ function Logo({ footer = false }) {
       <span className="ep-logo-desktop">
         <NextImage
           src="/logo-assets/logo-header.png"
-          alt="EdiblePrint.net"
+          alt="EdiblePrint.ca"
           width={879}
           height={200}
           priority
@@ -238,7 +238,7 @@ function Logo({ footer = false }) {
       <span className="ep-logo-mobile">
         <NextImage
           src="/logo-assets/logo-compact.png"
-          alt="EdiblePrint.net"
+          alt="EdiblePrint.ca"
           width={657}
           height={116}
           priority
@@ -437,7 +437,7 @@ function drawWatermark(ctx, canvasW, canvasH) {
   ctx.textBaseline = 'middle';
   ctx.translate(canvasW / 2, canvasH / 2);
   ctx.rotate(-Math.PI / 6);
-  const text = 'EDIBLEPRINT.NET';
+  const text = 'EDIBLEPRINT.CA';
   const spacing = 100;
   const reps = Math.ceil(Math.max(canvasW, canvasH) / spacing) + 2;
   for (let i = -reps; i <= reps; i++) {
@@ -4178,7 +4178,9 @@ export default function EdiblePrintApp() {
                 Local to London? Pick up for free
               </h2>
               <p style={{ margin: 0, fontSize: 14.5, color: C.text, lineHeight: 1.5 }}>
-                Order online and pick up your prints in East London, ON, with no shipping cost. We confirm the exact address and pickup time by email.{' '}
+                Order online and pick up your prints at <strong>{BUSINESS_PUBLIC_ADDRESS}</strong> (East London), with no shipping cost. We confirm your pickup time by email.{' '}
+                <a href={BUSINESS_MAPS_URL} target="_blank" rel="noopener noreferrer" style={{ color: C.brandDark, fontWeight: 600 }}>Get directions</a>
+                {' · '}
                 <a href="/edible-images-london-ontario" style={{ color: C.brandDark, fontWeight: 600 }}>Edible printing in London, ON →</a>
               </p>
             </div>
@@ -4682,7 +4684,7 @@ export default function EdiblePrintApp() {
             <div style={{ maxWidth: 1000, margin: '0 auto', display: 'flex', flexWrap: 'wrap',
               justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
               <p style={{ margin: 0, fontSize: 12.5, color: '#6B7280' }}>
-                © {new Date().getFullYear()} EdiblePrint.net · All rights reserved
+                © {new Date().getFullYear()} EdiblePrint.ca · All rights reserved
               </p>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 {['VISA', 'MC', 'AMEX', 'Apple Pay', 'Google Pay'].map(card => (
@@ -5732,7 +5734,7 @@ export default function EdiblePrintApp() {
             <div style={{ marginTop: 26 }}>
               <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 10 }}>Shipping Method</label>
               {[
-                { key: 'pickup', label: 'Free Pickup — London, ON', price: 0, note: "East London, ON. We'll confirm the exact time by email." },
+                { key: 'pickup', label: 'Free Pickup — London, ON', price: 0, note: `${BUSINESS_PUBLIC_STREET}, East London, ON. We'll confirm the pickup time by email.` },
                 { key: 'shipping', label: 'Ship to my address', price: null, note: null },
               ].map((opt) => (
                 <label key={opt.key} style={{

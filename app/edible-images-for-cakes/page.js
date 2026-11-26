@@ -6,7 +6,7 @@ import { productJsonLd } from '../../lib/site-config.js';
 const DESCRIPTION = 'Order custom edible images for cakes in Canada. Upload your photo online for fast edible image printing and Canada-wide shipping.';
 
 export const metadata = {
-  title: 'Edible Images for Cakes in Canada | EdiblePrint.net',
+  title: 'Edible Images for Cakes in Canada | EdiblePrint.ca',
   description: DESCRIPTION,
   alternates: { canonical: '/edible-images-for-cakes' },
 };
@@ -41,7 +41,7 @@ export default function EdibleImagesForCakesPage() {
           <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 700, letterSpacing: -0.5 }}>
             <span style={{ color: C.brand }}>edible</span>
             <span style={{ color: C.text }}>print</span>
-            <span style={{ fontSize: 11, color: C.muted, fontWeight: 400, marginLeft: 4, fontFamily: "'Outfit', sans-serif" }}>.net</span>
+            <span style={{ fontSize: 11, color: C.muted, fontWeight: 400, marginLeft: 4, fontFamily: "'Outfit', sans-serif" }}>.ca</span>
           </span>
         </Link>
         <Link href="/?start=round" style={{ background: C.brand, color: '#fff', borderRadius: 10,
@@ -63,7 +63,7 @@ export default function EdibleImagesForCakesPage() {
 
         <div style={{ fontSize: 16, lineHeight: 1.8, color: C.text, marginBottom: 28 }}>
           <p>
-            At EdiblePrint.net, we make it simple to add a personal touch to any cake. Upload your photo
+            At EdiblePrint.ca, we make it simple to add a personal touch to any cake. Upload your photo
             online, choose your size and shape, and we'll print it on food-safe edible icing sheets or wafer
             paper using<strong> 300 DPI, FDA-approved inks</strong>. The result is a vibrant, crisp edible image that
             lays flat and looks incredible on buttercream, fondant, or whipped cream.
@@ -102,7 +102,7 @@ export default function EdibleImagesForCakesPage() {
 
       <footer style={{ padding: '28px 24px', textAlign: 'center', borderTop: '1px solid ' + C.border,
         color: C.muted, fontSize: 13, marginTop: 40 }}>
-        <p style={{ margin: 0 }}>© {new Date().getFullYear()} EdiblePrint.net · All rights reserved ·{' '}
+        <p style={{ margin: 0 }}>© {new Date().getFullYear()} EdiblePrint.ca · All rights reserved ·{' '}
           <Link href="/" style={{ color: C.brand, textDecoration: 'none' }}>Home</Link>
         </p>
       </footer>

@@ -20,7 +20,7 @@ export default function LegalLayout({ title, lastUpdated, children }) {
           <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 700, letterSpacing: -0.5 }}>
             <span style={{ color: C.brand }}>edible</span>
             <span style={{ color: C.text }}>print</span>
-            <span style={{ fontSize: 11, color: C.muted, fontWeight: 400, marginLeft: 4, fontFamily: "'Outfit', sans-serif" }}>.net</span>
+            <span style={{ fontSize: 11, color: C.muted, fontWeight: 400, marginLeft: 4, fontFamily: "'Outfit', sans-serif" }}>.ca</span>
           </span>
         </Link>
         <Link href="/" style={{
@@ -61,7 +61,7 @@ export default function LegalLayout({ title, lastUpdated, children }) {
             color: C.brand, textDecoration: 'none', fontWeight: 600, fontSize: 14.5,
             display: 'inline-flex', alignItems: 'center', gap: 6,
           }}>
-            ← Back to EdiblePrint.net
+            ← Back to EdiblePrint.ca
           </Link>
         </div>
       </main>
@@ -72,7 +72,7 @@ export default function LegalLayout({ title, lastUpdated, children }) {
         borderTop: '1px solid ' + C.border, color: C.muted, fontSize: 12.5,
       }}>
         <p style={{ margin: 0 }}>
-          © {new Date().getFullYear()} EdiblePrint.net · All rights reserved ·{' '}
+          © {new Date().getFullYear()} EdiblePrint.ca · All rights reserved ·{' '}
           <Link href="/privacy" style={{ color: C.brand, textDecoration: 'none' }}>Privacy</Link>
           {' · '}
           <Link href="/terms" style={{ color: C.brand, textDecoration: 'none' }}>Terms</Link>

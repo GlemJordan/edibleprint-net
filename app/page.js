@@ -15,10 +15,10 @@ export const metadata = {
     title: TITLE,
     description: DESCRIPTION,
     url: '/',
-    siteName: 'EdiblePrint.net',
+    siteName: 'EdiblePrint.ca',
     locale: 'en_CA',
     type: 'website',
-    images: [{ url: OG_IMAGE_URL, width: 1200, height: 630, alt: 'EdiblePrint.net' }],
+    images: [{ url: OG_IMAGE_URL, width: 1200, height: 630, alt: 'EdiblePrint.ca' }],
   },
 };
 

@@ -1,11 +1,11 @@
 import GoogleAnalytics from './_components/analytics/GoogleAnalytics';
 import MetaPixel from './_components/analytics/MetaPixel';
-import { BUSINESS_ADDRESS } from '../lib/business-info.js';
+import { BUSINESS_ADDRESS, BUSINESS_PUBLIC_STREET, BUSINESS_MAPS_URL } from '../lib/business-info.js';
 import { SITE_URL, OG_IMAGE_URL } from '../lib/site-config.js';
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),
-  title: 'Edible Image Printing in London, ON | EdiblePrint.net',
+  title: 'Edible Image Printing in London, ON | EdiblePrint.ca',
   description: 'Order custom edible image prints for cakes, cookies and cupcakes. Upload your photo online — 1–2 day production, standard or tracked shipping across Canada, and free local pickup in London, Ontario.',
   icons: {
     icon: [
@@ -21,16 +21,16 @@ export const metadata = {
     ],
   },
   openGraph: {
-    title: 'EdiblePrint.net — Custom Edible Image Prints',
+    title: 'EdiblePrint.ca — Custom Edible Image Prints',
     description: 'Custom edible image printing on premium icing sheets or wafer paper. From $9.99. Free local pickup in London, Ontario.',
-    siteName: 'EdiblePrint.net',
+    siteName: 'EdiblePrint.ca',
     locale: 'en_CA',
     type: 'website',
-    images: [{ url: OG_IMAGE_URL, width: 1200, height: 630, alt: 'EdiblePrint.net' }],
+    images: [{ url: OG_IMAGE_URL, width: 1200, height: 630, alt: 'EdiblePrint.ca' }],
   },
   twitter: {
     card: 'summary_large_image',
-    images: [{ url: OG_IMAGE_URL, width: 1200, height: 630, alt: 'EdiblePrint.net' }],
+    images: [{ url: OG_IMAGE_URL, width: 1200, height: 630, alt: 'EdiblePrint.ca' }],
   },
 };
 
@@ -39,16 +39,17 @@ export default function RootLayout({ children }) {
     '@context': 'https://schema.org',
     '@type': 'LocalBusiness',
     '@id': `${SITE_URL}/#business`,
-    name: 'EdiblePrint.net',
+    name: 'EdiblePrint.ca',
     description: 'Custom edible image printing on premium icing sheets or wafer paper. Upload any photo, logo or design.',
     url: SITE_URL,
     image: OG_IMAGE_URL,
     logo: `${SITE_URL}/logo-assets/icon-512.png`,
     sameAs: ['https://www.facebook.com/marketplace/profile/61556264345219/'],
+    hasMap: BUSINESS_MAPS_URL,
     address: {
-      // No street: like the Google Business Profile, the public address is
-      // the city only. Customers get the full address with their pickup.
+      // Street without the unit, as on the Google Business Profile.
       '@type': 'PostalAddress',
+      streetAddress: BUSINESS_PUBLIC_STREET,
       addressLocality: BUSINESS_ADDRESS.city,
       addressRegion: BUSINESS_ADDRESS.province,
       postalCode: BUSINESS_ADDRESS.postalCode,
