@@ -18,7 +18,7 @@ const SLIDES = [
   { tag: 'Race car cookies',   after: '/hero/ejemplo-6-after.jpg' },
 ];
 
-export default function HeroSection({ onOrderClick, onUploadFileClick, cutoffMsg }) {
+export default function HeroSection({ onOrderClick, onUploadFileClick, onShapeClick, shapes, cutoffMsg }) {
   const [current, setCurrent] = useState(0);
   const [afterErr, setAfterErr]   = useState({});
   const [beforeErr, setBeforeErr] = useState({});
@@ -92,14 +92,28 @@ export default function HeroSection({ onOrderClick, onUploadFileClick, cutoffMsg
           outline: 3px solid #e8704a;
           outline-offset: 3px;
         }
-        .ep-cta-secondary:focus-visible {
-          outline: 3px solid #1f5236;
-          outline-offset: 3px;
+        .ep-hero-shapes {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 10px;
+          max-width: 480px;
         }
-        @media (max-width: 480px) {
-          .ep-trust-canada {
-            display: none;
-          }
+        .ep-hero-shape {
+          background: #fff; border: 1.5px solid #d9e2d6; border-radius: 14px;
+          padding: 8px 8px 10px; cursor: pointer; text-align: center;
+          font-family: inherit; transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+        }
+        .ep-hero-shape:hover {
+          border-color: #1f5236; transform: translateY(-2px);
+          box-shadow: 0 6px 18px rgba(31,82,54,0.15);
+        }
+        .ep-hero-shape:focus-visible {
+          outline: 3px solid #1f5236;
+          outline-offset: 2px;
+        }
+        .ep-hero-shape-img {
+          position: relative; display: block; width: 100%; aspect-ratio: 1 / 1;
+          border-radius: 10px; overflow: hidden; background: #f3f3f1;
         }
       `}</style>
 
@@ -144,73 +158,67 @@ export default function HeroSection({ onOrderClick, onUploadFileClick, cutoffMsg
 
             {/* Subtitle */}
             <p style={{
-              fontSize: 17, color: '#5c6b62', lineHeight: 1.65,
-              maxWidth: 460, margin: '0 0 24px',
+              fontSize: 17, color: '#5c6b62', lineHeight: 1.6,
+              maxWidth: 460, margin: '0 0 20px',
             }}>
-              Custom edible images for cakes, cookies and cupcakes: your photo, professionally
-              printed and ready to decorate. No design skills, no account needed.
+              Pick your topper, upload your photo, and we print it ready to place on your cake or treats.
             </p>
+
+            {/* Topper choices — each opens the order with that shape already chosen */}
+            {shapes?.length > 0 && (
+              <div style={{ marginBottom: 22 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: '#1f5236', marginBottom: 10 }}>
+                  Choose your topper
+                </div>
+                <div className="ep-hero-shapes">
+                  {shapes.map((s) => (
+                    <button key={s.shape} type="button" className="ep-hero-shape" onClick={() => onShapeClick?.(s.shape, s.sizeId)}>
+                      <span className="ep-hero-shape-img">
+                        <Image src={s.img} alt={s.label} fill sizes="120px" style={{ objectFit: 'cover' }} />
+                      </span>
+                      <span style={{ display: 'block', fontWeight: 700, fontSize: 14, color: '#1a2420', marginTop: 8, lineHeight: 1.25 }}>{s.label}</span>
+                      <span style={{ display: 'block', fontSize: 13, color: '#1f5236', fontWeight: 600 }}>from ${s.from.toFixed(2)}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Reviews pill */}
             <div style={{
               display: 'inline-flex', alignItems: 'center', gap: 8,
               background: '#fff', border: '1px solid #d9e2d6', borderRadius: 40,
-              padding: '8px 18px', marginBottom: 28,
-              fontSize: 13.5, fontWeight: 600,
+              padding: '7px 16px', marginBottom: 18,
+              fontSize: 13, fontWeight: 600,
               boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
             }}>
-              <span style={{ color: '#e8704a', letterSpacing: 2, fontSize: 15 }}>★★★★★</span>
-              <span style={{ color: '#1a2420' }}>
-                11 five-star reviews · Serving London, Ontario &amp; Canada
-              </span>
+              <span style={{ color: '#e8704a', letterSpacing: 2, fontSize: 14 }}>★★★★★</span>
+              <span style={{ color: '#1a2420' }}>11 five-star reviews</span>
             </div>
 
-            {/* CTAs */}
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
+            {/* Not sure which one? Upload first and pick the shape later. */}
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center', marginBottom: 18 }}>
               <button
                 className="ep-cta-primary"
                 onClick={onOrderClick}
                 style={{
                   background: '#e8704a', color: '#fff', border: 'none', borderRadius: 12,
-                  padding: '15px 32px', fontSize: 16, fontWeight: 700, cursor: 'pointer',
+                  padding: '13px 26px', fontSize: 15.5, fontWeight: 700, cursor: 'pointer',
                   fontFamily: 'inherit',
                   boxShadow: '0 4px 20px rgba(232,112,74,0.35)',
-                  transition: 'background 0.2s, transform 0.15s',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = '#d85a30';
-                  e.currentTarget.style.transform = 'translateY(-1px)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = '#e8704a';
-                  e.currentTarget.style.transform = '';
                 }}
               >
                 Upload Your Photo →
               </button>
-              <button
-                className="ep-cta-secondary"
-                onClick={() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' })}
+              <Link
+                href="/designs"
                 style={{
-                  background: 'transparent', color: '#1f5236',
-                  border: '1px solid #d9e2d6', borderRadius: 12,
-                  padding: '15px 32px', fontSize: 16, fontWeight: 600, cursor: 'pointer',
-                  fontFamily: 'inherit',
-                  transition: 'background 0.2s',
+                  color: '#5c6b62', fontSize: 13.5, fontWeight: 500,
+                  textDecoration: 'underline', textUnderlineOffset: 3,
                 }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = '#f4f6f1'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
               >
-                See Pricing
-              </button>
-            </div>
-
-            {/* Secondary paths — deliberately subordinate to the primary CTA
-                above: plain text links, no button chrome, smaller. Most
-                customers should use the editor; these are for people who
-                already have a finished file, or would rather start from one
-                of our own designs than upload their own. */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', columnGap: 16, rowGap: 6, marginBottom: 20 }}>
+                Or choose a ready-made design →
+              </Link>
               {onUploadFileClick && (
                 <button
                   onClick={onUploadFileClick}
@@ -220,44 +228,9 @@ export default function HeroSection({ onOrderClick, onUploadFileClick, cutoffMsg
                     fontFamily: 'inherit', textDecoration: 'underline', textUnderlineOffset: 3,
                   }}
                 >
-                  Already have a print-ready file? Upload it directly →
+                  Have a print-ready file? Upload it →
                 </button>
               )}
-              <Link
-                href="/designs"
-                style={{
-                  color: '#5c6b62', fontSize: 13.5, fontWeight: 500,
-                  fontFamily: 'inherit', textDecoration: 'underline', textUnderlineOffset: 3,
-                }}
-              >
-                Or choose a ready-made design →
-              </Link>
-              <Link
-                href="/cookie-tools"
-                style={{
-                  color: '#5c6b62', fontSize: 13.5, fontWeight: 500,
-                  fontFamily: 'inherit', textDecoration: 'underline', textUnderlineOffset: 3,
-                }}
-              >
-                New: logo cookie stamps &amp; cutters →
-              </Link>
-            </div>
-
-            {/* Trust line — "Ships Canada-wide" (and its dot) is dropped
-                below 480px rather than left to wrap: the badge above already
-                covers Canada-wide shipping, so on a narrow phone the line
-                stays on one row instead of spilling onto a second. */}
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
-              fontSize: 14, color: '#5c6b62', marginBottom: 16,
-            }}>
-              <span>Free pickup in London, ON</span>
-              <span style={{ color: '#d9e2d6', userSelect: 'none' }}>·</span>
-              <span>From $9.99</span>
-              <span className="ep-trust-canada" style={{ color: '#d9e2d6', userSelect: 'none' }}>·</span>
-              <span className="ep-trust-canada">Ships Canada-wide</span>
-              <span style={{ color: '#d9e2d6', userSelect: 'none' }}>·</span>
-              <span>Ready in under 2 min</span>
             </div>
 
             {/* Urgency pill — merges static note with dynamic cutoffMsg */}

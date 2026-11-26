@@ -64,6 +64,17 @@ const PRICING_SAMPLES = {
   bwsheet:     { src: '/pricing/bw.webp', alt: 'Black and white round edible print with a calendar design', caption: 'Black and white only, our lowest price: great for text, logos and portraits.' },
 };
 
+// Topper choices in the hero: picture, name and lowest price, opening the
+// editor on that shape (with its most-ordered size). Prices come from SIZES.
+const HERO_SHAPES = [
+  { shape: 'circular',    sizeId: 'c8',  label: 'Round',                    img: '/pricing/round.webp' },
+  { shape: 'heart',       sizeId: 'h8',  label: 'Heart',                    img: '/gallery/heart-eighteen.webp' },
+  { shape: 'square',      sizeId: 's8',  label: 'Square',                   img: '/pricing/square.webp' },
+  { shape: 'multicircle', sizeId: 'mc2', label: 'Cupcake & Cookie Circles', img: '/pricing/cookie-circles.webp' },
+  { shape: 'fullsheet',   sizeId: 'a4',  label: 'Full Sheet',               img: '/pricing/full-sheet.webp' },
+  { shape: 'bwsheet',     sizeId: 'bw1', label: 'Black & White',            img: '/pricing/bw.webp' },
+].map((s) => ({ ...s, from: Math.min(...(SIZES[s.shape] || []).map((z) => z.price)) }));
+
 // Figures selectable within shape === 'custom'. 'rectangle' is the default
 // (matches every Custom design created before this picker existed — see
 // the customShapeKind accessor below, which leaves the field undefined
@@ -3188,6 +3199,31 @@ function ColorPickerDropdown({ value, onChange, colors, label, allowCustom }) {
 /* ═══════════════════════════════════ */
 export default function EdiblePrintApp() {
   const [step, setStep] = useState(0);
+  // Browser back button walks back through the order steps and then to the
+  // home page, instead of leaving the site: moving forward adds a history
+  // entry tagged with the step, moving back (logo, "Back" buttons) replaces
+  // the current one, and popstate restores the tagged step.
+  useEffect(() => {
+    const cur = window.history.state?.epStep;
+    if (typeof cur !== 'number') {
+      window.history.replaceState({ epStep: 0 }, '');
+      if (step > 0) window.history.pushState({ epStep: step }, '');
+      return;
+    }
+    if (step === cur) return;
+    if (step > cur) window.history.pushState({ epStep: step }, '');
+    else window.history.replaceState({ epStep: step }, '');
+  }, [step]);
+  useEffect(() => {
+    const onPop = (e) => {
+      const s = e.state?.epStep;
+      if (typeof s !== 'number') return;
+      setStep(s);
+      window.scrollTo({ top: 0 });
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
   // Home gallery shows GALLERY_INITIAL_COUNT tiles until "See more" is pressed.
   const [galleryExpanded, setGalleryExpanded] = useState(false);
   /* 'editor' = the existing upload-and-customize flow (default, most visible).
@@ -4110,7 +4146,10 @@ export default function EdiblePrintApp() {
         <nav className="ep-header-nav" style={{
           borderBottom: '1px solid ' + C.border, background: 'rgba(255,255,255,0.92)',
           backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 100 }}>
-          <Logo />
+          <Link href="/" aria-label="EdiblePrint.ca home" style={{ cursor: 'pointer' }}
+            onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+            <Logo />
+          </Link>
           <button className="ep-header-cta-btn" onClick={() => { setOrderMode('editor'); setStep(1); }} style={btnPrimaryHeader}>
             Order Now
           </button>
@@ -4118,6 +4157,8 @@ export default function EdiblePrintApp() {
         <HeroSection
           onOrderClick={() => { setOrderMode('editor'); setStep(1); }}
           onUploadFileClick={() => { setOrderMode('upload'); setStep(1); }}
+          shapes={HERO_SHAPES}
+          onShapeClick={handlePricingCardClick}
           cutoffMsg={cutoffMsg}
         />
         <div style={{ background: C.white, borderTop: '1px solid ' + C.border, borderBottom: '1px solid ' + C.border, padding: '16px 24px' }}>
@@ -4655,7 +4696,6 @@ export default function EdiblePrintApp() {
                 </div>
               ))}
               {[
-                ['Cookie & Cake Pop Tools', '/cookie-tools'],
                 ['Ready-Made Designs', '/designs'],
                 ['Edible Images for Cakes', '/edible-images-for-cakes'],
                 ['Edible Cookie Toppers', '/edible-cookie-toppers'],
@@ -4737,7 +4777,7 @@ export default function EdiblePrintApp() {
         borderBottom: '1px solid ' + C.border, background: 'rgba(255,255,255,0.92)',
         backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 10 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div onClick={() => setStep(0)} style={{ cursor: 'pointer' }}><Logo /></div>
+          <div onClick={() => { setStep(0); window.scrollTo({ top: 0 }); }} style={{ cursor: 'pointer' }}><Logo /></div>
           {/* Full node-by-node walk — desktop only. On mobile it overflows past
               360px (4 nodes + chevrons + the wordmark logo don't fit; hiding
               just the text labels via .hide-mobile wasn't enough), so mobile
@@ -4860,7 +4900,19 @@ export default function EdiblePrintApp() {
                       cursor: preparingFile ? 'wait' : 'pointer', transition: 'all 0.25s',
                       background: isDragOver ? C.brandLight : C.white, textAlign: 'center',
                     }}>
-                    <div style={{ fontSize: designs.length > 0 ? 36 : 52, marginBottom: 14, opacity: 0.8 }}>{preparingFile ? '⏳' : '🖼️'}</div>
+                    {(() => {
+                      // A shape was chosen (hero tile or pricing card): show what
+                      // that topper looks like instead of the generic icon.
+                      const chosen = !preparingFile && HERO_SHAPES.find((s) => s.shape === pendingShape);
+                      if (!chosen) return <div style={{ fontSize: designs.length > 0 ? 36 : 52, marginBottom: 14, opacity: 0.8 }}>{preparingFile ? '⏳' : '🖼️'}</div>;
+                      return (
+                        <div style={{ marginBottom: 14 }}>
+                          <img src={chosen.img} alt={chosen.label + ' edible print example'} width={150} height={150}
+                            style={{ width: 150, height: 150, objectFit: 'cover', borderRadius: 14, border: '1px solid ' + C.border, display: 'inline-block' }} />
+                          <div style={{ fontSize: 13, color: C.brand, fontWeight: 700, marginTop: 8 }}>Your {chosen.label} print</div>
+                        </div>
+                      );
+                    })()}
                     <p style={{ margin: 0, fontWeight: 600, fontSize: designs.length > 0 ? 15 : 17 }}>
                       {preparingFile ? 'Preparing your file…' : isDragOver ? 'Drop your image here!' : designs.length > 0 ? 'Upload another image' : 'Tap to upload your image'}
                     </p>

@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import LandingPage from '../_components/LandingPage';
 import { formatProductionWindow, shippingTimesSentence } from '../../lib/shipping-config.js';
 
@@ -46,12 +45,6 @@ export default function EdibleLogoPrintsPage() {
           title: 'Getting a Sharp Logo',
           paragraphs: [
             'Send the highest-quality version of your logo you have, ideally at least 1000×1000 pixels. We review every order before printing, and if we spot a quality issue with your file we reach out before going ahead.',
-          ],
-        },
-        {
-          title: 'Want It Stamped Too?',
-          paragraphs: [
-            <>Pair your print with a <Link href="/cookie-tools" style={{ color: '#1B6B4A', fontWeight: 600 }}>custom logo cookie stamp or cutter</Link> for a matching set.</>,
           ],
         },
       ]}

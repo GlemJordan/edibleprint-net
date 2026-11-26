@@ -9,7 +9,6 @@ const PATHS = [
   '/edible-logo-prints',
   '/edible-images-london-ontario',
   '/designs',
-  '/cookie-tools',
   '/about',
   '/shipping',
   '/refund',

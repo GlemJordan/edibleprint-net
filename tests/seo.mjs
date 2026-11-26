@@ -11,7 +11,7 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 
 const INDEXABLE = [
   '/', '/edible-images-for-cakes', '/edible-cookie-toppers', '/edible-logo-prints',
-  '/edible-images-london-ontario', '/designs', '/cookie-tools', '/about', '/shipping',
+  '/edible-images-london-ontario', '/designs', '/about', '/shipping',
   '/refund', '/allergens', '/terms', '/privacy', '/products/round-8-inch', `/designs/${catalog.designs.find((d) => d.active !== false).id}`,
 ];
 const NOINDEX = ['/success', '/cancel', '/download-pdf'];
