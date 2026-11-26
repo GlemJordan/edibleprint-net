@@ -140,7 +140,7 @@ async function openEditor(browser) {
   const browser = await launchBrowser();
 
   // ── Round / Heart / Cookie Sheet: editor overlay + modal, on vs off ──
-  for (const [name, re, isCookie] of [['Round', /Round/, false], ['Heart', /Heart/, false], ['Cookie Sheet', /Cookie Sheet/, true]]) {
+  for (const [name, re, isCookie] of [['Round', /Round/, false], ['Heart', /Heart/, false], ['Cookie Sheet', /Cupcake & Cookie Circles/, true]]) {
     const { page, ctx, problems } = await openEditor(browser);
     await page.getByRole('button', { name: re }).first().click();
     if (isCookie) await page.getByRole('button', { name: /2” Circles on A4/ }).click();
@@ -191,7 +191,7 @@ async function openEditor(browser) {
   for (const [label, shapeRe, sizeRe, isCookie] of [
     ['Round 5"', /Round/, /5" Round/, false],
     ['Round 8"', /Round/, /8" Round/, false],
-    ['Cookie Sheet (2")', /Cookie Sheet/, /2” Circles on A4/, true],
+    ['Cookie Sheet (2")', /Cupcake & Cookie Circles/, /2” Circles on A4/, true],
   ]) {
     const { page, ctx, problems } = await openEditor(browser);
     await page.getByRole('button', { name: shapeRe }).first().click();

@@ -48,8 +48,21 @@ const SIZES = Object.fromEntries(
 SIZES.custom = [{ id: 'custom', label: 'Custom Size', w: 0, h: 0, price: 0 }];
 
 const SHAPE_LABEL = {
-  circular: 'Round', heart: 'Heart', square: 'Square', multicircle: 'Cookie Sheet',
+  circular: 'Round', heart: 'Heart', square: 'Square', multicircle: 'Cupcake & Cookie Circles',
   fullsheet: 'Full Sheet', bwsheet: 'B&W Sheet', custom: 'Custom',
+};
+
+// "How it looks" photo shown above the pricing cards for each tab. Real
+// photos of a finished print where we have one with no character, brand or
+// identifiable person; the rest use the product illustration
+// (public/products) until a real photo replaces it.
+const PRICING_SAMPLES = {
+  circular:    { src: '/products/round.png', alt: 'Round edible cake topper printed on an A4 frosting sheet', caption: 'Your photo printed as a round topper that lays right on top of a frosted cake.' },
+  heart:       { src: '/hero/ejemplo-2-after.jpg', alt: 'Heart cake decorated with a leopard print edible image', caption: 'A heart cake finished with our edible print: peel it and place it on the frosting.' },
+  square:      { src: '/products/square.png', alt: 'Square edible image printed on an A4 frosting sheet', caption: 'Square prints for square cakes, sheet cakes and brownies.' },
+  multicircle: { src: '/hero/ejemplo-4-after.jpg', alt: 'Cupcakes topped with round space-themed edible toppers', caption: 'A full sheet of matching circles, ready to top cupcakes and cookies.' },
+  fullsheet:   { src: '/gallery/fullsheet-calendar-keepsake.webp', alt: 'Full A4 edible sheet printed with a calendar design', caption: 'The whole A4 sheet is yours: big designs, collages or several small images.' },
+  bwsheet:     { src: '/products/bw-square.png', alt: 'Black and white square edible print on an A4 sheet', caption: 'Black and white only, our lowest price: great for text, logos and portraits.' },
 };
 
 // Figures selectable within shape === 'custom'. 'rectangle' is the default
@@ -3396,7 +3409,7 @@ export default function EdiblePrintApp() {
   }, []);
 
   const [preparingFile, setPreparingFile] = useState(false);
-  const addDesignFromFile = async (file) => {
+  const addDesignFromFile = async (file, target = null) => {
     if (!file) return;
     if (preparingFile) return;
     if (designs.length >= 5) { alert('Maximum 5 designs per order.'); return; }
@@ -3419,8 +3432,10 @@ export default function EdiblePrintApp() {
     if (result.numPages > 1) alert(multiPagePdfNotice(result.numPages));
     const newId = String(Date.now());
     const initialLayer = { id: String(Date.now() + 1), src: result.src, name: file.name, x: 0, y: 0, scale: 1, rotation: 0, _autoFit: true };
-    const newShape = pendingShape || 'circular';
-    const newSizeId = pendingSizeId || (SIZES[newShape]?.[SIZES[newShape].length - 1]?.id || 'c8');
+    // target comes from a pricing card's own "Upload your photo" button,
+    // which picks the file before any pendingShape state could be set.
+    const newShape = target?.shape || pendingShape || 'circular';
+    const newSizeId = target?.sizeId || pendingSizeId || (SIZES[newShape]?.[SIZES[newShape].length - 1]?.id || 'c8');
     const newSizeObj = (SIZES[newShape] || []).find(sz => sz.id === newSizeId) || (SIZES[newShape] || [])[0];
     const newPrice = newSizeObj?.price || 0;
     trackGA('add_to_cart', {
@@ -3499,6 +3514,32 @@ export default function EdiblePrintApp() {
     handlePricingCardClick(start[0], start[1]);
     window.history.replaceState(null, '', window.location.pathname);
   }, []);
+
+  // "Upload your photo" on a pricing card: pick the file right there and go
+  // straight to the editor with that shape and size already chosen.
+  const pricingFileRef = useRef(null);
+  const pricingTargetRef = useRef(null);
+  const [pricingUploadId, setPricingUploadId] = useState(null);
+  const handlePricingUploadClick = (shape, sizeId) => {
+    if (preparingFile) return;
+    trackGA('select_size', { shape, size_id: sizeId, via: 'pricing_upload' });
+    pricingTargetRef.current = { shape, sizeId };
+    pricingFileRef.current?.click();
+  };
+  const handlePricingFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (pricingFileRef.current) pricingFileRef.current.value = '';
+    const target = pricingTargetRef.current;
+    if (!file || !target) return;
+    setPricingUploadId(target.sizeId);
+    setOrderMode('editor');
+    try {
+      await addDesignFromFile(file, target);
+    } finally {
+      setPricingUploadId(null);
+    }
+    window.scrollTo({ top: 0 });
+  };
 
   const handleFile = (e) => {
     const file = e.target.files?.[0];
@@ -4148,7 +4189,7 @@ export default function EdiblePrintApp() {
               { key: 'circular', label: 'Round' },
               { key: 'heart', label: 'Heart' },
               { key: 'square', label: 'Square' },
-              { key: 'multicircle', label: 'Cookie Sheets' },
+              { key: 'multicircle', label: 'Cupcake & Cookie Circles' },
               { key: 'fullsheet', label: 'Full Sheet' },
               { key: 'bwsheet', label: 'B&W Sheet' },
             ].map(tab => (
@@ -4162,6 +4203,23 @@ export default function EdiblePrintApp() {
               }}>{tab.label}</button>
             ))}
           </div>
+          {/* "How it looks" sample for the selected tab */}
+          {PRICING_SAMPLES[pricingTab] && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap', textAlign: 'left',
+              background: C.white, border: '1px solid ' + C.border, borderRadius: 16, padding: 14, marginBottom: 24 }}>
+              <img src={PRICING_SAMPLES[pricingTab].src} alt={PRICING_SAMPLES[pricingTab].alt} loading="lazy"
+                width={180} height={180}
+                style={{ width: 180, height: 180, objectFit: 'cover', borderRadius: 12, flexShrink: 0, background: '#F4F4F2', margin: '0 auto' }} />
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: C.brand, marginBottom: 6 }}>How it looks</div>
+                <p style={{ margin: '0 0 10px', fontSize: 15.5, color: C.text, lineHeight: 1.5 }}>{PRICING_SAMPLES[pricingTab].caption}</p>
+                <p style={{ margin: 0, fontSize: 13, color: C.muted, lineHeight: 1.5 }}>
+                  1. Pick a size below · 2. Upload your photo · 3. Adjust it and check out
+                </p>
+              </div>
+            </div>
+          )}
+          <input ref={pricingFileRef} type="file" accept="image/*,.pdf" onChange={handlePricingFile} style={{ display: 'none' }} />
           {/* Size cards for selected tab */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16 }}>
             {(SIZES[pricingTab] || []).map((sz) => {
@@ -4196,7 +4254,15 @@ export default function EdiblePrintApp() {
                   <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 6 }}>{sz.label}</div>
                   <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5, marginBottom: 6 }}>{SIZE_USE[sz.id] || ''}</div>
                   <div style={{ fontSize: 12, color: '#059669', fontWeight: 600, marginBottom: 10 }}>🚀 Production: {formatProductionWindow()}</div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: isHovered ? C.brand : C.muted, opacity: isHovered ? 1 : 0.6 }}>Order this size →</div>
+                  <button type="button"
+                    onClick={(e) => { e.stopPropagation(); handlePricingUploadClick(pricingTab, sz.id); }}
+                    disabled={preparingFile}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: 'none',
+                      background: C.accent, color: '#fff', fontWeight: 700, fontSize: 13.5,
+                      fontFamily: "'Outfit', sans-serif", cursor: preparingFile ? 'wait' : 'pointer' }}>
+                    {pricingUploadId === sz.id ? 'Preparing…' : '📷 Upload your photo'}
+                  </button>
+                  <div style={{ fontSize: 12, fontWeight: 600, marginTop: 8, color: isHovered ? C.brand : C.muted, opacity: isHovered ? 1 : 0.7 }}>or open the editor →</div>
                   {product && (
                     // Its own link inside the clickable card: stopPropagation keeps
                     // the card from also opening the editor.
@@ -4210,7 +4276,7 @@ export default function EdiblePrintApp() {
             })}
           </div>
           <p style={{ fontSize: 13, color: C.muted, marginTop: 20 }}>Custom sizes available · Free pickup in London, ON · Canada-wide shipping from {'$' + LOWEST_SHIPPING_PRICE.toFixed(2)} · No tax charged</p>
-          <p style={{ fontSize: 13, color: '#bbb', marginTop: 6 }}>Choose &quot;Cut to shape&quot; on Round, Heart, Square, Custom or Cookie Sheets: +${cutSurchargeFor('circular').toFixed(2)} per sheet, we cut it for you</p>
+          <p style={{ fontSize: 13, color: '#bbb', marginTop: 6 }}>Choose &quot;Cut to shape&quot; on Round, Heart, Square, Custom or Cupcake &amp; Cookie Circles: +${cutSurchargeFor('circular').toFixed(2)} per sheet, we cut it for you</p>
         </section>
 
         {/* ── PDF DOWNLOAD SECTION ── */}
@@ -4494,7 +4560,7 @@ export default function EdiblePrintApp() {
             ['How long do edible prints last?', 'Stored in the original sealed packaging in a cool, dry place, edible prints last up to 12 months. Once applied to a frosted cake, they are best consumed within 3–5 days.'],
             ['Are your products allergen-free?', 'Our edible inks and sheets are free from the most common allergens. However, they are produced in a facility that may handle nuts and dairy. Please review our full allergen statement for details.'],
             ['What if my order arrives damaged or the print quality is poor?', 'We stand behind every order. If your print arrives damaged or doesn\'t meet the quality you expected, contact us within 48 hours and we\'ll reprint it or issue a full refund — no questions asked.'],
-            ['Can you cut my print to shape?', `Yes. When you customize a Round, Heart, Square, Custom or Cookie Sheet print, choose "Cut to shape" under "How would you like it?" — we cut every sheet on our plotter for $${cutSurchargeFor('circular').toFixed(2)} per sheet, and no cut guide is printed. Choose "Printed sheet" instead and your print comes on the full A4 sheet, with an optional printed guide for trimming yourself.`],
+            ['Can you cut my print to shape?', `Yes. When you customize a Round, Heart, Square, Custom or Cupcake & Cookie Circles print, choose "Cut to shape" under "How would you like it?" — we cut every sheet on our plotter for $${cutSurchargeFor('circular').toFixed(2)} per sheet, and no cut guide is printed. Choose "Printed sheet" instead and your print comes on the full A4 sheet, with an optional printed guide for trimming yourself.`],
           ].map(([q, a], i) => (
             <details key={i} style={{ borderBottom: '1px solid ' + C.border, paddingBottom: 16, marginBottom: 16 }}>
               <summary style={{ fontWeight: 600, fontSize: 15, cursor: 'pointer', listStyle: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
@@ -4538,7 +4604,7 @@ export default function EdiblePrintApp() {
                 ['Round Cake Toppers', () => handlePricingCardClick('circular', 'c8')],
                 ['Heart Cake Toppers', () => handlePricingCardClick('heart', 'h8')],
                 ['Square Prints', () => handlePricingCardClick('square', 's8')],
-                ['Cookie Sheets', () => handlePricingCardClick('multicircle', 'mc3')],
+                ['Cupcake & Cookie Circles', () => handlePricingCardClick('multicircle', 'mc3')],
                 ['Full Sheet Prints', () => handlePricingCardClick('fullsheet', 'a4')],
               ].map(([label, action]) => (
                 <div key={label} style={{ marginBottom: 10 }}>
@@ -4689,7 +4755,7 @@ export default function EdiblePrintApp() {
             {orderMode === 'editor' && pendingShape && pendingSizeId && (() => {
               const pSizes = SIZES[pendingShape] || [];
               const pSel = pSizes.find(s => s.id === pendingSizeId);
-              const shapeLabels = { circular: 'Round', heart: 'Heart', square: 'Square', multicircle: 'Cookie Sheet', fullsheet: 'Full Sheet', bwsheet: 'B&W Sheet' };
+              const shapeLabels = { circular: 'Round', heart: 'Heart', square: 'Square', multicircle: 'Cupcake & Cookie Circles', fullsheet: 'Full Sheet', bwsheet: 'B&W Sheet' };
               return (
                 <div style={{ background: C.brandLight, border: '1.5px solid ' + C.brand, borderRadius: 12,
                   padding: '10px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
@@ -5230,7 +5296,7 @@ export default function EdiblePrintApp() {
               <label style={{ fontWeight: 600, fontSize: 14, display: 'block', marginBottom: 8 }}>Shape</label>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {[{ key: 'circular', icon: '⭕', label: 'Round' }, { key: 'heart', icon: '❤️', label: 'Heart' },
-                  { key: 'multicircle', icon: '🍪', label: 'Cookie Sheet' },
+                  { key: 'multicircle', icon: '🍪', label: 'Cupcake & Cookie Circles' },
                   { key: 'square', icon: '⬜', label: 'Square' },
                   { key: 'fullsheet', icon: '▬', label: 'Full Sheet' },
                   { key: 'bwsheet', icon: '⬛', label: 'B&W Sheet' },

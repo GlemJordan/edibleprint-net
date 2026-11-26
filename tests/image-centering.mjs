@@ -83,7 +83,7 @@ const SHAPES = [
   { label: 'Round', via: 'footer', text: 'Round Cake Toppers' },
   { label: 'Heart', via: 'footer', text: 'Heart Cake Toppers' },
   { label: 'Square', via: 'footer', text: 'Square Prints' },
-  { label: 'Cookie Sheets', via: 'footer', text: 'Cookie Sheets' },
+  { label: 'Cupcake & Cookie Circles', via: 'footer', text: 'Cupcake & Cookie Circles' },
   { label: 'Full Sheet', via: 'footer', text: 'Full Sheet Prints' },
   // No 'Wafer Paper' entry: it's no longer a selectable shape/footer link —
   // see lib/material-config.js. Wafer is now a material choice cross-cutting

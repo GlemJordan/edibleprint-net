@@ -17,7 +17,7 @@ const VIEWPORTS = [
 const SHAPES = [
   { key: 'circular', label: 'Round' },
   { key: 'heart', label: 'Heart' },
-  { key: 'multicircle', label: 'Cookie Sheet' },
+  { key: 'multicircle', label: 'Cupcake & Cookie Circles' },
   { key: 'square', label: 'Square' },
   { key: 'fullsheet', label: 'Full Sheet' },
   { key: 'bwsheet', label: 'B&W Sheet' },

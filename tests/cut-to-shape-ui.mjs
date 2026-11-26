@@ -83,7 +83,7 @@ const guideBox = (page) => page.getByLabel(/Print a cut guide/);
       check(`${name}: "Cut to shape" states +$4.99 per sheet`, await page.getByText('+$4.99 per sheet', { exact: true }).isVisible());
     }
     // Cookie sheets: offered at BOTH sizes (2" of 15 and 3" of 6), +$4.99 each, still defaulting to Printed sheet.
-    await shapeBtn(page, /Cookie Sheet/).click();
+    await shapeBtn(page, /Cupcake & Cookie Circles/).click();
     const mcSizes = page.getByRole('button', { name: /Circles on A4/ });
     await mcSizes.first().waitFor();
     for (let i = 0; i < await mcSizes.count(); i++) {
@@ -158,7 +158,7 @@ const guideBox = (page) => page.getByLabel(/Print a cut guide/);
   // ── 3 cookie sheets cut: $14.97 of surcharge in the cart and in what the browser sends ──
   {
     const { page, sent, ctx } = await openEditor(browser);
-    await shapeBtn(page, /Cookie Sheet/).click();
+    await shapeBtn(page, /Cupcake & Cookie Circles/).click();
     await page.getByRole('button', { name: /2” Circles on A4/ }).click();
     const plus = page.getByRole('button', { name: 'Increase quantity' });
     await plus.click(); await plus.click();
