@@ -4064,17 +4064,23 @@ export default function EdiblePrintApp() {
   // identifiable people or customer names: 24 were taken out of this list on
   // 2026-11-09 (their files stay in public/gallery and on Cloudinary).
   const galleryItems = [
-    { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180323/649680716_1500541474823954_8161943662036624436_n_supe0j.jpg', title: '2" Cookie Circles', category: 'Cookie Sheet' },
+    { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180323/649680716_1500541474823954_8161943662036624436_n_supe0j.jpg', title: '2" Cookie Circles', category: 'Cupcake & Cookie Circles' },
+    { url: '/gallery/cookies-graduation-doctor.webp', title: 'Graduation Cookies', category: 'Custom' },
     { url: '/gallery/custom-gingerbread-50.webp', title: 'Gingerbread 50th Birthday', category: 'Custom' },
+    { url: '/gallery/cookie-circles-pink-shirts.webp', title: 'Pink Shirt Cookie Circles', category: 'Cupcake & Cookie Circles' },
     { url: '/gallery/heart-eighteen.webp', title: '18th Birthday Heart', category: 'Heart' },
+    { url: '/gallery/cookies-race-car-first-lap.webp', title: 'Race Car Birthday Cookies', category: 'Custom' },
+    { url: '/gallery/cookie-circles-pink-heartbeat.webp', title: 'Heartbeat Cookie Circles', category: 'Cupcake & Cookie Circles' },
     // Generic title, deliberately no count or inches: this photo doesn't
     // correspond exactly to either remaining multicircle size (6/sheet or
     // 15/sheet) — see lib/catalog-sizes.js — so it shouldn't promise a
     // specific one.
-    { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180311/WhatsApp_Image_2026-02-18_at_5.14.09_PM_z4dkxf.jpg', title: 'Mini Cookie Toppers', category: 'Cookie Sheet' },
-    { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180337/WhatsApp_Image_2026-02-18_at_5.02.46_PM_7_d04sga.jpg', title: '2" Circles on Cupcakes', category: 'Cookie Sheet' },
+    { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180311/WhatsApp_Image_2026-02-18_at_5.14.09_PM_z4dkxf.jpg', title: 'Mini Cookie Toppers', category: 'Cupcake & Cookie Circles' },
+    { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180337/WhatsApp_Image_2026-02-18_at_5.02.46_PM_7_d04sga.jpg', title: '2" Circles on Cupcakes', category: 'Cupcake & Cookie Circles' },
     { url: '/gallery/fullsheet-calendar-keepsake.webp', title: 'Calendar Keepsake Sheet', category: 'Full Sheet' },
-    { url: '/gallery/cookie-circles-happily-ever-after.webp', title: 'Happily Ever After Circles', category: 'Cookie Sheet' },
+    { url: '/gallery/cookie-circles-happily-ever-after.webp', title: 'Happily Ever After Circles', category: 'Cupcake & Cookie Circles' },
+    { url: '/gallery/round-four-decades-birthday.webp', title: '40th Birthday Round Print', category: 'Round' },
+    { url: '/gallery/fullsheet-funny-birthday-comics.webp', title: 'Funny Birthday Comics Sheet', category: 'Full Sheet' },
   ];
   const visibleGalleryItems = galleryExpanded ? galleryItems : galleryItems.slice(0, GALLERY_INITIAL_COUNT);
 

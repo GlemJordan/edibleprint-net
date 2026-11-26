@@ -11,6 +11,9 @@ import { formatProductionWindow } from '../../lib/shipping-config.js';
 const SLIDES = [
   { tag: 'Leopard print',  after: '/hero/ejemplo-2-after.jpg', before: '/hero/ejemplo-2-before.jpg' },
   { tag: 'Space cupcakes', after: '/hero/ejemplo-4-after.jpg', before: '/hero/ejemplo-4-before.jpg' },
+  // No original "before" photo for these two: the inset is skipped.
+  { tag: 'Graduation cookies', after: '/hero/ejemplo-5-after.jpg' },
+  { tag: 'Race car cookies',   after: '/hero/ejemplo-6-after.jpg' },
 ];
 
 export default function HeroSection({ onOrderClick, onUploadFileClick, cutoffMsg }) {
@@ -310,6 +313,7 @@ export default function HeroSection({ onOrderClick, onUploadFileClick, cutoffMsg
               )}
 
               {/* Before image + arrow wrapper */}
+              {slide.before && (
               <div style={{
                 position: 'absolute',
                 bottom: '8%',
@@ -367,6 +371,7 @@ export default function HeroSection({ onOrderClick, onUploadFileClick, cutoffMsg
                   </svg>
                 </div>
               </div>
+              )}
 
               {/* Prev arrow */}
               <button
