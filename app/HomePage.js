@@ -4060,9 +4060,11 @@ export default function EdiblePrintApp() {
      stripped). Titles deliberately avoid sizes/counts unless the photo
      matches a size we actually sell. */
   const GALLERY_INITIAL_COUNT = 12;
-  // Only photos with no characters, brands, video games, teams, TV shows,
-  // identifiable people or customer names: 24 were taken out of this list on
-  // 2026-11-09 (their files stay in public/gallery and on Cloudinary).
+  // 24 photos with characters, brands, teams, people or customer names were
+  // taken out on 2026-11-09. On 2026-11-26 the owner asked for every photo in
+  // their new folder to be shown, including ones like that: those are at the
+  // end of this list, with generic titles that don't name the character or
+  // brand.
   const galleryItems = [
     { url: 'https://res.cloudinary.com/dslkizfuj/image/upload/w_600,h_600,c_fill,q_auto,f_auto/v1777180323/649680716_1500541474823954_8161943662036624436_n_supe0j.jpg', title: '2" Cookie Circles', category: 'Cupcake & Cookie Circles' },
     { url: '/gallery/cookies-graduation-doctor.webp', title: 'Graduation Cookies', category: 'Custom' },
@@ -4081,6 +4083,24 @@ export default function EdiblePrintApp() {
     { url: '/gallery/cookie-circles-happily-ever-after.webp', title: 'Happily Ever After Circles', category: 'Cupcake & Cookie Circles' },
     { url: '/gallery/round-four-decades-birthday.webp', title: '40th Birthday Round Print', category: 'Round' },
     { url: '/gallery/fullsheet-funny-birthday-comics.webp', title: 'Funny Birthday Comics Sheet', category: 'Full Sheet' },
+    { url: '/gallery/cookies-character-ovals.webp', title: 'Character Oval Cookies', category: 'Custom' },
+    { url: '/gallery/fullsheet-bride-to-be-floral.webp', title: 'Bride to Be Floral Sheet', category: 'Full Sheet' },
+    { url: '/gallery/cookie-circles-gamer-icons.webp', title: 'Gamer Icon Cookie Circles', category: 'Cupcake & Cookie Circles' },
+    { url: '/gallery/custom-princess-chibi.webp', title: 'Princess Cake Topper', category: 'Custom' },
+    { url: '/gallery/fullsheet-50th-birthday-names.webp', title: '50th Birthday Name Collage', category: 'Full Sheet' },
+    { url: '/gallery/round-anime-collage.webp', title: 'Anime Collage Round', category: 'Round' },
+    { url: '/gallery/custom-soccer-jersey-toppers.webp', title: 'Soccer Jersey Toppers', category: 'Custom' },
+    { url: '/gallery/fullsheet-baby-shower-bear.webp', title: 'Baby Shower Bear Sheet', category: 'Full Sheet' },
+    { url: '/gallery/cookie-circles-gamer-badges.webp', title: 'Gamer Badge Cookie Circles', category: 'Cupcake & Cookie Circles' },
+    { url: '/gallery/round-party-photo.webp', title: 'Party Photo Round', category: 'Round' },
+    { url: '/gallery/fullsheet-pop-idol-birthday.webp', title: 'Pop Idol Birthday Sheet', category: 'Full Sheet' },
+    { url: '/gallery/custom-basketball-player.webp', title: 'Basketball Player Topper', category: 'Custom' },
+    { url: '/gallery/square-trophy-topper.webp', title: 'Trophy Topper', category: 'Square' },
+    { url: '/gallery/fullsheet-street-sign-birthday.webp', title: 'Street Sign Birthday Sheet', category: 'Full Sheet' },
+    { url: '/gallery/custom-game-character.webp', title: 'Game Character Topper', category: 'Custom' },
+    { url: '/gallery/round-designer-calendar.webp', title: 'Designer Calendar Round', category: 'Round' },
+    { url: '/gallery/custom-twenty-nine-photo.webp', title: '29th Birthday Photo Topper', category: 'Custom' },
+    { url: '/gallery/fullsheet-pixel-grass-strips.webp', title: 'Pixel Grass Cake Strips', category: 'Full Sheet' },
   ];
   const visibleGalleryItems = galleryExpanded ? galleryItems : galleryItems.slice(0, GALLERY_INITIAL_COUNT);
 
