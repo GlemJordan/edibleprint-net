@@ -132,7 +132,7 @@ const visibleText = (html) => unescape(html.replace(/<!-- -->/g, '').replace(/<s
   }
 
   // Home price cards: "View details" goes to the product page; the card
-  // itself ("Order this size") still opens the editor.
+  // itself ("or open the editor") still opens the editor.
   await page.goto(BASE_URL + '/', { waitUntil: 'networkidle' });
   const details = page.getByRole('link', { name: 'View details' });
   check('home: a "View details" link on every Round card', (await details.count()) === CATALOG_SIZES.circular.length, await details.count());
@@ -140,10 +140,10 @@ const visibleText = (html) => unescape(html.replace(/<!-- -->/g, '').replace(/<s
   await page.waitForURL((u) => u.pathname === '/products/round-8-inch', { timeout: 20000 }).catch(() => {});
   check('home: "View details" opens the product page', new URL(page.url()).pathname === '/products/round-8-inch', page.url());
   await page.goto(BASE_URL + '/', { waitUntil: 'networkidle' });
-  await page.getByText('Order this size →').first().click();
+  await page.getByText('or open the editor →').first().click();
   await page.getByRole('button', { name: 'Upload Your Photo →' }).waitFor({ state: 'detached', timeout: 20000 });
   const preselected = await page.getByText('Pre-selected:').filter({ hasText: CATALOG_SIZES.circular[0].label }).first().isVisible().catch(() => false);
-  check('home: "Order this size" still opens the editor on that size', preselected && new URL(page.url()).pathname === '/');
+  check('home: "or open the editor" still opens the editor on that size', preselected && new URL(page.url()).pathname === '/');
 
   await browser.close();
 
