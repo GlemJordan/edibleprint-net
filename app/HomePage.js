@@ -3204,15 +3204,19 @@ export default function EdiblePrintApp() {
   // entry tagged with the step, moving back (logo, "Back" buttons) replaces
   // the current one, and popstate restores the tagged step.
   useEffect(() => {
+    // Always carry the existing entry's data along: on the very first render
+    // Next.js hasn't patched pushState/replaceState yet, and an entry without
+    // its __NA marker makes Next reload the page when you go back to it.
+    const tag = (s) => ({ ...(window.history.state || {}), epStep: s });
     const cur = window.history.state?.epStep;
     if (typeof cur !== 'number') {
-      window.history.replaceState({ epStep: 0 }, '');
-      if (step > 0) window.history.pushState({ epStep: step }, '');
+      window.history.replaceState(tag(0), '');
+      if (step > 0) window.history.pushState(tag(step), '');
       return;
     }
     if (step === cur) return;
-    if (step > cur) window.history.pushState({ epStep: step }, '');
-    else window.history.replaceState({ epStep: step }, '');
+    if (step > cur) window.history.pushState(tag(step), '');
+    else window.history.replaceState(tag(step), '');
   }, [step]);
   useEffect(() => {
     const onPop = (e) => {
