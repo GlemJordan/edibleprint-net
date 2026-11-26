@@ -11,7 +11,9 @@ import { formatProductionWindow } from '../../lib/shipping-config.js';
 const SLIDES = [
   { tag: 'Leopard print',  after: '/hero/ejemplo-2-after.jpg', before: '/hero/ejemplo-2-before.jpg' },
   { tag: 'Space cupcakes', after: '/hero/ejemplo-4-after.jpg', before: '/hero/ejemplo-4-before.jpg' },
-  // No original "before" photo for these two: the inset is skipped.
+  // No original "before" photo for the slides below: the inset is skipped.
+  { tag: 'Dental office logo cake', after: '/hero/ejemplo-7-after.jpg' },
+  { tag: 'Goose birthday cake',     after: '/hero/ejemplo-8-after.jpg' },
   { tag: 'Graduation cookies', after: '/hero/ejemplo-5-after.jpg' },
   { tag: 'Race car cookies',   after: '/hero/ejemplo-6-after.jpg' },
 ];
