@@ -52,17 +52,16 @@ const SHAPE_LABEL = {
   fullsheet: 'Full Sheet', bwsheet: 'B&W Sheet', custom: 'Custom',
 };
 
-// "How it looks" photo shown above the pricing cards for each tab. Real
-// photos of a finished print where we have one with no character, brand or
-// identifiable person; the rest use the product illustration
-// (public/products) until a real photo replaces it.
+// "How it looks" photo shown above the pricing cards for each tab: real
+// customer prints chosen by the owner (2026-11-26), cropped and edited to
+// show the shape (public/pricing).
 const PRICING_SAMPLES = {
-  circular:    { src: '/products/round.png', alt: 'Round edible cake topper printed on an A4 frosting sheet', caption: 'Your photo printed as a round topper that lays right on top of a frosted cake.' },
+  circular:    { src: '/pricing/round.webp', alt: 'Round edible cake topper with a cartoon princess design', caption: 'Your photo printed as a round topper that lays right on top of a frosted cake.' },
   heart:       { src: '/hero/ejemplo-2-after.jpg', alt: 'Heart cake decorated with a leopard print edible image', caption: 'A heart cake finished with our edible print: peel it and place it on the frosting.' },
-  square:      { src: '/products/square.png', alt: 'Square edible image printed on an A4 frosting sheet', caption: 'Square prints for square cakes, sheet cakes and brownies.' },
-  multicircle: { src: '/hero/ejemplo-4-after.jpg', alt: 'Cupcakes topped with round space-themed edible toppers', caption: 'A full sheet of matching circles, ready to top cupcakes and cookies.' },
-  fullsheet:   { src: '/gallery/fullsheet-calendar-keepsake.webp', alt: 'Full A4 edible sheet printed with a calendar design', caption: 'The whole A4 sheet is yours: big designs, collages or several small images.' },
-  bwsheet:     { src: '/products/bw-square.png', alt: 'Black and white square edible print on an A4 sheet', caption: 'Black and white only, our lowest price: great for text, logos and portraits.' },
+  square:      { src: '/pricing/square.webp', alt: 'Square edible image with a trophy design', caption: 'Square prints for square cakes, sheet cakes and brownies.' },
+  multicircle: { src: '/pricing/cookie-circles.webp', alt: 'A4 sheet of round gamer-themed edible cookie toppers', caption: 'A full sheet of matching circles, ready to top cupcakes and cookies.' },
+  fullsheet:   { src: '/pricing/full-sheet.webp', alt: 'Full A4 edible sheet printed with a pop idol birthday design', caption: 'The whole A4 sheet is yours: big designs, collages or several small images.' },
+  bwsheet:     { src: '/pricing/bw.webp', alt: 'Black and white round edible print with a calendar design', caption: 'Black and white only, our lowest price: great for text, logos and portraits.' },
 };
 
 // Figures selectable within shape === 'custom'. 'rectangle' is the default
