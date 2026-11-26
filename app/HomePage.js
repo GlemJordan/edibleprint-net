@@ -4426,6 +4426,10 @@ export default function EdiblePrintApp() {
               <p style={{ fontSize: 16, color: C.muted, maxWidth: 480, margin: '0 auto' }}>
                 Fresh from our printer — loved by customers across Canada
               </p>
+              <p style={{ fontSize: 13.5, color: C.muted, maxWidth: 520, margin: '10px auto 0' }}>
+                We sell the edible prints, not the cakes. Cakes and cookies in these photos were made by our friends at{' '}
+                <a href="https://carlotitreats.ca" target="_blank" rel="noopener" style={{ color: C.brand, fontWeight: 600 }}>carlotitreats.ca</a>
+              </p>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
               {visibleGalleryItems.map((item) => (
@@ -4577,6 +4581,7 @@ export default function EdiblePrintApp() {
           <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, textAlign: 'center', marginBottom: 8, fontWeight: 700 }}>Frequently Asked Questions</h2>
           <p style={{ textAlign: 'center', color: C.muted, marginBottom: 36, fontSize: 15 }}>Everything you need to know about edible printing</p>
           {[
+            ['Do you sell cakes?', 'No, we only print the edible images (cake toppers, cookie circles and sheets) for you to place on your own cakes and treats. The decorated cakes and cookies in our photos were made by our friends at Carloti Treats (carlotitreats.ca), a bakery that uses our prints.'],
             ['What are edible prints made of?', 'We print on two food-safe materials: edible icing sheets (frosting sheets) and wafer paper. You pick which one when you choose your shape \u2014 both are available for Round, Heart, Square, Cookie Sheet, Full Sheet, and Custom prints, at the same price. Both use vibrant, water-based edible inks, are FDA-approved, and are tasteless \u2014 so they won\u2019t affect the flavour of your baked goods. Wafer paper is thinner and more delicate, absorbs moisture more easily, prints with slightly softer colour, and needs no transfer step.'],
             ['How do I apply the edible print?', 'Peel the backing sheet gently and lay the print directly onto a freshly frosted or fondant-covered surface. Press lightly from the centre outward to remove air bubbles. For best results, apply within 30 minutes of frosting and keep refrigerated until serving.'],
             ['How long does shipping take?', `Free pickup is available at our London, Ontario location. We ship anywhere in Canada via Canada Post. Standard shipping ($${STANDARD_SHIPPING.price.toFixed(2)} per package of up to ${SHEETS_PER_PACKAGE} sheets) takes ${STANDARD_SHIPPING.minBusinessDays} to ${STANDARD_SHIPPING.maxBusinessDays} business days and does not include a tracking number. Tracked shipping ($${TRACKED_SHIPPING.price.toFixed(2)}) arrives in ${TRACKED_SHIPPING.minBusinessDays} to ${TRACKED_SHIPPING.maxBusinessDays} business days. Orders are printed within ${formatProductionWindow()} before shipping.`],
