@@ -228,7 +228,7 @@ export default function HeroSection({ onOrderClick, onUploadFileClick, onShapeCl
                     fontFamily: 'inherit', textDecoration: 'underline', textUnderlineOffset: 3,
                   }}
                 >
-                  Have a print-ready file? Upload it →
+                  Already have a print-ready file? Upload it directly →
                 </button>
               )}
             </div>
