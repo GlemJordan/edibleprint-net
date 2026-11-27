@@ -8,6 +8,7 @@ import {
   getShippingPackages, getShippingCost, orderLimitMessage, SHEETS_PER_PACKAGE, TRACKED_MAX_SHEETS,
   standardNotArrivedSentence,
 } from '../lib/shipping-config.js';
+import { BUSINESS_PUBLIC_ADDRESS } from '../lib/business-info.js';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 const STD = getShippingMethod('standard');
@@ -84,7 +85,7 @@ const check = (test, pass, detail) => results.push({ test, pass: !!pass, ...(pas
     ship.includes(`Standard shipping is charged for each package of up to ${SHEETS_PER_PACKAGE} sheets: an order of 5 sheets ships in ${getShippingPackages('standard', 5)} packages and costs $${getShippingCost('standard', 5).toFixed(2)}.`)
     && ship.includes(`Tracked shipping sends your whole order in one package for one price, up to ${TRACKED_MAX_SHEETS} sheets.`)
     && ship.includes(orderLimitMessage()));
-  check('/shipping: free local pickup line', ship.includes('Free local pickup is available in London, Ontario.'));
+  check('/shipping: free local pickup line', ship.includes(`Free local pickup is available at ${BUSINESS_PUBLIC_ADDRESS} (East London).`));
   check('/shipping: production time from config, delivery times start at shipping',
     ship.includes(`Orders are printed within ${formatProductionWindow()} before they are shipped. The delivery times above start once your order ships.`));
   check('/shipping: says exactly the same not-arrived rule as /refund', ship.includes(NOT_ARRIVED));

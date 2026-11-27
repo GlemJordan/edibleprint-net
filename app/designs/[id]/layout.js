@@ -11,6 +11,19 @@ function firstSentence(text = '') {
   return match ? match[1] : text;
 }
 
+// Search results cut descriptions at about 160 characters. The pickup and
+// shipping line is added only when it fits; a first sentence that is too long
+// on its own is cut at a word boundary.
+const META_MAX = 160;
+const META_SUFFIX = 'Free pickup in London, ON or shipping across Canada.';
+function metaDescription(text) {
+  const first = firstSentence(text);
+  const withSuffix = `${first} ${META_SUFFIX}`;
+  if (withSuffix.length <= META_MAX) return withSuffix;
+  if (first.length <= META_MAX) return first;
+  return first.slice(0, META_MAX - 1).replace(/\s+\S*$/, '') + '…';
+}
+
 export async function generateMetadata({ params }) {
   const { id } = await params;
   const design = getDesignById(id);
@@ -18,7 +31,7 @@ export async function generateMetadata({ params }) {
   const category = getCategories().find((c) => c.id === design.category)?.label || '';
   const title = `${design.name} — ${category} Edible Cake Topper | EdiblePrint.ca`;
   const description = design.description
-    ? `${firstSentence(design.description)} Free pickup in London, ON or shipping across Canada.`
+    ? metaDescription(design.description)
     : `Personalize the ${design.name} edible design with your own text. Printed on icing sheets or wafer paper, with free pickup in London, ON or shipping across Canada.`;
   return {
     title,

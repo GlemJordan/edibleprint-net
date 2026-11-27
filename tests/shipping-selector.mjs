@@ -20,6 +20,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { getShippingMethod } from '../lib/shipping-config.js';
+import { BUSINESS_PUBLIC_STREET } from '../lib/business-info.js';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 const TMP_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'ep-shipsel-'));
@@ -340,7 +341,7 @@ async function checkSelectorUi(page, prefix) {
     await page.getByText(SHIP_ROW, { exact: true }).click();
     await radio(page, TRK).check();
     await dateInput(page).fill('2026-10-13');
-    await page.getByText('Pickup — East London, ON (free)').click(); // switch back
+    await page.getByText(`Pickup — ${BUSINESS_PUBLIC_STREET}, East London, ON (free)`).click(); // switch back
     check('designs pickup: selector + date field hidden again', (await page.getByLabel(DATE_LABEL).count()) === 0);
     check('designs pickup: shipping cost shown as Free', /Shipping\s*Free/.test((await page.locator('form').innerText()).replace(/\n/g, '')));
     await page.getByLabel('Name *', { exact: true }).fill('Test Customer');
