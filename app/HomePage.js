@@ -64,6 +64,39 @@ const PRICING_SAMPLES = {
   bwsheet:     { src: '/pricing/bw.webp', alt: 'Black and white round edible print with a calendar design', caption: 'Black and white only, our lowest price: great for text, logos and portraits.' },
 };
 
+// Generic outline of a print shape (no customer photo), shown on the upload
+// step once a shape is chosen: a simple picture icon inside the shape.
+function ShapeOutline({ shape, size = 150 }) {
+  const bw = shape === 'bwsheet';
+  const fill = bw ? '#E5E5E5' : '#E3F1EA';
+  const stroke = bw ? '#555' : '#1B6B4A';
+  const icon = (cx, cy, s) => (
+    <g>
+      <circle cx={cx + s * 0.22} cy={cy - s * 0.2} r={s * 0.1} fill={bw ? '#888' : '#F2B544'} />
+      <path d={`M${cx - s * 0.4} ${cy + s * 0.3} L${cx - s * 0.1} ${cy - s * 0.08} L${cx + s * 0.08} ${cy + s * 0.12} L${cx + s * 0.2} ${cy} L${cx + s * 0.4} ${cy + s * 0.3} Z`} fill={bw ? '#777' : '#6BAF8D'} />
+    </g>
+  );
+  const sheet = (children) => (
+    <>
+      <rect x="32" y="12" width="86" height="126" rx="4" fill="#fff" stroke="#C9C9C4" strokeWidth="2" />
+      {children}
+    </>
+  );
+  let body;
+  if (shape === 'circular') body = <><circle cx="75" cy="75" r="62" fill={fill} stroke={stroke} strokeWidth="3" strokeDasharray="7 5" />{icon(75, 75, 70)}</>;
+  else if (shape === 'heart') body = <><path d="M75 132 C30 100 12 74 12 50 C12 28 30 16 47 16 C60 16 70 24 75 34 C80 24 90 16 103 16 C120 16 138 28 138 50 C138 74 120 100 75 132 Z" fill={fill} stroke={stroke} strokeWidth="3" strokeDasharray="7 5" />{icon(75, 64, 60)}</>;
+  else if (shape === 'square') body = <><rect x="14" y="14" width="122" height="122" rx="6" fill={fill} stroke={stroke} strokeWidth="3" strokeDasharray="7 5" />{icon(75, 75, 70)}</>;
+  else if (shape === 'multicircle') body = sheet(
+    [0, 1, 2, 3, 4].flatMap((r) => [0, 1, 2].map((c) => (
+      <circle key={`${r}-${c}`} cx={50 + c * 25} cy={30 + r * 23} r="10" fill={fill} stroke={stroke} strokeWidth="1.5" />
+    )))
+  );
+  else if (shape === 'fullsheet') body = sheet(<><rect x="38" y="18" width="74" height="114" rx="2" fill={fill} stroke={stroke} strokeWidth="2" strokeDasharray="5 4" />{icon(75, 75, 50)}</>);
+  else if (shape === 'bwsheet') body = sheet(<><rect x="45" y="45" width="60" height="60" fill={fill} stroke={stroke} strokeWidth="2" strokeDasharray="5 4" />{icon(75, 75, 44)}</>);
+  else return null;
+  return <svg width={size} height={size} viewBox="0 0 150 150" role="img" aria-label={`${SHAPE_LABEL[shape] || shape} print shape`}>{body}</svg>;
+}
+
 // Topper choices in the hero: picture, name and lowest price, opening the
 // editor on that shape (with its most-ordered size). Prices come from SIZES.
 const HERO_SHAPES = [
@@ -4911,8 +4944,7 @@ export default function EdiblePrintApp() {
                       if (!chosen) return <div style={{ fontSize: designs.length > 0 ? 36 : 52, marginBottom: 14, opacity: 0.8 }}>{preparingFile ? '⏳' : '🖼️'}</div>;
                       return (
                         <div style={{ marginBottom: 14 }}>
-                          <img src={chosen.img} alt={chosen.label + ' edible print example'} width={150} height={150}
-                            style={{ width: 150, height: 150, objectFit: 'cover', borderRadius: 14, border: '1px solid ' + C.border, display: 'inline-block' }} />
+                          <ShapeOutline shape={chosen.shape} />
                           <div style={{ fontSize: 13, color: C.brand, fontWeight: 700, marginTop: 8 }}>Your {chosen.label} print</div>
                         </div>
                       );
