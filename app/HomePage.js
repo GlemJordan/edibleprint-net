@@ -98,14 +98,16 @@ function ShapeOutline({ shape, size = 150 }) {
 }
 
 // Topper choices in the hero: picture, name and lowest price, opening the
-// editor on that shape (with its most-ordered size). Prices come from SIZES.
+// editor on that shape. The size is chosen on the next screen (nothing is
+// pre-selected), except for shapes that only come in one size. Prices come
+// from SIZES.
 const HERO_SHAPES = [
-  { shape: 'circular',    sizeId: 'c8',  label: 'Round',                    img: '/pricing/round.webp' },
-  { shape: 'heart',       sizeId: 'h8',  label: 'Heart',                    img: '/gallery/heart-eighteen.webp' },
-  { shape: 'square',      sizeId: 's8',  label: 'Square',                   img: '/pricing/square.webp' },
-  { shape: 'multicircle', sizeId: 'mc2', label: 'Cupcake & Cookie Circles', img: '/pricing/cookie-circles.webp' },
-  { shape: 'fullsheet',   sizeId: 'a4',  label: 'Full Sheet',               img: '/pricing/full-sheet.webp' },
-  { shape: 'bwsheet',     sizeId: 'bw1', label: 'Black & White',            img: '/pricing/bw.webp' },
+  { shape: 'circular',    label: 'Round',                    img: '/pricing/round.webp' },
+  { shape: 'heart',       label: 'Heart',                    img: '/gallery/heart-eighteen.webp' },
+  { shape: 'square',      label: 'Square',                   img: '/pricing/square.webp' },
+  { shape: 'multicircle', label: 'Cupcake & Cookie Circles', img: '/pricing/cookie-circles.webp' },
+  { shape: 'fullsheet',   label: 'Full Sheet',               img: '/pricing/full-sheet.webp' },
+  { shape: 'bwsheet',     label: 'Black & White',            img: '/pricing/bw.webp' },
 ].map((s) => ({ ...s, from: Math.min(...(SIZES[s.shape] || []).map((z) => z.price)) }));
 
 // Figures selectable within shape === 'custom'. 'rectangle' is the default
@@ -4195,7 +4197,10 @@ export default function EdiblePrintApp() {
           onOrderClick={() => { setOrderMode('editor'); setStep(1); }}
           onUploadFileClick={() => { setOrderMode('upload'); setStep(1); }}
           shapes={HERO_SHAPES}
-          onShapeClick={handlePricingCardClick}
+          onShapeClick={(shape) => {
+            const sizes = SIZES[shape] || [];
+            handlePricingCardClick(shape, sizes.length === 1 ? sizes[0].id : null);
+          }}
           cutoffMsg={cutoffMsg}
         />
         <div style={{ background: C.white, borderTop: '1px solid ' + C.border, borderBottom: '1px solid ' + C.border, padding: '16px 24px' }}>
@@ -4858,6 +4863,7 @@ export default function EdiblePrintApp() {
               <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 28, margin: '16px 0 8px', fontWeight: 700 }}>
                 {orderMode === 'upload'
                   ? (designs.length > 0 ? 'Add Another File' : 'Upload Your Print-Ready File')
+                  : (pendingShape && !pendingSizeId) ? 'Choose Your Size'
                   : (designs.length > 0 ? 'Add Another Design' : 'Upload Your Image')}
               </h2>
               <p style={{ color: C.muted, marginBottom: pendingShape ? 12 : 24 }}>
@@ -4866,6 +4872,30 @@ export default function EdiblePrintApp() {
                   : 'JPG, PNG or PDF · High resolution for best results'}
               </p>
             </div>
+            {/* Shape chosen in the hero but no size yet: the customer picks
+                the size here before uploading (nothing is pre-selected). */}
+            {orderMode === 'editor' && pendingShape && !pendingSizeId && designs.length < 5 && (
+              <div style={{ ...card, padding: '20px 18px', marginBottom: 20, textAlign: 'center' }}>
+                <ShapeOutline shape={pendingShape} size={84} />
+                <h3 style={{ fontSize: 18, fontWeight: 700, margin: '8px 0 4px' }}>Choose your {SHAPE_LABEL[pendingShape] || pendingShape} size</h3>
+                <p style={{ fontSize: 13.5, color: C.muted, margin: '0 0 14px' }}>Then you&apos;ll upload your photo.</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+                  {(SIZES[pendingShape] || []).map((sz) => (
+                    <button key={sz.id} type="button"
+                      onClick={() => { trackGA('select_size', { shape: pendingShape, size_id: sz.id, via: 'size_step' }); setPendingSizeId(sz.id); }}
+                      style={{ background: C.white, border: '1.5px solid ' + C.border, borderRadius: 12, padding: '12px 10px', cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: C.text }}>{sz.label}</div>
+                      <div style={{ fontSize: 12, color: C.muted, margin: '4px 0' }}>{SIZE_USE[sz.id] || ''}</div>
+                      <div style={{ fontWeight: 700, fontSize: 16, color: C.brand }}>{'$' + sz.price.toFixed(2)}</div>
+                    </button>
+                  ))}
+                </div>
+                <button type="button" onClick={() => { setPendingShape(null); setStep(0); window.scrollTo({ top: 0 }); }}
+                  style={{ marginTop: 14, background: 'none', border: 'none', color: C.muted, fontSize: 13, textDecoration: 'underline', cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }}>
+                  ← Choose a different shape
+                </button>
+              </div>
+            )}
             {orderMode === 'editor' && pendingShape && pendingSizeId && (() => {
               const pSizes = SIZES[pendingShape] || [];
               const pSel = pSizes.find(s => s.id === pendingSizeId);
@@ -4924,7 +4954,7 @@ export default function EdiblePrintApp() {
 
             {orderMode === 'editor' ? (
               <>
-                {designs.length < 5 && (
+                {designs.length < 5 && !(pendingShape && !pendingSizeId) && (
                   <div
                     onClick={() => { if (!preparingFile) fileRef.current?.click(); }}
                     onDrop={handleDrop}
@@ -4957,7 +4987,7 @@ export default function EdiblePrintApp() {
                 )}
                 <input ref={fileRef} type="file" accept="image/*,.pdf" onChange={handleFile} style={{ display: 'none' }} />
 
-                {designs.length < 5 && (
+                {designs.length < 5 && !(pendingShape && !pendingSizeId) && (
                   <button onClick={addTextOnlyDesign} style={{
                     width: '100%', marginTop: 12, padding: '14px 24px', borderRadius: 14,
                     border: '1.5px dashed ' + C.border, background: C.white, cursor: 'pointer',

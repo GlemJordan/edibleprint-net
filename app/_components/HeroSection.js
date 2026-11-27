@@ -18,6 +18,15 @@ const SLIDES = [
   { tag: 'Race car cookies',   after: '/hero/ejemplo-6-after.jpg' },
 ];
 
+const HOW_TO_ORDER = [
+  'Choose the shape',
+  'Choose the size',
+  'Upload & edit your image',
+  'Add your details',
+  'Pay securely',
+  'Pick up or get it shipped',
+];
+
 export default function HeroSection({ onOrderClick, onUploadFileClick, onShapeClick, shapes, cutoffMsg }) {
   const [current, setCurrent] = useState(0);
   const [afterErr, setAfterErr]   = useState({});
@@ -111,6 +120,21 @@ export default function HeroSection({ onOrderClick, onUploadFileClick, onShapeCl
           outline: 3px solid #1f5236;
           outline-offset: 2px;
         }
+        .ep-hero-steps {
+          list-style: none; margin: 0; padding: 0;
+          display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 6px 10px; max-width: 480px;
+          font-size: 13px; color: #1a2420; font-weight: 500;
+        }
+        .ep-hero-steps li { display: flex; align-items: center; gap: 6px; line-height: 1.25; }
+        .ep-hero-step-n {
+          flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%;
+          background: #1f5236; color: #fff; font-size: 11px; font-weight: 700;
+          display: inline-flex; align-items: center; justify-content: center;
+        }
+        @media (max-width: 480px) {
+          .ep-hero-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
         .ep-hero-shape-img {
           position: relative; display: block; width: 100%; aspect-ratio: 1 / 1;
           border-radius: 10px; overflow: hidden; background: #f3f3f1;
@@ -168,11 +192,11 @@ export default function HeroSection({ onOrderClick, onUploadFileClick, onShapeCl
             {shapes?.length > 0 && (
               <div style={{ marginBottom: 22 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: '#1f5236', marginBottom: 10 }}>
-                  Choose your topper
+                  Start here: choose your shape
                 </div>
                 <div className="ep-hero-shapes">
                   {shapes.map((s) => (
-                    <button key={s.shape} type="button" className="ep-hero-shape" onClick={() => onShapeClick?.(s.shape, s.sizeId)}>
+                    <button key={s.shape} type="button" className="ep-hero-shape" onClick={() => onShapeClick?.(s.shape)}>
                       <span className="ep-hero-shape-img">
                         <Image src={s.img} alt={s.label} fill sizes="120px" style={{ objectFit: 'cover' }} />
                       </span>
@@ -184,16 +208,27 @@ export default function HeroSection({ onOrderClick, onUploadFileClick, onShapeCl
               </div>
             )}
 
-            {/* Reviews pill */}
+            {/* How ordering works, in six short steps */}
+            <div style={{ marginBottom: 18 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: '#1f5236', marginBottom: 8 }}>
+                How to order
+              </div>
+              <ol className="ep-hero-steps">
+                {HOW_TO_ORDER.map((label, i) => (
+                  <li key={label}><span className="ep-hero-step-n">{i + 1}</span>{label}</li>
+                ))}
+              </ol>
+            </div>
+
+            {/* Quality note (replaces the reviews pill; plain text, no link) */}
             <div style={{
               display: 'inline-flex', alignItems: 'center', gap: 8,
               background: '#fff', border: '1px solid #d9e2d6', borderRadius: 40,
               padding: '7px 16px', marginBottom: 18,
-              fontSize: 13, fontWeight: 600,
+              fontSize: 13, fontWeight: 600, color: '#1a2420',
               boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
             }}>
-              <span style={{ color: '#e8704a', letterSpacing: 2, fontSize: 14 }}>★★★★★</span>
-              <span style={{ color: '#1a2420' }}>11 five-star reviews</span>
+              ✅ Food-safe edible inks · Printed in London, ON
             </div>
 
             {/* Not sure which one? Upload first and pick the shape later. */}
